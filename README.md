@@ -1,1 +1,1 @@
-POWER9 NX gzip programmer's manual
+POWER9 NX gzip programmer's manual (unofficial)

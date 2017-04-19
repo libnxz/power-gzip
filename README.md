@@ -1,1 +1,1 @@
-# power-gzip
+POWER9 NX gzip programmer's manual

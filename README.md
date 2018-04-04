@@ -1,1 +1,1 @@
-POWER9 NX gzip programmer's manual (under construction)
+POWER9 NX gzip software (under construction)

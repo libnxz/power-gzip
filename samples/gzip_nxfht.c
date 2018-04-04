@@ -287,6 +287,7 @@ int compress_file(int argc, char **argv, void *handle)
 	outlen = 2*inlen + 1024; /* 1024 for header and crap */
 
 	assert(NULL != (outbuf = (char *)malloc(outlen))); /* generous malloc for testing */
+	nx_touch_pages(outbuf, outlen, pagelen, 1);
 
 	NX_CLK( memset(&td, 0, sizeof(td)) );
 	NX_CLK( (td.freq = nx_get_freq())  );
@@ -320,9 +321,11 @@ int compress_file(int argc, char **argv, void *handle)
 		NX_CLK( (td.touch1 = nx_get_time()) );
 
 		/* Page faults are handled by the user code */		
-		/* Fault-in pages; an improved code wouldn't touch so many pages
-		   but would try to estimate the compression ratio and adjust
-		   both the src and dst touch amounts */
+
+		/* Fault-in pages; an improved code wouldn't touch so
+		   many pages but would try to estimate the
+		   compression ratio and adjust both the src and dst
+		   touch amounts */
 		nx_touch_pages (srcbuf, srclen, pagelen, 0);
 		nx_touch_pages (dstbuf, dstlen, pagelen, 1);	    
 
@@ -419,12 +422,13 @@ int compress_file(int argc, char **argv, void *handle)
 
 	fprintf(stderr, "compressed %ld to %ld bytes total, crc32=%08x\n", srctotlen, dsttotlen, crc);
 
-	NX_CLK( fprintf(stderr, "ibytes %ld obytes %ld\n", srctotlen, dsttotlen) );
-	NX_CLK( fprintf(stderr, "freq   %ld ticks/sec\n", td.freq)    );						
-	NX_CLK( fprintf(stderr, "sub %ld %ld ticks %ld count\n", td.sub2, td.sub3, td.subc) );
-	NX_CLK( fprintf(stderr, "touch %ld ticks\n", td.touch2)     );
-	NX_CLK( fprintf(stderr, "fault %ld ticks\n", td.fault)     );	
-	NX_CLK( fprintf(stderr, "%g byte/sec\n", (double)srctotlen/((double)td.sub2/(double)td.freq)) );
+	NX_CLK( fprintf(stderr, "COMP ofile %s ", outname) );	
+	NX_CLK( fprintf(stderr, "ibytes %ld obytes %ld ", srctotlen, dsttotlen) );
+	NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );						
+	NX_CLK( fprintf(stderr, "sub %ld %ld ticks %ld count ", td.sub2, td.sub3, td.subc) );
+	NX_CLK( fprintf(stderr, "touch %ld ticks ", td.touch2)     );
+	NX_CLK( fprintf(stderr, "fault %ld ticks ", td.fault)     );	
+	NX_CLK( fprintf(stderr, "%g byte/s\n", (double)srctotlen/((double)td.sub2/(double)td.freq)) );
 	
 	if (NULL != inbuf) free(inbuf);
 	if (NULL != outbuf) free(outbuf);    

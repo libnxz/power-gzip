@@ -919,15 +919,17 @@ restart_nx:
 
  	putp32(ddl_in, ddebc, source_sz);  
 
-	NX_CLK( (td.sub1 = nx_get_time()) );
-	NX_CLK( (td.subc += 1) );
-
+	NX_CLK( (td.touch1 = nx_get_time()) );	
+	
 	/* fault in pages */
 	nx_touch_pages_dde(ddl_in, 0, page_sz, 0);
 	nx_touch_pages_dde(ddl_out, target_sz_estimate, page_sz, 1);
 
-	NX_CLK( (td.touch2 += (nx_get_time() - td.sub1)) );	
+	NX_CLK( (td.touch2 += (nx_get_time() - td.touch1)) );	
 
+	NX_CLK( (td.sub1 = nx_get_time()) );
+	NX_CLK( (td.subc += 1) );
+	
 	/* send job to NX */
 	cc = nx_submit_job(ddl_in, ddl_out, cmdp, devhandle);
 
@@ -1174,12 +1176,13 @@ finish_state:
 			isize = (tail[4] | tail[5]<<8 | tail[6]<<16 | tail[7]<<24);
 			fprintf(stderr, "stored   checksum %08x isize %08x\n", cksum, isize);
 
-			NX_CLK( fprintf(stderr, "obytes %ld\n", total_out) );
-			NX_CLK( fprintf(stderr, "freq   %ld ticks/sec\n", td.freq)    );						
-			NX_CLK( fprintf(stderr, "submit %ld ticks %ld count\n", td.sub2, td.subc) );
-			NX_CLK( fprintf(stderr, "touch  %ld ticks\n", td.touch2)     );
-			NX_CLK( fprintf(stderr, "%g byte/sec\n", (double)total_out/((double)td.sub2/(double)td.freq)) );
-			NX_CLK( fprintf(stderr, "dbgtimer %ld\n", dbgtimer) );
+			NX_CLK( fprintf(stderr, "DECOMP %s ", argv[1]) );			
+			NX_CLK( fprintf(stderr, "obytes %ld ", total_out) );
+			NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );	
+			NX_CLK( fprintf(stderr, "submit %ld ticks %ld count ", td.sub2, td.subc) );
+			NX_CLK( fprintf(stderr, "touch  %ld ticks ", td.touch2)     );
+			NX_CLK( fprintf(stderr, "%g byte/s\n", (double)total_out/((double)td.sub2/(double)td.freq)) );
+			/* NX_CLK( fprintf(stderr, "dbgtimer %ld\n", dbgtimer) ); */
 
 			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(total_out % (1ULL<<32))) {
 				rc = 0;	goto ok1;

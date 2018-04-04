@@ -126,6 +126,7 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	uint64_t t;
 	
 #define CSB_MAX_POLL 200000000UL
+#define USLEEP_TH     300000UL
 
 	t = __ppc_get_timebase();
 	
@@ -133,17 +134,19 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	{
 		++poll;
 
-		/* usleep(0) takes around 29000 ticks ~60 us */
-		if ( (__ppc_get_timebase() - t) > 30000UL)
+		/* usleep(0) takes around 29000 ticks ~60 us.
+		   300000 is spinning for about 600 us then
+		   start sleeping */
+		if ( (__ppc_get_timebase() - t) > USLEEP_TH)
 			usleep(1);
 
 		if( poll > CSB_MAX_POLL )
 			break;
-#if 0
+
 		/* CRB stamp should tell me the fault address */
-		if( get64( cmdp->crb.stamp.nx, fsa ) )	
-			return -EAGAIN;
-#endif
+		/* if( get64( cmdp->crb.stamp.nx, fsa ) )	
+		   return -EAGAIN; */
+
 		/* fault address from signal handler */		
 		if( nx_fault_storage_address )
 			return -EAGAIN;

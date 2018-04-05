@@ -1,4 +1,4 @@
-#
+##
 set title noenhanced "p9 decompress Z_files.tar"
 !grep DECOMP runs2.txt > tmp2.log
 !grep -A 1 gunzip runsgz.txt | grep -v gunzip | grep -v "\-\-" > tmp3.log

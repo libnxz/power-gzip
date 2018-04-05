@@ -71,6 +71,7 @@ struct _nx_time_dbg {
 	uint64_t freq;
 	uint64_t sub1, sub2, subc;
 	uint64_t touch1, touch2;
+	uint64_t faultc, targetlenc, datalenc;
 } td;
 extern uint64_t dbgtimer;
 #endif	
@@ -819,13 +820,13 @@ decomp_state:
 		put32(cmdp->cpb, out_crc, INIT_CRC );
 		put32(cmdp->cpb, out_adler, INIT_ADLER);
 
-		/* Assuming 25% compression ratio initially; I use the
+		/* Assuming 10% compression ratio initially; I use the
 		   most recently measured compression ratio as a
 		   heuristic to estimate the input and output
 		   sizes. If we give too much input, the target buffer
 		   overflows and NX cycles are wasted, and then we
-		   must retry with smaller input size */
-		last_comp_ratio = 250UL;
+		   must retry with smaller input size. 1000 is 100%  */
+		last_comp_ratio = 100UL;
 	}
 	cmdp->crb.gzip_fc = 0;   
 	putnn(cmdp->crb, gzip_fc, fc);
@@ -943,6 +944,7 @@ restart_nx:
 		   be here. But may be some pages were paged out. Kernel should have 
 		   placed the faulting address to fsaddr */
 		NXPRT( fprintf(stderr, "ERR_NX_TRANSLATION %p\n", (void *)cmdp->crb.csb.fsaddr) );
+		NX_CLK( (td.faultc += 1) );
 
 		/* Touch 1 byte, read-only  */
 		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, page_sz, 0);
@@ -971,7 +973,8 @@ restart_nx:
 	case ERR_NX_DATA_LENGTH:
 
 		NXPRT( fprintf(stderr, "ERR_NX_DATA_LENGTH\n") );
-
+		NX_CLK( (td.datalenc += 1) );
+		
 		/* Not an error in the most common case; it just says 
 		   there is trailing data that we must examine */
 
@@ -1000,7 +1003,9 @@ restart_nx:
 		
 	case ERR_NX_TARGET_SPACE:
 
-		/* Target buffer not large enough; retry smaller input data; give at least 1 byte */
+		NX_CLK( (td.targetlenc += 1) );		
+		/* Target buffer not large enough; retry smaller input
+		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > history_len );
 		source_sz = ((source_sz - history_len + 2) / 2) + history_len;
 		NXPRT( fprintf(stderr, "ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, history_len) );
@@ -1181,7 +1186,8 @@ finish_state:
 			NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );	
 			NX_CLK( fprintf(stderr, "submit %ld ticks %ld count ", td.sub2, td.subc) );
 			NX_CLK( fprintf(stderr, "touch  %ld ticks ", td.touch2)     );
-			NX_CLK( fprintf(stderr, "%g byte/s\n", (double)total_out/((double)td.sub2/(double)td.freq)) );
+			NX_CLK( fprintf(stderr, "%g byte/s ", (double)total_out/((double)td.sub2/(double)td.freq)) );
+			NX_CLK( fprintf(stderr, "fault %ld target %ld datalen %ld\n", td.faultc, td.targetlenc, td.datalenc) );
 			/* NX_CLK( fprintf(stderr, "dbgtimer %ld\n", dbgtimer) ); */
 
 			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(total_out % (1ULL<<32))) {

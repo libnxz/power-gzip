@@ -555,8 +555,8 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	/* allocate one page larger to prevent page faults due to NX overfetching */
 	/* either do this (char*)(uintptr_t)aligned_alloc or use
 	   -std=c11 flag to make the int-to-pointer warning go away */
-	assert( NULL != (fifo_in  = (char *)(uintptr_t)aligned_alloc(page_sz, fifo_in_len + page_sz) ) );
-	assert( NULL != (fifo_out = (char *)(uintptr_t)aligned_alloc(page_sz, fifo_out_len + page_sz + line_sz) ) );
+	assert( NULL != (fifo_in  = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_in_len + page_sz) ) );
+	assert( NULL != (fifo_out = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_out_len + page_sz + line_sz) ) );
 	fifo_out = fifo_out + line_sz; /* leave unused space due to history rounding rules */
 	nx_touch_pages(fifo_out, fifo_out_len, page_sz, 1);		
 #endif
@@ -915,6 +915,14 @@ decomp_state:
 	/* Kernel doesn't handle NX page faults. Expects user code to
 	   touch pages */
 	pgfault_retries = retry_max;
+
+#ifndef REPCNT	
+#define REPCNT 1L
+#endif
+#ifdef REPEATING
+	/* this is for bandwidth measurement of multiple jobs only */
+	int repeat_count = 0;
+#endif
 	
 restart_nx:
 
@@ -990,8 +998,13 @@ restart_nx:
 			subc = getnn(cmdp->cpb, out_subc); /* Table 6-4 */
 			spbc = get32(cmdp->cpb, out_spbc_decomp);
 			tpbc = get32(cmdp->crb.csb, tpbc);
-			ASSERT(target_max >= tpbc);			
+			ASSERT(target_max >= tpbc);
+#ifndef REPEATING			
 			goto ok_cc3; /* not an error */
+#else
+			if (++repeat_count < REPCNT) goto restart_nx;
+			else goto ok_cc3;
+#endif
 		}
 		else {
 			/* History length error when CE(1)=1 CE(0)=0. 
@@ -1182,11 +1195,11 @@ finish_state:
 			fprintf(stderr, "stored   checksum %08x isize %08x\n", cksum, isize);
 
 			NX_CLK( fprintf(stderr, "DECOMP %s ", argv[1]) );			
-			NX_CLK( fprintf(stderr, "obytes %ld ", total_out) );
+			NX_CLK( fprintf(stderr, "obytes %ld ", total_out*REPCNT) );
 			NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );	
 			NX_CLK( fprintf(stderr, "submit %ld ticks %ld count ", td.sub2, td.subc) );
 			NX_CLK( fprintf(stderr, "touch  %ld ticks ", td.touch2)     );
-			NX_CLK( fprintf(stderr, "%g byte/s ", (double)total_out/((double)td.sub2/(double)td.freq)) );
+			NX_CLK( fprintf(stderr, "%g byte/s ", ((double)total_out*REPCNT)/((double)td.sub2/(double)td.freq)) );
 			NX_CLK( fprintf(stderr, "fault %ld target %ld datalen %ld\n", td.faultc, td.targetlenc, td.datalenc) );
 			/* NX_CLK( fprintf(stderr, "dbgtimer %ld\n", dbgtimer) ); */
 

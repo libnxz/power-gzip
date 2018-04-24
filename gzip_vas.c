@@ -29,6 +29,8 @@
 #include <sys/platform/ppc.h>
 
 #define barrier()
+#define hwsync()    asm volatile("hwsync" ::: "memory")
+
 
 void *nx_fault_storage_address;
 uint64_t dbgtimer=0;
@@ -133,7 +135,8 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	while( getnn( cmdp->crb.csb, csb_v ) == 0 )
 	{
 		++poll;
-
+		hwsync();
+		
 		/* usleep(0) takes around 29000 ticks ~60 us.
 		   300000 is spinning for about 600 us then
 		   start sleeping */
@@ -175,20 +178,20 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 	struct nx_handle *nxhandle = handle;
 
 	i = 0;
-	retries = 5;
+	retries = 5000;
 	while (i++ < retries) {
 		uint64_t t;
 
 		/* t = __ppc_get_timebase(); */
-		
+		hwsync();
 		vas_copy( &cmdp->crb, 0);
 		ret = vas_paste(nxhandle->paste_addr, 0);
-
+		hwsync();
 		/* dbgtimer +=  __ppc_get_timebase() - t; */
 		
 		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
 
-		if (ret == 2) {
+		if (ret == 2 || ret == 3) {
 
 #ifdef NX_JOB_CALLBACK			
 			if (!!callback && !once) {
@@ -210,11 +213,17 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 				*(long *)nx_fault_storage_address = x;
 				nx_fault_storage_address = 0;
 				continue;
-			} else
+			}
+			else {
+				fprintf( stderr, "wait_for_csb() returns %d\n", ret);
 				break;
+			}
 		} else {
-			fprintf( stderr, "Paste attempt %d/%d, failed\n", i, retries);
-			usleep(10);
+			static unsigned int pr=0;
+			if (pr++ % 100 == 0) {
+				fprintf( stderr, "Paste attempt %d/%d, failed pid= %d\n", i, retries, getpid());
+			}
+			usleep(1);
 			continue;
 		}
 	}

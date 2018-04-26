@@ -327,7 +327,7 @@ static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 	cmdp->crb.source_dde = *src;
 	cmdp->crb.target_dde = *dst;
 
-	/* status, output bytes in tpbc */
+	/* status, output byte count in tpbc */
 	csbaddr = ((uint64_t) &cmdp->crb.csb) & csb_address_mask;
 	put64(cmdp->crb, csb_address, csbaddr);
 
@@ -336,6 +336,10 @@ static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 	cmdp->cpb.out_spbc_comp_with_count = 0;
 	cmdp->cpb.out_spbc_decomp = 0;
 
+	/* clear output */
+	put32(cmdp->cpb, out_crc, INIT_CRC );
+	put32(cmdp->cpb, out_adler, INIT_ADLER);
+	
 	NXPRT( nx_print_dde(src, "source") );
 	NXPRT( nx_print_dde(dst, "target") );
 	

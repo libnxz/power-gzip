@@ -157,7 +157,7 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	}
 
 	/* hw has updated csb and output buffer */
-	barrier();
+	hwsync();
 
 	/* check CSB flags */
 	if( getnn( cmdp->crb.csb, csb_v ) == 0 ) {
@@ -191,7 +191,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 		
 		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
 
-		if (ret == 2 || ret == 3) {
+		if (ret & 2) {
 
 #ifdef NX_JOB_CALLBACK			
 			if (!!callback && !once) {
@@ -219,11 +219,21 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 				break;
 			}
 		} else {
-			static unsigned int pr=0;
-			if (pr++ % 100 == 0) {
-				fprintf( stderr, "Paste attempt %d/%d, failed pid= %d\n", i, retries, getpid());
+			if (i < 10) {
+				/* spin for few ticks */
+#define SPIN_TH 500UL
+				uint64_t fail_spin;											
+				fail_spin = __ppc_get_timebase();
+				while ( (__ppc_get_timebase() - fail_spin) < SPIN_TH ) {;}
 			}
-			usleep(1);
+			else {
+				/* sleep */
+				static unsigned int pr=0;
+				if (pr++ % 100 == 0) {
+					fprintf( stderr, "Paste attempt %d/%d, failed pid= %d\n", i, retries, getpid());
+				}
+				usleep(1);
+			}
 			continue;
 		}
 	}

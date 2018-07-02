@@ -36,6 +36,8 @@
  *
  */
 
+#include "nxu.h"
+
 #ifndef _NX_ZLIB_H
 #define _NX_ZLIB_H
 
@@ -55,7 +57,6 @@
 
 /* debug flags for libnx */
 #define NX_VERBOSE_LIBNX_MASK   0x000000ff
-
 #define NX_DEVICES_MAX 256
 
 /* using zlib definitions */
@@ -63,15 +64,31 @@
 #define WRAP_ZLIB  1
 #define WRAP_GZIP  2
 
-/* gzip_vas.c */
-extern void *nx_fault_storage_address;
-extern void *nx_function_begin(int function, int pri);
-extern int nx_function_end(void *vas_handle);
+extern FILE *nx_gzip_log;
 
-/* zlib crc32.c and adler32.c */
-extern unsigned long nx_crc32_combine(unsigned long crc1, unsigned long crc2, uint64_t len2);
-extern unsigned long nx_adler32_combine(unsigned long adler1, unsigned long adler2, uint64_t len2);
-extern unsigned long nx_crc32(unsigned long crc, const unsigned char *buf, uint64_t len);
+/* common config variables for all streams */
+struct nx_config_t {
+	long     page_sz;
+	int      line_sz;
+	int      stored_block_len;
+	uint32_t max_byte_count_low;
+	uint32_t max_byte_count_high;
+	uint32_t max_byte_count_current;
+	uint32_t max_source_dde_count;
+	uint32_t max_target_dde_count;
+	uint32_t per_job_len;          /* less than suspend limit */
+	uint32_t strm_bufsz;
+	uint32_t soft_copy_threshold;  /* choose memcpy or hwcopy */
+	uint32_t compress_threshold;   /* collect as much input */
+	int 	 inflate_fifo_in_len;
+	int 	 inflate_fifo_out_len;
+	int      retry_max;
+	int      window_max;
+	int      pgfault_retries;         
+	int      verbose;
+};
+typedef struct nx_config_t *nx_configp_t;
+extern struct nx_config_t nx_config;
 
 /* NX device handle */
 struct nx_dev_t {
@@ -290,5 +307,24 @@ typedef enum {
 	inf_state_buf_error,
 	inf_state_stream_error,			
 } inf_state_t;
-	
+
+/* gzip_vas.c */
+extern void *nx_fault_storage_address;
+extern void *nx_function_begin(int function, int pri);
+extern int nx_function_end(void *vas_handle);
+
+/* zlib crc32.c and adler32.c */
+extern unsigned long nx_crc32_combine(unsigned long crc1, unsigned long crc2, uint64_t len2);
+extern unsigned long nx_adler32_combine(unsigned long adler1, unsigned long adler2, uint64_t len2);
+extern unsigned long nx_crc32(unsigned long crc, const unsigned char *buf, uint64_t len);
+
+/* nx_zlib.c */
+extern nx_devp_t nx_open(int nx_id);
+extern int nx_close(nx_devp_t nxdevp);
+extern int nx_touch_pages(void *buf, long buf_len, long page_len, int wr);
+extern void *nx_alloc_buffer(uint32_t len, long alignment, int lock);
+extern void nx_free_buffer(void *buf, uint32_t len, int unlock);
+extern int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *handle);
+
+
 #endif /* _NX_ZLIB_H */

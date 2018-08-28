@@ -59,10 +59,10 @@
 #define NX_VERBOSE_LIBNX_MASK   0x000000ff
 #define NX_DEVICES_MAX 256
 
-/* using zlib definitions */
-#define WRAP_RAW   0
-#define WRAP_ZLIB  1
-#define WRAP_GZIP  2
+/* deflate header */
+#define HEADER_RAW   0
+#define HEADER_ZLIB  1
+#define HEADER_GZIP  2
 
 extern FILE *nx_gzip_log;
 

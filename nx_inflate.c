@@ -104,15 +104,15 @@ int nx_inflateReset2(z_streamp strm, int windowBits)
 	
 	/* extract wrap request from windowBits parameter */
 	if (windowBits < 0) {
-		wrap = WRAP_RAW;
+		wrap = HEADER_RAW;
 		windowBits = -windowBits;
 	}
 	else if (windowBits >= 8 && windowBits <= 15)
-		wrap = WRAP_ZLIB;
+		wrap = HEADER_ZLIB;
 	else if (windowBits >= 8+16 && windowBits <= 15+16)
-		wrap = WRAP_GZIP;
+		wrap = HEADER_GZIP;
 	else if (windowBits >= 8+32 && windowBits <= 15+32)
-		wrap = WRAP_ZLIB | WRAP_GZIP; /* auto detect header */
+		wrap = HEADER_ZLIB | HEADER_GZIP; /* auto detect header */
 	else
 		return Z_STREAM_ERROR;
 
@@ -244,18 +244,16 @@ int nx_inflate(z_streamp strm, int flush)
 		strm->msg = (char *)"Z_BLOCK or Z_TREES not implemented";
 		return Z_STREAM_ERROR;
 	}
-
 	
 inf_forever:
-	/* using gotos because it's a state machine and also don't
-	 * want too much indentation due to all the zlib states */
-
+	/* inflate state machine */
+	
 	switch (s->inf_state) {
 		unsigned int c, copy;
 
 	case inf_state_header:
 
-		if (s->wrap == (WRAP_ZLIB | WRAP_GZIP)) {
+		if (s->wrap == (HEADER_ZLIB | HEADER_GZIP)) {
 			/* auto detect zlib/gzip */
 			nx_inflate_get_byte(s, c);
 			if (c == 0x1f) /* looks like gzip */
@@ -268,13 +266,13 @@ inf_forever:
 				s->inf_state = inf_state_data_error;
 			}
 		}
-		else if (s->wrap == WRAP_ZLIB) {
+		else if (s->wrap == HEADER_ZLIB) {
 			/* look for a zlib header */
 			s->inf_state = inf_state_zlib_id1;
 			if (s->gzhead != NULL)
 				s->gzhead->done = -1;			
 		}
-		else if (s->wrap == WRAP_GZIP) {
+		else if (s->wrap == HEADER_GZIP) {
 			/* look for a gzip header */			
 			if (s->gzhead != NULL)
 				s->gzhead->done = 0;
@@ -602,185 +600,53 @@ inf_return:
 	return rc;
 }	
 
-static int nx_inflate_(	nx_streamp state )
+
+static int nx_inflate_(nx_streamp s)
 {
-#ifdef NX_MMAP
-	int inpf;
-	int outf;
-#else
-	FILE *inpf;
-	FILE *outf;
-#endif
-	int c, expect, i, cc, rc = 0;
-	char gzfname[1024];
 
-	/* queuing, file ops, byte counting */
-	char *fifo_in, *fifo_out;
-	int used_in, cur_in, used_out, cur_out, free_in, read_sz, n;
-	int first_free, last_free, first_used, last_used;
-	int first_offset, last_offset;
-	int write_sz, free_space, copy_sz, source_sz;
-	int source_sz_estimate, target_sz_estimate;
-	uint64_t last_comp_ratio; /* 1000 max */
-	uint64_t total_out;
-	int is_final, is_eof;
-	
-	/* nx hardware */
-	int sfbt, subc, spbc, tpbc, nx_ce, fc, resuming = 0;
-	int history_len=0;
-	nx_gzip_crb_cpb_t cmd, *cmdp;
-        nx_dde_t *ddl_in;        
-        nx_dde_t dde_in[6]  __attribute__ ((aligned (128)));
-        nx_dde_t *ddl_out;
-        nx_dde_t dde_out[6] __attribute__ ((aligned (128)));
-	int pgfault_retries;
+copy_history_to_fifo_out:
+	/* if history is spanning next_out and fifo_out, then copy it
+	   to fifo_out */
+	;;
 
-	/* when using mmap'ed files */
-	off_t input_file_size;	
-	off_t input_file_offset;
-	off_t fifo_in_mmap_offset;
-	off_t fifo_out_mmap_offset;
-	size_t fifo_in_mmap_size;
-	size_t fifo_out_mmap_size;
+copy_fifo_out_to_next_out:
+	/* if fifo_out is not empty, first copy contents to
+	   next_out. Remember to keep up to last 32KB as the history
+	   in fifo_out (min(total_out, 32KB) */
+	;;
 
-	NX_CLK( memset(&td, 0, sizeof(td)) );
-	NX_CLK( (td.freq = nx_get_freq())  );
-	
-	if (argc == 1) {
-#ifndef NX_MMAP		
-		inpf = stdin;
-		outf = stdout;
-#else
-		fprintf(stderr, "mmap needs a file name");
-		return -1;
-#endif		
-	}
-	else if (argc == 2) {
-		char w[1024];
-		char *wp;
-#ifdef NX_MMAP
-		struct stat statbuf;
-		inpf = open(argv[1], O_RDONLY);
-		if (inpf < 0) {
-			perror(argv[1]);
-			return -1;
-		}
-		if (fstat(inpf, &statbuf)) {
-			perror("cannot stat file");
-			return -1;
-		}
-		input_file_size = statbuf.st_size;
-		input_file_offset = 0;
+small_next_in:
+	/* if the total input size is below some threshold, avoid
+	   accelerator overhead and memcpy next_in to fifo_in */
 
-		fifo_in_mmap_offset = 0;
-		fifo_in_mmap_size = fifo_in_len + nx_config.page_sz;
-		fifo_in = mmap(0, fifo_in_mmap_size, PROT_READ, MAP_PRIVATE, inpf, fifo_in_mmap_offset);
-		if (fifo_in == MAP_FAILED) {
-			perror("cannot mmap input file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "mmap fifo_in %p %p %lx\n", (void *)fifo_in, (void *)fifo_in + fifo_in_mmap_size, fifo_in_mmap_offset));
-#else	/* !NX_MMAP */		
-		inpf = fopen(argv[1], "r");
-		if (inpf == NULL) {
-			perror(argv[1]);
-			return -1;
-		}			
-#endif
-
-		/* make a new file name to write to; ignoring .gz stored name */
-		wp = ( NULL != (wp = strrchr(argv[1], '/')) ) ? ++wp : argv[1];
-		strcpy(w, wp);
-		strcat(w, ".nx.gunzip");
-
-#ifdef NX_MMAP
-		outf = open(w, O_RDWR|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP );
-		if (outf < 0) {
-			perror(argv[1]);
-			return -1;
-		}
-		total_out = 0;
-
-		fifo_out_mmap_offset = 0;
-		fifo_out_mmap_size = fifo_out_len + nx_config.page_sz;		
-		
-		/* since output doesn't exist yet we pick an mmap size
-		   that can be truncated at the end */
-		if (ftruncate(outf, fifo_out_mmap_size)) {
-			perror("cannot resize output");
-			return -1;
-		}
-
-		/* and get a memory address for it */
-		fifo_out = mmap(0, fifo_out_mmap_size, PROT_READ|PROT_WRITE, MAP_SHARED, outf, fifo_out_mmap_offset);
-		if (fifo_out == MAP_FAILED) {
-			perror("cannot mmap output file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "mmap fifo_out %p %p %lx\n", (void *)fifo_out, (void *)fifo_out + fifo_out_mmap_size, fifo_out_mmap_offset) );		
-#else	/* !NX_MMAP */
-		outf = fopen(w, "w");
-		if (outf == NULL) {
-			perror(w);
-			return -1;
-		}
-#endif
-	}
-
-#ifdef NX_MMAP
-#define GETINPC(X) ((input_file_offset < input_file_size) ? ((int)((char)fifo_in[input_file_offset++])) : EOF)
-#else
-#define GETINPC(X) fgetc(X)
-#endif
-	
-
-	used_in = cur_in = used_out = cur_out = 0;
-	is_final = is_eof = 0;
-#ifdef NX_MMAP
-	cur_in = input_file_offset;
-#endif	
-
-
-	
-	
-	
-	ddl_in  = &dde_in[0];
-	ddl_out = &dde_out[0];	
-	cmdp = &cmd;
-	memset( &cmdp->crb, 0, sizeof(cmdp->crb) );
-	
-read_state:
-
-
-	NXPRT( fprintf(stderr, "read_state:\n") );	
-	
-	if (is_eof != 0) goto write_state;
-
-	/* TODO use config variable instead of 1024 */	
+	/* TODO use config variable instead of 1024 */
+	/* used_in is the data amount waiting in fifo_in; avail_in is
+	   the data amount waiting in the user buffer next_in */
 	if (used_in < 1024 && avail_in < 1024) {
 
-		/* If the input is too small, accumulate in fifo_in
-		   with memcpy.  If the input is small but fifo_in is
-		   above some threshold do not memcpy; will append the
-		   small buffer to the tail of the DDL for hardware
+		/* If the input is small but fifo_in is above some
+		   threshold do not memcpy; append the small
+		   buffer to the tail of the DDL and submit hardware
 		   decomp */
 		
-		/* free space total is reduced by a line size gap */
+		/* Leave a line size gap between tail and head to avoid prefetch */
 		free_space = NX_MAX( 0, fifo_free_bytes(used_in, fifo_in_len) - line_sz);
 
-		/* free space may wrap around as first and last buffers */
+		/* free space may wrap around. first is the first
+		   portion and last is the wrapped portion */
 		first_free = fifo_free_first_bytes(cur_in, used_in, fifo_in_len);
 		last_free  = fifo_free_last_bytes(cur_in, used_in, fifo_in_len);
 
-		/* start offsets of the free memory in the first and last */
+		/* start offsets of the first free and last free */
 		first_offset = fifo_free_first_offset(cur_in, used_in);
 		last_offset  = fifo_free_last_offset(cur_in, used_in, fifo_in_len);
 
-		/* reduce read_sz because of the line_sz gap */
+		/* read size is the adjusted amount to copy from
+		   next_in; adjusted because of the line_sz gap */
 		read_sz = NX_MIN(NX_MIN(free_space, first_free), avail_in);
 
 		if (read_sz > 0) {
-			/* read in to offset cur_in + used_in */
+			/* copy from next_in to the offset cur_in + used_in */
 			memcpy(fifo_in + first_offset, next_in, read_sz);
 			used_in = used_in + read_sz;
 			free_space = free_space - read_sz;
@@ -817,96 +683,6 @@ read_state:
 		   around */
 	}
 	
-
-write_state:
-
-	NXPRT( fprintf(stderr, "write_state:\n") );
-	
-	if (used_out == 0) goto decomp_state;
-
-#ifndef NX_MMAP	
-	/* If fifo_out has data waiting, write it out to the file to
-	   make free target space for the accelerator used bytes in
-	   the first and last parts of fifo_out */
-
-	first_used = fifo_used_first_bytes(cur_out, used_out, fifo_out_len);
-	last_used  = fifo_used_last_bytes(cur_out, used_out, fifo_out_len);
-
-	write_sz = first_used;
-
-	n = 0;
-	if (write_sz > 0) {
-		n = fwrite(fifo_out + cur_out, 1, write_sz, outf);
-		used_out = used_out - n; 
-		cur_out = (cur_out + n) % fifo_out_len; /* move head of the fifo */
-		ASSERT(n <= write_sz);
-		if (n != write_sz) {
-			fprintf(stderr, "error: write\n");
-			rc = -1;
-			goto err5;
-		}
-	}
-	
-	if (last_used > 0) { /* if more data available in the last part */
-		write_sz = last_used; /* keep it here for later */
-		n = 0;		
-		if (write_sz > 0) {
-			n = fwrite(fifo_out, 1, write_sz, outf);
-			used_out = used_out - n; 
-			cur_out = (cur_out + n) % fifo_out_len;		
-			ASSERT(n <= write_sz);
-			if (n != write_sz) {
-				fprintf(stderr, "error: write\n");
-				rc = -1;
-				goto err5;				
-			}
-		}
-	}
-	
-	/* reset the fifo tail to reduce unnecessary wrap arounds
-	   cur_out = (used_out == 0) ? 0 : cur_out; */
-
-#else  /* NX_MMAP */
-
-	cur_out = (int)(total_out - fifo_out_mmap_offset);	
-	/* valid bytes from beginning of the mmap window to cur_out */
-	used_out = 0;
-
-	ASSERT( fifo_out_len > 2*page_sz );
-	if (cur_out > (fifo_out_len - 2*page_sz)) {
-		/* when near the tail of the mmap'ed region move the mmap window */
-		if (munmap(fifo_out, fifo_out_mmap_size)) {
-			perror("munmap");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "munmap %p %p\n", (void *)fifo_out, (void *)fifo_out + fifo_out_mmap_size) ); 
-		/* round down to page boundary; keep a page from behind for the LZ history */
-		if (total_out > page_sz)
-			fifo_out_mmap_offset = ( ((off_t)total_out - page_sz) / page_sz) * page_sz;
-		else
-			fifo_out_mmap_offset = 0;
-
-		fifo_out_mmap_size = fifo_out_len + page_sz;
-
-		/* resize output file */
-		if (ftruncate(outf, fifo_out_mmap_offset + fifo_out_mmap_size)) {
-			perror("cannot resize output");
-			return -1;
-		}
-
-		fifo_out = mmap(0, fifo_out_mmap_size, PROT_READ|PROT_WRITE, MAP_SHARED, outf, fifo_out_mmap_offset);
-		if (fifo_out == MAP_FAILED) {
-			perror("cannot mmap input file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr,"mmap fifo_out %p %p %lx\n", (void *)fifo_out, (void *)fifo_out + fifo_out_mmap_size,fifo_out_mmap_offset));
-
-		cur_out = (int)(total_out - fifo_out_mmap_offset);
-		used_out = 0; 
-	}
-	
-#endif /* NX_MMAP */	
-
 decomp_state:
 
 	/* NX decompresses input data */
@@ -922,7 +698,7 @@ decomp_state:
 	/* FC, CRC, HistLen, Table 6-6 */
 	if (resuming) {
 		/* Resuming a partially decompressed input.
-		   The key to resume is supplying the 32KB
+		   The key to resume is supplying the max 32KB
 		   dictionary (history) to NX, which is basically
 		   the last 32KB of output produced. 
 		*/
@@ -945,10 +721,8 @@ decomp_state:
 			else {
 				nx_append_dde(ddl_in, fifo_out + ((fifo_out_len + cur_out) - history_len),
 					      history_len - cur_out);
-#ifndef NX_MMAP			
 				/* Up to 32KB history wraps around fifo_out */
 				nx_append_dde(ddl_in, fifo_out, cur_out);
-#endif				
 			}
 
 		}
@@ -982,11 +756,7 @@ decomp_state:
 	 * NX source buffers
 	 */
 	first_used = fifo_used_first_bytes(cur_in, used_in, fifo_in_len);
-#ifndef NX_MMAP	
 	last_used = fifo_used_last_bytes(cur_in, used_in, fifo_in_len);
-#else
-	last_used = 0;
-#endif
 	
 	if (first_used > 0)
 		nx_append_dde(ddl_in, fifo_in + cur_in, first_used);
@@ -998,18 +768,11 @@ decomp_state:
 	 * NX target buffers
 	 */
 	first_free = fifo_free_first_bytes(cur_out, used_out, fifo_out_len);
-#ifndef NX_MMAP	
 	last_free = fifo_free_last_bytes(cur_out, used_out, fifo_out_len);
-#else
-	last_free = 0;
-#endif
 
-#ifndef NX_MMAP	
 	/* reduce output free space amount not to overwrite the history */
 	int target_max = NX_MAX(0, fifo_free_bytes(used_out, fifo_out_len) - (1<<16));
-#else
-	int target_max = first_free; /* no wrap-around in the mmap case */
-#endif
+
 	NXPRT( fprintf(stderr, "target_max %d (0x%x)\n", target_max, target_max) );
 	
 	first_free = NX_MIN(target_max, first_free);
@@ -1058,15 +821,11 @@ decomp_state:
 
 	source_sz = source_sz + history_len;
 
-	/* Some NX condition codes require submitting the NX job again */
-	/* Kernel doesn't handle NX page faults. Expects user code to
-	   touch pages */
+	/* Some NX condition codes require submitting the NX job
+	  again.  Kernel doesn't fault-in NX page faults. Expects user
+	  code to touch pages */
 	pgfault_retries = retry_max;
 
-#ifndef REPCNT	
-#define REPCNT 1L
-#endif
-	
 restart_nx:
 
  	putp32(ddl_in, ddebc, source_sz);  
@@ -1082,7 +841,9 @@ restart_nx:
 	NX_CLK( (td.sub1 = nx_get_time()) );
 	NX_CLK( (td.subc += 1) );
 	
-	/* send job to NX */
+	/* 
+	 * send job to NX 
+	 */
 	cc = nx_submit_job(ddl_in, ddl_out, cmdp, devhandle);
 
 	NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );	
@@ -1091,9 +852,10 @@ restart_nx:
 
 	case ERR_NX_TRANSLATION:
 
-		/* We touched the pages ahead of time. In the most common case we shouldn't
-		   be here. But may be some pages were paged out. Kernel should have 
-		   placed the faulting address to fsaddr */
+		/* We touched the pages ahead of time. In the most
+		   common case we shouldn't be here. But may be some
+		   pages were paged out. Kernel should have placed the
+		   faulting address to fsaddr */
 		NXPRT( fprintf(stderr, "ERR_NX_TRANSLATION %p\n", (void *)cmdp->crb.csb.fsaddr) );
 		NX_CLK( (td.faultc += 1) );
 
@@ -1126,7 +888,7 @@ restart_nx:
 		NXPRT( fprintf(stderr, "ERR_NX_DATA_LENGTH\n") );
 		NX_CLK( (td.datalenc += 1) );
 		
-		/* Not an error in the most common case; it just says 
+		/* Not an error in the most common case; it just says
 		   there is trailing data that we must examine */
 
 		/* CC=3 CE(1)=0 CE(0)=1 indicates partial completion
@@ -1216,7 +978,8 @@ ok_cc3:
 		/* Supply the partially processed source byte again */
 		source_sz = source_sz - ((subc + 7) / 8);
 
-		/* SUBC LS 3bits: number of bits in the first source byte need to be processed. */
+		/* SUBC LS 3bits: number of bits in the first source
+		 * byte need to be processed. */
 		/* 000 means all 8 bits;  Table 6-3 */
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen  */
 		cmdp->cpb.in_subc = 0;
@@ -1283,106 +1046,11 @@ ok_cc3:
 offsets_state:	
 
 	/* Adjust the source and target buffer offsets and lengths  */
+	;;
 
-	NXPRT( fprintf(stderr, "offsets_state:\n") );
-
-	/* delete input data from fifo_in */
-	used_in = used_in - source_sz;
-	cur_in = (cur_in + source_sz) % fifo_in_len;
-	input_file_offset = input_file_offset + source_sz;
-
-	/* add output data to fifo_out */
-	used_out = used_out + tpbc;
-
-	ASSERT(used_out <= fifo_out_len);
-
-	total_out = total_out + tpbc;
 	
-	/* Deflate history is 32KB max. No need to supply more
-	   than 32KB on a resume */
-	history_len = (total_out > window_max) ? window_max : total_out;
-
-	/* To estimate expected expansion in the next NX job; 500 means 50%.
-	   Deflate best case is around 1 to 1000 */
-	last_comp_ratio = (1000UL * ((uint64_t)source_sz + 1)) / ((uint64_t)tpbc + 1);
-	last_comp_ratio = NX_MAX( NX_MIN(1000UL, last_comp_ratio), 1 );
-	NXPRT( fprintf(stderr, "comp_ratio %ld source_sz %d spbc %d tpbc %d\n", last_comp_ratio, source_sz, spbc, tpbc ) );
-	
-	resuming = 1;
-
-finish_state:	
-
-	NXPRT( fprintf(stderr, "finish_state:\n") );
-
-	if (is_final) {
-		if (used_out) goto write_state; /* more data to write out */
-		else if(used_in < 8) {
-			/* need at least 8 more bytes containing gzip crc and isize */
-			rc = -1;
-			goto err4;
-		}
-		else {
-			/* compare checksums and exit */
-			int i;
-			char tail[8];
-			uint32_t cksum, isize;
-			for(i=0; i<8; i++) tail[i] = fifo_in[(cur_in + i) % fifo_in_len];
-			fprintf(stderr, "computed checksum %08x isize %08x\n", cmdp->cpb.out_crc, (uint32_t)(total_out % (1ULL<<32)));
-			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16 | tail[3]<<24);
-			isize = (tail[4] | tail[5]<<8 | tail[6]<<16 | tail[7]<<24);
-			fprintf(stderr, "stored   checksum %08x isize %08x\n", cksum, isize);
-
-			NX_CLK( fprintf(stderr, "DECOMP %s ", argv[1]) );			
-			NX_CLK( fprintf(stderr, "obytes %ld ", total_out*REPCNT) );
-			NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );	
-			NX_CLK( fprintf(stderr, "submit %ld ticks %ld count ", td.sub2, td.subc) );
-			NX_CLK( fprintf(stderr, "touch  %ld ticks ", td.touch2)     );
-			NX_CLK( fprintf(stderr, "%g byte/s ", ((double)total_out*REPCNT)/((double)td.sub2/(double)td.freq)) );
-			NX_CLK( fprintf(stderr, "fault %ld target %ld datalen %ld\n", td.faultc, td.targetlenc, td.datalenc) );
-			/* NX_CLK( fprintf(stderr, "dbgtimer %ld\n", dbgtimer) ); */
-
-			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(total_out % (1ULL<<32))) {
-				rc = 0;	goto ok1;
-			}
-			else {
-				rc = -1; goto err4;
-			}
-		}
-	}
-	else goto read_state;
-	
-	return -1;
-
-err1:
-	fprintf(stderr, "error: not a gzip file, expect %x, read %x\n", expect, c);
-	return -1;
-
-err2:
-	fprintf(stderr, "error: the FLG byte is wrong or not handled by this code sample\n");
-	return -1;
-
-err3:
-	fprintf(stderr, "error: gzip header\n");
-	return -1;
-
-err4:
-	fprintf(stderr, "error: checksum\n");
-
-err5:
-ok1:
-	fprintf(stderr, "decomp is complete: fclose\n");
-#ifndef NX_MMAP	
-	fclose(outf);
-#else
-	NXPRT( fprintf(stderr, "ftruncate %ld\n", total_out) );
-	if (ftruncate(outf, (off_t)total_out)) {
-		perror("cannot resize file");
-		rc = -1;
-	}
-	close(outf);
-#endif
-	return rc;
 }
+	
 
 
 

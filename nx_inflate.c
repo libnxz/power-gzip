@@ -603,6 +603,24 @@ inf_return:
 
 static int nx_inflate_(nx_streamp s)
 {
+	/* queuing, file ops, byte counting */
+	int read_sz, n;
+	int first_free, last_free, first_used, last_used;
+	int first_offset, last_offset;
+	int write_sz, free_space, copy_sz, source_sz;
+	int source_sz_estimate, target_sz_estimate;
+	uint64_t last_comp_ratio; /* 1000 max */
+	uint64_t total_out;
+	int is_final, is_eof;
+	
+	/* nx hardware */
+	int sfbt, subc, spbc, tpbc, nx_ce, fc, resuming = 0;
+	int history_len = 0;
+	nx_gzip_crb_cpb_t cmdp = s->nxcmdp;
+        nx_dde_t *ddl_in = s->ddl_in;
+        nx_dde_t *ddl_out = s->ddl_out;
+	int pgfault_retries;
+
 
 copy_history_to_fifo_out:
 	/* if history is spanning next_out and fifo_out, then copy it
@@ -622,7 +640,7 @@ small_next_in:
 	/* TODO use config variable instead of 1024 */
 	/* used_in is the data amount waiting in fifo_in; avail_in is
 	   the data amount waiting in the user buffer next_in */
-	if (used_in < 1024 && avail_in < 1024) {
+	if (s->used_in < 1024 && s->avail_in < 1024) {
 
 		/* If the input is small but fifo_in is above some
 		   threshold do not memcpy; append the small
@@ -630,28 +648,28 @@ small_next_in:
 		   decomp */
 		
 		/* Leave a line size gap between tail and head to avoid prefetch */
-		free_space = NX_MAX( 0, fifo_free_bytes(used_in, fifo_in_len) - line_sz);
+		free_space = NX_MAX( 0, fifo_free_bytes(s->used_in, s->len_in) - nx_config.line_sz);
 
 		/* free space may wrap around. first is the first
 		   portion and last is the wrapped portion */
-		first_free = fifo_free_first_bytes(cur_in, used_in, fifo_in_len);
-		last_free  = fifo_free_last_bytes(cur_in, used_in, fifo_in_len);
+		first_free = fifo_free_first_bytes(s->cur_in, s->used_in, s->len_in);
+		last_free  = fifo_free_last_bytes(s->cur_in, s->used_in, s->len_in);
 
 		/* start offsets of the first free and last free */
-		first_offset = fifo_free_first_offset(cur_in, used_in);
-		last_offset  = fifo_free_last_offset(cur_in, used_in, fifo_in_len);
+		first_offset = fifo_free_first_offset(s->cur_in, s->used_in);
+		last_offset  = fifo_free_last_offset(s->cur_in, s->used_in, s->len_in);
 
 		/* read size is the adjusted amount to copy from
 		   next_in; adjusted because of the line_sz gap */
-		read_sz = NX_MIN(NX_MIN(free_space, first_free), avail_in);
+		read_sz = NX_MIN(NX_MIN(free_space, first_free), s->avail_in);
 
 		if (read_sz > 0) {
 			/* copy from next_in to the offset cur_in + used_in */
-			memcpy(fifo_in + first_offset, next_in, read_sz);
-			used_in = used_in + read_sz;
-			free_space = free_space - read_sz;
-			next_in = next_in + read_sz;
-			avail_in = avail_in - read_sz;
+			memcpy(s->fifo_in + first_offset, s->next_in, read_sz);
+			s->used_in  = s->used_in + read_sz;
+			free_space  = free_space - read_sz;
+			s->next_in  = s->next_in + read_sz;
+			s->avail_in = s->avail_in - read_sz;
 		}
 		else {
 			/* check if Z_FINISH is set 
@@ -662,13 +680,13 @@ small_next_in:
 
 		/* if the free space wrapped around */
 		if (last_free > 0) {
-			read_sz = NX_MIN(NX_MIN(free_space, last_free), avail_in);			
+			read_sz = NX_MIN(NX_MIN(free_space, last_free), s->avail_in);			
 			if (read_sz > 0) {
-				memcpy(fifo_in + last_offset, next_in, read_sz);
-				used_in = used_in + read_sz;       /* increase used space */
-				free_space = free_space - read_sz; /* decrease free space */
-				next_in = next_in + read_sz;
-				avail_in = avail_in - read_sz;				
+				memcpy(s->fifo_in + last_offset, s->next_in, read_sz);
+				s->used_in = s->used_in + read_sz;       /* increase used space */
+				s->free_space = s->free_space - read_sz; /* decrease free space */
+				s->next_in = s->next_in + read_sz;
+				s->avail_in = s->avail_in - read_sz;				
 			}
 			else {
 				/* check if Z_FINISH is set
@@ -697,45 +715,48 @@ decomp_state:
 	
 	/* FC, CRC, HistLen, Table 6-6 */
 	if (resuming) {
-		/* Resuming a partially decompressed input.
-		   The key to resume is supplying the max 32KB
-		   dictionary (history) to NX, which is basically
-		   the last 32KB of output produced. 
+		/* Resuming a partially decompressed input.  The key
+		   to resume is supplying the max 32KB dictionary
+		   (history) to NX, which is basically the last 32KB
+		   or less of the output earlier produced. And also
+		   make sure partial checksums are carried forward
 		*/
 		fc = GZIP_FC_DECOMPRESS_RESUME; 
 
+		/* Crc of prev job passed to the job to be resumed */
 		cmdp->cpb.in_crc   = cmdp->cpb.out_crc;
 		cmdp->cpb.in_adler = cmdp->cpb.out_adler;
 
 		/* Round up the history size to quadword. Section 2.10 */
 		history_len = (history_len + 15) / 16;
 		putnn(cmdp->cpb, in_histlen, history_len);
-		history_len = history_len * 16; /* bytes */
+		history_len = history_len * 16; /* convert to bytes */
 
 		if (history_len > 0) {
 			/* Chain in the history buffer to the DDE list */
 			if ( cur_out >= history_len ) {
-				nx_append_dde(ddl_in, fifo_out + (cur_out - history_len),
+				nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - history_len),
 					      history_len);
 			}
 			else {
-				nx_append_dde(ddl_in, fifo_out + ((fifo_out_len + cur_out) - history_len),
-					      history_len - cur_out);
+				nx_append_dde(ddl_in, s->fifo_out + ((s->len_out + s->cur_out) - history_len),
+					      history_len - s->cur_out);
 				/* Up to 32KB history wraps around fifo_out */
-				nx_append_dde(ddl_in, fifo_out, cur_out);
+				nx_append_dde(ddl_in, s->fifo_out, s->cur_out);
 			}
 
 		}
 	}
 	else {
-		/* first decompress job */
+		/* First decompress job */
 		fc = GZIP_FC_DECOMPRESS; 
 
 		history_len = 0;
-		/* writing 0 clears out subc as well */
+		/* writing a 0 clears out subc as well */
 		cmdp->cpb.in_histlen = 0;
 		total_out = 0;
-		
+
+		/* initialize the crc values */
 		put32(cmdp->cpb, in_crc, INIT_CRC );
 		put32(cmdp->cpb, in_adler, INIT_ADLER);
 		put32(cmdp->cpb, out_crc, INIT_CRC );
@@ -749,43 +770,48 @@ decomp_state:
 		   must retry with smaller input size. 1000 is 100%  */
 		last_comp_ratio = 100UL;
 	}
-	cmdp->crb.gzip_fc = 0;   
+	/* clear then copy fc to the crb */
+	cmdp->crb.gzip_fc = 0; 
 	putnn(cmdp->crb, gzip_fc, fc);
 
+	/* at this point ddl_in has the history, if any, set up */
+	
+	/* FIXME need to add next_in and next_out */
+	
 	/*
 	 * NX source buffers
 	 */
-	first_used = fifo_used_first_bytes(cur_in, used_in, fifo_in_len);
-	last_used = fifo_used_last_bytes(cur_in, used_in, fifo_in_len);
+	first_used = fifo_used_first_bytes(s->cur_in, s->used_in, s->len_in);
+	last_used = fifo_used_last_bytes(s->cur_in, s->used_in, s->len_in);
 	
 	if (first_used > 0)
-		nx_append_dde(ddl_in, fifo_in + cur_in, first_used);
+		nx_append_dde(ddl_in, s->fifo_in + s->cur_in, first_used);
 		
 	if (last_used > 0)
-		nx_append_dde(ddl_in, fifo_in, last_used);
+		nx_append_dde(ddl_in, s->fifo_in, last_used);
 
 	/*
 	 * NX target buffers
 	 */
-	first_free = fifo_free_first_bytes(cur_out, used_out, fifo_out_len);
-	last_free = fifo_free_last_bytes(cur_out, used_out, fifo_out_len);
+	first_free = fifo_free_first_bytes(s->cur_out, s->used_out, s->len_out);
+	last_free = fifo_free_last_bytes(s->cur_out, s->used_out, s->len_out);
 
 	/* reduce output free space amount not to overwrite the history */
-	int target_max = NX_MAX(0, fifo_free_bytes(used_out, fifo_out_len) - (1<<16));
+	int target_max = NX_MAX(0, fifo_free_bytes(s->used_out, s->len_out) - (1<<16));
 
 	NXPRT( fprintf(stderr, "target_max %d (0x%x)\n", target_max, target_max) );
 	
 	first_free = NX_MIN(target_max, first_free);
 	if (first_free > 0) {
-		first_offset = fifo_free_first_offset(cur_out, used_out);		
-		nx_append_dde(ddl_out, fifo_out + first_offset, first_free);
+		first_offset = fifo_free_first_offset(s->cur_out, s->used_out);		
+		nx_append_dde(ddl_out, s->fifo_out + first_offset, first_free);
 	}
 
 	if (last_free > 0) {
 		last_free = NX_MIN(target_max - first_free, last_free); 
 		if (last_free > 0) {
-			last_offset = fifo_free_last_offset(cur_out, used_out, fifo_out_len);
-			nx_append_dde(ddl_out, fifo_out + last_offset, last_free);
+			last_offset = fifo_free_last_offset(s->cur_out, s->used_out, s->len_out);
+			nx_append_dde(ddl_out, s->fifo_out + last_offset, last_free);
 		}
 	}
 

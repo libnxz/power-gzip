@@ -608,7 +608,7 @@ static int nx_inflate_(nx_streamp s)
 	int first_free, last_free, first_used, last_used;
 	int first_offset, last_offset;
 	int write_sz, free_space, copy_sz, source_sz;
-	int source_sz_estimate, target_sz_estimate;
+	int source_sz_estimate, target_sz_estimate, target_max;
 	uint64_t last_comp_ratio; /* 1000 max */
 	uint64_t total_out;
 	int is_final, is_eof;
@@ -616,10 +616,11 @@ static int nx_inflate_(nx_streamp s)
 	/* nx hardware */
 	int sfbt, subc, spbc, tpbc, nx_ce, fc, resuming = 0;
 	int history_len = 0;
-	nx_gzip_crb_cpb_t cmdp = s->nxcmdp;
+	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
         nx_dde_t *ddl_in = s->ddl_in;
         nx_dde_t *ddl_out = s->ddl_out;
 	int pgfault_retries;
+	int cc, rc;
 
 
 copy_history_to_fifo_out:
@@ -683,9 +684,9 @@ small_next_in:
 			read_sz = NX_MIN(NX_MIN(free_space, last_free), s->avail_in);			
 			if (read_sz > 0) {
 				memcpy(s->fifo_in + last_offset, s->next_in, read_sz);
-				s->used_in = s->used_in + read_sz;       /* increase used space */
-				s->free_space = s->free_space - read_sz; /* decrease free space */
-				s->next_in = s->next_in + read_sz;
+				s->used_in  = s->used_in + read_sz;       /* increase used space */
+				free_space  = free_space - read_sz; /* decrease free space */
+				s->next_in  = s->next_in + read_sz;
 				s->avail_in = s->avail_in - read_sz;				
 			}
 			else {
@@ -707,7 +708,7 @@ decomp_state:
 	
 	NXPRT( fprintf(stderr, "decomp_state:\n") );
 	
-	if (is_final) goto finish_state;
+	// FIXME if (is_final) goto finish_state;
 	
 	/* address/len lists */
 	clearp_dde(ddl_in);
@@ -734,7 +735,7 @@ decomp_state:
 
 		if (history_len > 0) {
 			/* Chain in the history buffer to the DDE list */
-			if ( cur_out >= history_len ) {
+			if ( s->cur_out >= history_len ) {
 				nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - history_len),
 					      history_len);
 			}
@@ -776,7 +777,11 @@ decomp_state:
 
 	/* at this point ddl_in has the history, if any, set up */
 	
-	/* FIXME need to add next_in and next_out */
+	/* 
+
+	   FIXME need to add next_in and next_out to ddl
+
+	*/
 	
 	/*
 	 * NX source buffers
@@ -797,7 +802,7 @@ decomp_state:
 	last_free = fifo_free_last_bytes(s->cur_out, s->used_out, s->len_out);
 
 	/* reduce output free space amount not to overwrite the history */
-	int target_max = NX_MAX(0, fifo_free_bytes(s->used_out, s->len_out) - (1<<16));
+	target_max = NX_MAX(0, fifo_free_bytes(s->used_out, s->len_out) - (1<<16));
 
 	NXPRT( fprintf(stderr, "target_max %d (0x%x)\n", target_max, target_max) );
 	
@@ -829,6 +834,26 @@ decomp_state:
 	   bandwidth. If we undershoot then we use more NX calls than
 	   necessary. */
 
+	/* 
+
+	   FIXME Need to fill in next_out then 32KB more in fifo_out.
+	   The last 32KB of output serves as a history. On the next inflate
+	   call fifo_out will also be copied to next_out.  
+
+	   We will estimate the source size so that next_out plus 32KB
+	   will equal the target size.  
+
+	   If next_out did not fill, copy the last fill part up to
+	   32KB to the history tail in fifo_out (suboptimal).  
+
+	   If next_out filled but fifo_out has less than 32KB,
+	   (history overlapping two buffers) copy the the remainder
+	   from next_out to the history tail in fifo_out.
+	   
+	   If next_out filled but fifo_out has more than 32KB (history
+	   entirely in fifo_out), no history copy is required
+
+	*/
 	source_sz_estimate = ((uint64_t)target_max * last_comp_ratio * 3UL)/4000;
 
 	if ( source_sz_estimate < source_sz ) {
@@ -870,7 +895,7 @@ restart_nx:
 	/* 
 	 * send job to NX 
 	 */
-	cc = nx_submit_job(ddl_in, ddl_out, cmdp, devhandle);
+	cc = nx_submit_job(ddl_in, ddl_out, cmdp, s->nxdevp);
 
 	NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );	
 	
@@ -905,8 +930,8 @@ restart_nx:
 			/* TODO what to do when page faults are too many?
 			   Kernel MM would have killed the process. */
 			fprintf(stderr, "cannot make progress; too many page fault retries cc= %d\n", cc);
-			rc = -1;
-			goto err5;
+			rc = Z_ERRNO;
+			// FIXME goto err5;
 		}
 
 	case ERR_NX_DATA_LENGTH:
@@ -935,9 +960,9 @@ restart_nx:
 		else {
 			/* History length error when CE(1)=1 CE(0)=0. 
 			   We have a bug */
-			rc = -1;
+			rc = Z_ERRNO;
 			fprintf(stderr, "history length error cc= %d\n", cc);
-			goto err5;
+			// FIXME goto err5;
 		}
 		
 	case ERR_NX_TARGET_SPACE:
@@ -964,8 +989,8 @@ restart_nx:
 
 	default:
 		fprintf(stderr, "error: cc= %d\n", cc);
-		rc = -1;
-		goto err5;
+		rc = Z_ERRNO;
+		// FIXME goto err5; 
 	}
 
 ok_cc3:

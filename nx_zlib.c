@@ -178,7 +178,7 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
    nx_dde_t *ddl.  If N addresses are required in the scatter-gather
    list, the ddl array must have N+1 entries minimum.
 */
-static inline uint32_t nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
+int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 {
 	uint32_t ddecnt;
 	uint32_t bytes;
@@ -244,7 +244,7 @@ static inline uint32_t nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
    
    Set buf_sz = 0 to touch all pages described by the ddep.
 */
-static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
+int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 {
 	volatile char t;
 	uint32_t indirect_count;

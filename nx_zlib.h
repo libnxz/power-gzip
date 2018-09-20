@@ -327,5 +327,6 @@ extern void nx_free_buffer(void *buf, uint32_t len, int unlock);
 extern int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *handle);
 extern int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len);
 extern int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr);
+extern int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp);
 
 #endif /* _NX_ZLIB_H */

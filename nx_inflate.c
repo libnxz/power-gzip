@@ -57,14 +57,6 @@
 #include "nx_zlib.h"
 #include "nx_dbg.h"
 
-/* TODO get these from nx_init */
-const int fifo_in_len = 1<<24;
-const int fifo_out_len = 1<<24;	
-const int page_sz = 1<<16;
-const int line_sz = 1<<7;
-const int window_max = 1<<15;
-const int retry_max = 50;
-
 int nx_inflateReset(z_streamp strm)
 {
 	nx_streamp s;
@@ -875,23 +867,16 @@ decomp_state:
 	/* Some NX condition codes require submitting the NX job
 	  again.  Kernel doesn't fault-in NX page faults. Expects user
 	  code to touch pages */
-	pgfault_retries = retry_max;
+	pgfault_retries = nx_config.retry_max;
 
 restart_nx:
 
  	putp32(ddl_in, ddebc, source_sz);  
 
-	NX_CLK( (td.touch1 = nx_get_time()) );	
-	
 	/* fault in pages */
-	nx_touch_pages_dde(ddl_in, 0, page_sz, 0);
-	nx_touch_pages_dde(ddl_out, target_sz_estimate, page_sz, 1);
+	nx_touch_pages_dde(ddl_in, 0, nx_config.page_sz, 0);
+	nx_touch_pages_dde(ddl_out, target_sz_estimate, nx_config.page_sz, 1);
 
-	NX_CLK( (td.touch2 += (nx_get_time() - td.touch1)) );	
-
-	NX_CLK( (td.sub1 = nx_get_time()) );
-	NX_CLK( (td.subc += 1) );
-	
 	/* 
 	 * send job to NX 
 	 */
@@ -911,9 +896,9 @@ restart_nx:
 		NX_CLK( (td.faultc += 1) );
 
 		/* Touch 1 byte, read-only  */
-		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, page_sz, 0);
+		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);
 
-		if (pgfault_retries == retry_max) {
+		if (pgfault_retries == nx_config.retry_max) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
 			goto restart_nx;
@@ -921,8 +906,8 @@ restart_nx:
 		else if (pgfault_retries > 0) {
 			/* if still faulting try fewer input pages
 			 * assuming memory outage */
-			if (source_sz > page_sz)
-				source_sz = NX_MAX(source_sz / 2, page_sz);
+			if (source_sz > nx_config.page_sz)
+				source_sz = NX_MAX(source_sz / 2, nx_config.page_sz);
 			--pgfault_retries;
 			goto restart_nx;
 		}
@@ -1101,7 +1086,89 @@ offsets_state:
 
 	
 }
+
+
+/* 
+   Use NX gzip wrap function to copy data.  crc and adler are output
+   checksum values only because GZIP_FC_WRAP doesn't take any initial
+   values.
+*/
+inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
+{
+	nx_gzip_crb_cpb_t cmd;
+	int cc;
+	int pgfault_retries;
+
+	pgfault_retries = nx_config.retry_max;
 	
+	ASSERT(!!dst && !!src && len > 0);
+
+ restart_copy:
+	/* setup command crb */
+	clear_struct(cmd.crb);
+	put32(cmd.crb, gzip_fc, GZIP_FC_WRAP);
+	put64(cmd.crb, csb_address, (uint64_t) &cmd.crb.csb & csb_address_mask);
+
+	putnn(cmd.crb.source_dde, dde_count, 0);          /* direct dde */
+	put32(cmd.crb.source_dde, ddebc, len);            /* bytes */
+	put64(cmd.crb.source_dde, ddead, (uint64_t) src); /* src address */
+
+	putnn(cmd.crb.target_dde, dde_count, 0); 
+	put32(cmd.crb.target_dde, ddebc, len);   
+	put64(cmd.crb.target_dde, ddead, (uint64_t) dst);
+
+	/* fault in src and target pages */
+	nx_touch_pages(dst, len, nx_config.page_sz, 1);
+	nx_touch_pages(src, len, nx_config.page_sz, 0);
+	
+	cc = nx_submit_job(&cmd.crb.source_dde, &cmd.crb.target_dde, &cmd, nxdevp);
+
+	if (cc == ERR_NX_OK) {
+		/* TODO check endianness compatible with the combine functions */
+		if (!!crc) *crc     = get32( cmd.cpb, out_crc );
+		if (!!adler) *adler = get32( cmd.cpb, out_adler );
+	}
+	else if ((cc == ERR_NX_TRANSLATION) && (pgfault_retries > 0)) {
+		--pgfault_retries;
+		goto restart_copy;
+	}
+	
+	return cc;
+}
+
+/*
+  Use NX-gzip hardware to copy src to dst. May use several NX jobs
+  crc and adler are inputs and outputs.
+*/
+int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
+{
+	int cc = ERR_NX_OK;
+	uint32_t in_crc, in_adler, out_crc, out_adler;
+
+	/* initial cksums supplied */
+	if (!!crc) in_crc = *crc;
+	if (!!adler) in_adler = *adler;
+	
+	while (len > 0) {
+		uint64_t job_len = NX_MIN((uint64_t)nx_config.per_job_len, len);
+		cc = __nx_copy(dst, src, (uint32_t)job_len, &out_crc, &out_adler, nxdevp);
+		if (cc != ERR_NX_OK)
+			return cc;
+		/* combine initial cksums with the computed cksums */
+		if (!!crc) in_crc = nx_crc32_combine(in_crc, out_crc, job_len);
+		if (!!adler) in_adler = nx_adler32_combine(in_adler, out_adler, job_len);		
+		len = len - job_len;
+		dst = dst + job_len;
+		src = src + job_len;
+	}
+	/* return final cksums */
+	if (!!crc) *crc = in_crc;
+	if (!!adler) *adler = in_adler;
+	return cc;
+}
+
+
+
 
 
 

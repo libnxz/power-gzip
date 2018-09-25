@@ -618,14 +618,18 @@ static int nx_inflate_(nx_streamp s)
 copy_history_to_fifo_out:
 	/* if history is spanning next_out and fifo_out, then copy it
 	   to fifo_out */
-	;;
+	if (1) {;}
 
 copy_fifo_out_to_next_out:
 	/* if fifo_out is not empty, first copy contents to
 	   next_out. Remember to keep up to last 32KB as the history
 	   in fifo_out (min(total_out, 32KB) */
-	;;
-
+	if (s->used_out > 0) {
+		if (s->avail_in > 0) {
+			
+		}
+	}
+	
 small_next_in:
 	/* if the total input size is below some threshold, avoid
 	   accelerator overhead and memcpy next_in to fifo_in */
@@ -633,7 +637,8 @@ small_next_in:
 	/* TODO use config variable instead of 1024 */
 	/* used_in is the data amount waiting in fifo_in; avail_in is
 	   the data amount waiting in the user buffer next_in */
-	if (s->used_in < 1024 && s->avail_in < 1024) {
+	if (s->used_in < nx_config.soft_copy_threshold &&
+	    s->avail_in < nx_config.soft_copy_threshold) {
 
 		/* If the input is small but fifo_in is above some
 		   threshold do not memcpy; append the small
@@ -1145,10 +1150,15 @@ int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, 
 	int cc = ERR_NX_OK;
 	uint32_t in_crc, in_adler, out_crc, out_adler;
 
-	/* initial cksums supplied */
+	if (len < nx_config.soft_copy_threshold && !crc && !adler) {
+		memcpy(dst, src, len);
+		return cc;
+	}
+	
+	/* caller supplies initial cksums */
 	if (!!crc) in_crc = *crc;
 	if (!!adler) in_adler = *adler;
-	
+	    
 	while (len > 0) {
 		uint64_t job_len = NX_MIN((uint64_t)nx_config.per_job_len, len);
 		cc = __nx_copy(dst, src, (uint32_t)job_len, &out_crc, &out_adler, nxdevp);

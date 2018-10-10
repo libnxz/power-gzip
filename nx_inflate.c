@@ -56,6 +56,32 @@
 #include "nx-gzip.h"
 #include "nx_zlib.h"
 #include "nx_dbg.h"
+static int nx_inflate_(nx_streamp s);
+
+// FIXME: Define zcalloc and zcfree temporarily here for test
+voidpf zcalloc(voidpf opaque, unsigned items, unsigned size)
+{
+	(void)opaque;
+	return sizeof(uInt) > 2 ? (voidpf)malloc(items * size):(voidpf)calloc(items, size);
+}
+
+void zcfree (voidpf opaque, voidpf ptr)
+{
+	(void)opaque;
+	free(ptr);
+}
+
+int nx_inflateResetKeep(z_streamp strm)
+{
+	nx_streamp s;
+	if (strm == Z_NULL)
+		return Z_STREAM_ERROR;
+	s = (nx_streamp) strm->state;
+	strm->total_in = strm->total_out = s->total_in = 0;
+	strm->msg = Z_NULL;
+	return Z_OK;
+}
+
 
 int nx_inflateReset(z_streamp strm)
 {
@@ -82,7 +108,7 @@ int nx_inflateReset(z_streamp strm)
 	s->cksum = INIT_CRC;	
 	s->havedict = 0;
 		
-	return Z_OK;
+	return nx_inflateResetKeep(strm);
 }
 
 int nx_inflateReset2(z_streamp strm, int windowBits)
@@ -129,11 +155,11 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	strm->msg = Z_NULL;                 /* in case we return an error */
 
 	if (strm->zalloc == (alloc_func)0) {
-		/* strm->zalloc = zcalloc; TODO
-		   strm->opaque = (voidpf)0; */
+		strm->zalloc = zcalloc;
+		strm->opaque = (voidpf)0;
 	}
 	if (strm->zfree == (free_func)0) {
-		/* strm->zfree = zcfree; TODO */
+		strm->zfree = zcfree;
 	}
 
 	h = nx_open(-1); /* TODO allow picking specific NX device */
@@ -174,13 +200,14 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 		goto alloc_err;
 	}
 	
+	strm->state = (void *) s;
+
 	ret = nx_inflateReset2(strm, windowBits);
 	if (ret != Z_OK) {
 		prt_err("nx_inflateReset2\n");
 		goto reset_err;
 	}
 
-	strm->state = (void *) s;
 	return ret;
 
 reset_err:	
@@ -236,10 +263,13 @@ int nx_inflate(z_streamp strm, int flush)
 		strm->msg = (char *)"Z_BLOCK or Z_TREES not implemented";
 		return Z_STREAM_ERROR;
 	}
-	
+
 inf_forever:
 	/* inflate state machine */
 	
+	s->next_in = s->zstrm->next_in;
+	s->avail_in = s->zstrm->avail_in;
+
 	switch (s->inf_state) {
 		unsigned int c, copy;
 
@@ -505,7 +535,6 @@ inf_forever:
 		break;
 		
 	case inf_state_zlib_id1:
-
 		nx_inflate_get_byte(s, c);
 		if ((c & 0xf0) != 0x80) {
 			strm->msg = (char *)"unknown compression method";
@@ -563,10 +592,7 @@ inf_forever:
 		s->inf_state = inf_state_inflate; /* go to inflate proper */
 
 	case inf_state_inflate:
-
-
-
-
+		nx_inflate_(s);
 		break;
 
 
@@ -574,7 +600,7 @@ inf_forever:
 		
 	case inf_state_data_error:
 		rc = Z_DATA_ERROR;
-		break;
+		goto inf_return;
 	case inf_state_mem_error:
 		rc = Z_MEM_ERROR;
 		break;
@@ -664,6 +690,7 @@ small_next_in:
 		if (read_sz > 0) {
 			/* copy from next_in to the offset cur_in + used_in */
 			memcpy(s->fifo_in + first_offset, s->next_in, read_sz);
+			// memcpy(s->fifo_in + first_offset, s->zstrm.next_in, read_sz);
 			s->used_in  = s->used_in + read_sz;
 			free_space  = free_space - read_sz;
 			s->next_in  = s->next_in + read_sz;
@@ -777,7 +804,6 @@ decomp_state:
 	/* 
 
 	   FIXME need to add next_in and next_out to ddl
-
 	*/
 	
 	/*
@@ -1098,7 +1124,7 @@ offsets_state:
    checksum values only because GZIP_FC_WRAP doesn't take any initial
    values.
 */
-inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
+static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
 {
 	nx_gzip_crb_cpb_t cmd;
 	int cc;
@@ -1176,9 +1202,4 @@ int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, 
 	if (!!adler) *adler = in_adler;
 	return cc;
 }
-
-
-
-
-
 

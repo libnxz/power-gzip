@@ -12,7 +12,7 @@ INC = ./inc_nx
 all: 	nx_zlib_test
 
 nx_zlib_test: nx_zlib.c gzip_vas.c nx_adler_combine.c nx_crc.c nx_inflate.c
-	$(CC) $(CFLAGS) -I$(INC) -I$(ZDIR) -D_NX_ZLIB_TEST -o $@ $^
+	$(CC) $(CFLAGS) -I$(INC) -I$(ZDIR) -D_NX_ZLIB_TEST -o $@ $^ -lz
 
 clean:
 	/bin/rm -f *.o *~ nx_zlib_test *.gcda *.gcno

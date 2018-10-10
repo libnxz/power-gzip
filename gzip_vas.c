@@ -177,6 +177,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 	int i, fc, ret, retries, once=0;
 	struct nx_handle *nxhandle = handle;
 
+	assert(handle != NULL);
 	i = 0;
 	retries = 5000;
 	while (i++ < retries) {

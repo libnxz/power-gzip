@@ -156,6 +156,8 @@ typedef struct nx_stream_s {
 	
 	int             inf_state;
 	int             inf_held;	
+	int		resuming;
+	int		history_len;
 
         z_streamp       zstrm;          /* point to the parent  */
 

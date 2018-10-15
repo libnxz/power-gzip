@@ -1,5 +1,6 @@
-CC=gcc
-FLG=
+#CC=gcc
+CC=/opt/at11.0/bin/gcc
+FLG= -std=gnu11
 CFLAGS=-O3 $(FLG)
 LIBDIR = ../nxu_lib
 LIBOBJ =
@@ -8,11 +9,12 @@ ZDIR   = ../p9z/zlib-master
 ZLIB   = $(ZDIR)/libz.so.1.2.11
 ZCONFDIR = CONFIG_ZLIB_PATH="\"$(ZLIB)\""
 INC = ./inc_nx
+#NXFLAGS = -DNXDBG
 
 all: 	nx_zlib_test
 
 nx_zlib_test: nx_zlib.c gzip_vas.c nx_adler_combine.c nx_crc.c nx_inflate.c
-	$(CC) $(CFLAGS) -I$(INC) -I$(ZDIR) -D_NX_ZLIB_TEST -o $@ $^ -lz
+	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -I$(ZDIR) -D_NX_ZLIB_TEST -o $@ $^ -lz
 
 clean:
 	/bin/rm -f *.o *~ nx_zlib_test *.gcda *.gcno

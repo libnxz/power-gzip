@@ -99,6 +99,9 @@ int nx_inflateReset(z_streamp strm)
 	
 	s->used_in = s->used_out = 0;
 	s->cur_in  = s->cur_out = 0;
+	s->inf_state = 0;
+	s->resuming = 0;
+	s->history_len = 0;
 
 	s->nxcmdp  = &s->nxcmd0;
 
@@ -271,7 +274,6 @@ int nx_inflate(z_streamp strm, int flush)
 	strm->total_in++;
 	s->next_in = s->zstrm->next_in + s->total_in;
 	s->next_out = s->zstrm->next_out + s->total_out;
-
 inf_forever:
 	/* inflate state machine */
 	
@@ -691,7 +693,6 @@ small_next_in:
 		/* read size is the adjusted amount to copy from
 		   next_in; adjusted because of the line_sz gap */
 		read_sz = NX_MIN(NX_MIN(free_space, first_free), s->avail_in);
-		
 		if (read_sz > 0) {
 			/* copy from next_in to the offset cur_in + used_in */
 			memcpy(s->fifo_in + first_offset, s->next_in, read_sz);

@@ -48,10 +48,10 @@ void test_deflate(Byte* compr, uLong comprLen)
 	err = deflateEnd(&c_stream);
 }
 
-void test_inflate(Byte* compr, uLong comprLen, Byte* uncompr, uLong uncomprLen)
+void test_inflate(Byte* compr, uLong comprLen, Byte* uncompr, uLong uncomprLen, int len)
 {
 	int err;
-	z_stream d_stream; /* decompression stream */
+	z_stream d_stream;
 
 	strcpy((char*)uncompr, "garbage");
 
@@ -66,12 +66,12 @@ void test_inflate(Byte* compr, uLong comprLen, Byte* uncompr, uLong uncomprLen)
 	err = nx_inflateInit(&d_stream);
 	
 	while (d_stream.total_out < uncomprLen && d_stream.total_in < comprLen) {
-		d_stream.avail_in = d_stream.avail_out = 1; /* force small buffers */
+		d_stream.avail_in = d_stream.avail_out = len; /* force small buffers */
 		err = nx_inflate(&d_stream, Z_NO_FLUSH);
 		if (err == Z_STREAM_END) break;
 	}
 	
-	err = inflateEnd(&d_stream);
+	err = nx_inflateEnd(&d_stream);
 	
 	if (strcmp((char*)uncompr, hello)) {
 	    fprintf(stderr, "bad inflate\n");
@@ -95,6 +95,8 @@ int main()
 	// nx_deflate is not implemented, use zlib deflate for test
 	test_deflate(compr, comprLen);
 	// test nx_zlib inflate function
-	test_inflate(compr, comprLen, uncompr, uncomprLen);
+	for (int len = 1; len < 100; len++) {
+		test_inflate(compr, comprLen, uncompr, uncomprLen, len);
+	}
 }
 

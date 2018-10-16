@@ -172,6 +172,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	}
 
 	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
+
 	if (s == NULL) {
 		ret = Z_MEM_ERROR;
 		prt_err("nx_alloc_buffer\n");		
@@ -267,17 +268,14 @@ int nx_inflate(z_streamp strm, int flush)
 		return Z_STREAM_ERROR;
 	}
 
-	/* FIXME
-	 * There should be a map here to zlib compliant.
-	 * */
-	// map z_stream and nx_stream data
-	strm->total_in++;
-	s->next_in = s->zstrm->next_in + s->total_in;
-	s->next_out = s->zstrm->next_out + s->total_out;
+	s->next_in = s->zstrm->next_in;
+	s->avail_in = s->zstrm->avail_in;
+	s->next_out = s->zstrm->next_out;
+	s->avail_out = s->zstrm->avail_out;
+
 inf_forever:
 	/* inflate state machine */
 	
-	s->avail_in = s->zstrm->avail_in;
 	switch (s->inf_state) {
 		unsigned int c, copy;
 
@@ -579,7 +577,6 @@ inf_forever:
 		break;
 
 	case inf_state_zlib_dictid:		
-
 		while( s->inf_held < 4) { 
 			nx_inflate_get_byte(s, c);
 			s->dictid = (s->dictid << 8) | (c & 0xff);
@@ -644,7 +641,6 @@ static int nx_inflate_(nx_streamp s)
 	int pgfault_retries;
 	int cc, rc;
 
-
 copy_history_to_fifo_out:
 	/* if history is spanning next_out and fifo_out, then copy it
 	   to fifo_out */
@@ -658,8 +654,13 @@ copy_fifo_out_to_next_out:
 		if (s->avail_in > 0) {
 			
 		}
+		goto write_state;
 	}
-	
+
+	if (s->avail_in == 0) {
+		return Z_OK;
+	}
+
 small_next_in:
 	/* if the total input size is below some threshold, avoid
 	   accelerator overhead and memcpy next_in to fifo_in */
@@ -679,7 +680,7 @@ small_next_in:
 		s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;	
 
 		/* Leave a line size gap between tail and head to avoid prefetch */
-		free_space = NX_MAX( 0, fifo_free_bytes(s->used_in, s->len_in) - nx_config.line_sz);
+		free_space = NX_MAX(0, fifo_free_bytes(s->used_in, s->len_in) - nx_config.line_sz);
 
 		/* free space may wrap around. first is the first
 		   portion and last is the wrapped portion */
@@ -697,6 +698,7 @@ small_next_in:
 			/* copy from next_in to the offset cur_in + used_in */
 			memcpy(s->fifo_in + first_offset, s->next_in, read_sz);
 			update_stream_in(s, read_sz);
+			update_stream_in(s->zstrm, read_sz);
 			s->used_in = s->used_in + read_sz;
 			free_space = free_space - read_sz;
 		}
@@ -713,6 +715,7 @@ small_next_in:
 			if (read_sz > 0) {
 				memcpy(s->fifo_in + last_offset, s->next_in, read_sz);
 				update_stream_in(s, read_sz);
+				update_stream_in(s->zstrm, read_sz);
 				s->used_in = s->used_in + read_sz;       /* increase used space */
 				free_space = free_space - read_sz; /* decrease free space */
 			}
@@ -727,6 +730,9 @@ small_next_in:
 		/* At this point we have used_in bytes in fifo_in with the
 		   data head starting at cur_in and possibly wrapping
 		   around */
+	}
+	else {
+		/* FIXME: How to hangle large avail_in */
 	}
 	
 decomp_state:
@@ -1114,13 +1120,13 @@ ok_cc3:
 offsets_state:	
 
 	/* Adjust the source and target buffer offsets and lengths  */
-	s->used_in = s->used_in - source_sz;
+	s->used_in -= source_sz;
 	s->cur_in = (s->cur_in + source_sz) % s->len_in;
 
+	s->used_out += tpbc;
 	ASSERT(s->used_out <= s->len_out);
-	memcpy(s->next_out, s->fifo_out + s->cur_out, tpbc);
-	s->cur_out = (s->cur_out + tpbc) % s->len_out;
-	update_stream_out(s, tpbc);
+	// s->cur_out = (s->cur_out + tpbc) % s->len_out;
+	s->total_out += tpbc;
 
 	s->history_len = (s->total_out > nx_config.window_max) ? nx_config.window_max : s->total_out;
 
@@ -1129,12 +1135,38 @@ offsets_state:
 
 	s->resuming = 1;
 
+write_state:
+	first_used = fifo_used_first_bytes(s->cur_out, s->used_out, s->len_out);
+	last_used = fifo_used_last_bytes(s->cur_out, s->used_out, s->len_out);
+	if (first_used) {
+		write_sz = NX_MIN(first_used, s->avail_out);
+		if (write_sz > 0) {
+			memcpy(s->next_out, s->fifo_out + s->cur_out, write_sz);
+			update_stream_out(s, write_sz);
+			update_stream_out(s->zstrm, write_sz);
+			s->used_out -= write_sz;
+			s->cur_out = (s->cur_out + write_sz) % s->len_out;
+		}
+	}
+	if (last_used) {
+		write_sz = NX_MIN(last_used, s->avail_out);
+		if (write_sz > 0) {
+			memcpy(s->next_out, s->fifo_out + s->cur_out, write_sz);
+			update_stream_out(s, write_sz);
+			update_stream_out(s->zstrm, write_sz);
+			s->used_out -= write_sz;
+			s->cur_out = (s->cur_out + write_sz) % s->len_out;
+		}
+	}
+
+	if (s->avail_in > 0 && s->avail_out > 0) goto small_next_in;
 	/*
 	for (int i = 0; i < s->len_out; i++) {
 		if (s->fifo_out[i] != 0) {
 			printf("%c", s->fifo_out[i]);
 		}
-	} printf("\n");*/
+	} printf("\n");
+	*/
 
 	if (is_final == 1 || cc == ERR_NX_OK) {
 		return Z_STREAM_END;

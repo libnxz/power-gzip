@@ -277,7 +277,8 @@ typedef struct nx_stream_s *nx_streamp;
 /* nx_inflate_get_byte is used for header processing.  It goes to
    inf_return when bytes are not sufficient */
 #define nx_inflate_get_byte(s,b) \
-	do { if ((s)->avail_in == 0) goto inf_return; b = (s)->ckbuf.buf[(s)->ckidx++] = *((s)->next_in); update_stream_in(s,1); \
+	do { if ((s)->avail_in == 0) goto inf_return; b = (s)->ckbuf.buf[(s)->ckidx++] = *((s)->next_in); \
+		update_stream_in(s,1); update_stream_in(s->zstrm, 1);\
 		if ((s)->ckidx == sizeof(ckbuf_t)) {			\
 			/* when the buffer is near full do a partial checksum */ \
 			(s)->cksum = nx_crc32((s)->cksum, (s)->ckbuf.buf, (s)->ckidx); \

@@ -149,6 +149,8 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 	if (buf == NULL)
 		return buf;
 	nx_touch_pages(buf, len, alignment, 1);
+	memset(buf, 0, len);
+
 	if (lock) {
 		if (mlock(buf, len))
 			prt_err("mlock failed, errno= %d\n", errno);

@@ -668,8 +668,9 @@ small_next_in:
 	/* TODO use config variable instead of 1024 */
 	/* used_in is the data amount waiting in fifo_in; avail_in is
 	   the data amount waiting in the user buffer next_in */
-	if (s->used_in < nx_config.soft_copy_threshold &&
-	    s->avail_in < nx_config.soft_copy_threshold) {
+	// if (s->used_in < nx_config.soft_copy_threshold &&
+	//    s->avail_in < nx_config.soft_copy_threshold) {
+	if (s->avail_in > 0 && s->avail_out > 0) {
 
 		/* If the input is small but fifo_in is above some
 		   threshold do not memcpy; append the small
@@ -1169,7 +1170,8 @@ write_state:
 	*/
 
 	if (is_final == 1 || cc == ERR_NX_OK) {
-		return Z_STREAM_END;
+		if (s->used_out == 0)
+			return Z_STREAM_END;
 	}
 
 	return Z_OK;

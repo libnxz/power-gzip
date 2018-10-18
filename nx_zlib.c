@@ -515,8 +515,8 @@ void nx_hw_init(void)
 	nx_config.strm_bufsz = (1024 * 1024);
 	nx_config.soft_copy_threshold = 1024;      /* choose memcpy or hwcopy */
 	nx_config.compress_threshold = (10*1024);  /* collect as much input */
-	nx_config.inflate_fifo_in_len = (1<<16);
-	nx_config.inflate_fifo_out_len = (1<<24);
+	nx_config.inflate_fifo_in_len = ((1<<16)*2);
+	nx_config.inflate_fifo_out_len = ((1<<24)*2);
 	nx_config.retry_max = 50;	
 	nx_config.window_max = (1<<15);
 	nx_config.pgfault_retries = 50;         

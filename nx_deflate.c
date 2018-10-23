@@ -102,7 +102,8 @@ static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_per_job_len = (512 * 1024);     /* less than suspend limit */
 static uint32_t nx_strm_bufsz = (1024 * 1024);
 static uint32_t nx_soft_copy_threshold = 1024;      /* choose memcpy or hwcopy */
-static uint32_t nx_compress_threshold = (10*1024);  /* collect as much input */
+// static uint32_t nx_compress_threshold = (10*1024);  /* collect as much input */
+static uint32_t nx_compress_threshold = (10);  /* collect as much input */
 static int      nx_pgfault_retries = 50;         
 
 typedef int retlibnx_t;
@@ -256,6 +257,7 @@ static int append_spanning_flush(nx_streamp s, int flush, int tebc, int final)
 		nb = append_sync_flush(s->next_out, tebc, final);
 		s->tebc = 0;
 		update_stream_out(s, nb);
+		update_stream_out(s->zstrm, nb);
 		return nb;
 	}
 
@@ -268,16 +270,14 @@ static int append_spanning_flush(nx_streamp s, int flush, int tebc, int final)
 	if (flush == Z_SYNC_FLUSH || flush == Z_FULL_FLUSH) {
 		nb = append_sync_flush(ptr, tebc, final);
 		s->tebc = 0;
-	}
-	else if (flush == Z_PARTIAL_FLUSH) {
+	} else if (flush == Z_PARTIAL_FLUSH) {
 		/* we always put TWO empty type 1 blocks */
 		nb   = append_partial_flush(ptr, &next_tebc, 0);
 		ptr += nb;
 		nb  += append_partial_flush(ptr, &next_tebc, final);
 		/* save partial last byte bit count for later */
 		s->tebc = next_tebc; 
-	}
-	else {
+	} else {
 		return 0;
 	}
 
@@ -400,8 +400,8 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 		/* TODO hto32le */
 		k=0;
 		while (k++ < 4) {
-			nx_put_byte(s, cksum & 0xFF);
-			cksum = cksum >> 8;
+			nx_put_byte(s, (cksum & 0xFF000000) >> 24);
+			cksum = cksum << 8;
 		}
 		return k;
 	}
@@ -789,9 +789,8 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 }
 
 /* 
-   if fifo_out has data waiting, copy used_in bytes to the
-   next_out first.
-*/
+ * if fifo_out has data waiting, copy used_in bytes to the next_out first.
+ */
 static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
 {
 	int rc = LIBNX_OK;
@@ -811,7 +810,7 @@ static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
 	s->cur_out  += copy_bytes;
 	fifo_out_len_check(s);
 
-	if (s->tebc > 0 && s->used_out == 0 && s->status != NX_BFINAL_STATE) {
+	if (s->tebc > 0 && s->used_out == 0 && !(s->status & (NX_BFINAL_STATE|NX_TRAILER_STATE))) {
 		/* byte align the tail when fifo_out is copied entirely to next_out */
 		ASSERT(s->cur_out == 0);
 		append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, 0);
@@ -947,13 +946,13 @@ static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, uint32_t history)
 	/* TODO may need a way to limit the input size from top level
 	   to prevent CC=13 */
 	
-	avail_in = NX_MIN( s->avail_in, nx_max_byte_count_current );	
+	avail_in = NX_MIN(s->avail_in, nx_max_byte_count_current);	
 	clearp_dde(s->ddl_in);
 	/* TODO add history */
 	total = nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in, s->used_in);
 	if (avail_in > 0)
-		total += nx_append_dde(s->ddl_in, s->next_in, avail_in);
-	
+		total = nx_append_dde(s->ddl_in, s->next_in, avail_in);
+
 	return total;
 }
 
@@ -977,124 +976,25 @@ static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, uint32_t history)
 */
 static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 {
-	uint32_t avail_out, total = 0;
+	uint32_t avail_out, free_bytes, total = 0;
 
 	ASSERT(s->used_out == 0); /* expect fifo_out to be empty */
 	
-	s->cur_out = s->used_out = 0; /* reset fifo_out head */
+	// s->cur_out = s->used_out = 0; /* reset fifo_out head */
 
 	/* restrict NX per dde size to 1GB */
 	avail_out = NX_MIN(s->avail_out, nx_max_byte_count_current);	
 	
 	clearp_dde(s->ddl_out);
+
 	if (avail_out > 0)
-		total += nx_append_dde(s->ddl_out, s->next_out, avail_out);	
-	total += nx_append_dde(s->ddl_out, s->fifo_out, s->len_out);
+		total = nx_append_dde(s->ddl_out, s->next_out, avail_out);
+
+	free_bytes = s->len_out - s->cur_out - s->used_out;
+	total = nx_append_dde(s->ddl_out, s->fifo_out + s->cur_out + s->used_out, free_bytes);
 	
 	return total;
 }
-
-/* 
-   TODO handle the case of used_in > 0
-
-   Copies strm->next_in to strm->next_out creating BTYPE=00 blocks at
-   the strm output. Used when input data does not compress but
-   expands.  Copies a minimum of len, avail_in, avail_out, or even
-   less due block header overheads.  Next_in must be aligned on a byte
-   boundary and the previous deflate block already closed.  
-   TODO Returns number of raw data bytes copied, headers excluding.
-   Assumes that used_out == 0 and used_in == 0
- */
-static retlibnx_t _unused_nx_output_stored_blocks(nx_streamp s, int len, int flush)
-{
-	uint32_t crc, adler, copy_len;
-	uint32_t total = len;
-	int block_len = nx_stored_block_len; /* max is 65535 */
-	int cc, n;
-	int next_block;
-	int bfinal = 0;
-
-	ASSERT( nx_stored_block_len < 65536 );
-	ASSERT( s->used_out == 0 && s->used_in == 0 );
-
-	if (s->tebc > 0) {
-		if (s->avail_in == 0 && s->used_in == 0 && flush == Z_FINISH ) {
-			/* if no more input */
-			s->status = NX_BFINAL_STATE;
-			bfinal = 1;
-		}
-		/* byte align */
-		append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, bfinal);
-		if (bfinal != 0)
-			return LIBNX_OK_STREAM_END;
-	}
-	
-	do {
-		crc   = s->crc32;		
-		adler = s->adler32;
-
-		if (s->avail_out > 0 && s->avail_out < 6) {
-			/* fill the remainder of avail_out because we
-			 * want to deplete avail_out */
-			if (s->avail_in == 0 && s->used_in == 0 && flush == Z_FINISH ) {
-				s->status = NX_BFINAL_STATE;
-				bfinal = 1;
-			}
-			append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, bfinal);
-			return (bfinal)? LIBNX_OK_STREAM_END : LIBNX_OK;			
-		}
-
-#if 0		
-		/* check if fifo_in has data */
-		if (s->used_in > 0 ) {
-			first_bytes = fifo_used_first_bytes(s->cur_in, s->used_in, s->len_in);
-			last_bytes = fifo_used_last_bytes(s->cur_in, s->used_in, s->len_in);
-		}
-#endif
-
-		
-		/* BTYPE=00 header occupies 5 bytes when byte aligned */
-		s->avail_out = s->avail_out - 5;
-		
-		copy_len = NX_MIN(len, s->avail_in);       /* source size */
-		copy_len = NX_MIN(copy_len, s->avail_out); /* target size */
-		copy_len = NX_MIN(copy_len, block_len);    /* block max */
-
-		/* if no input data or no target buffer is left */
-		if (copy_len == s->avail_in || copy_len == s->avail_out) 
-			next_block = 0;
-		else
-			next_block = 1;
-
-		if (next_block == 0 && flush == Z_FINISH && copy_len == s->avail_in) {
-			bfinal = 1;
-			s->status = NX_BFINAL_STATE;
-		}
-		
-		append_btype00_header(s->next_out, s->tebc, bfinal, copy_len);
-		s->tebc = 0;				
-		s->next_out  = s->next_out + 5; /* s->avail_out - 5 above */
-		s->total_out += 5;
-		
-		cc = nx_copy(s->next_out, s->next_in, copy_len,
-			     &crc, &adler, s->nxdevp);
-		if (cc != ERR_NX_OK) {
-			s->nx_cc = cc;
-			return LIBNX_ERROR;
-		}
-
-		update_stream_out(s, copy_len);
-		update_stream_in(s, copy_len);
-
-		s->crc32   = crc;		
-		s->adler32 = adler;
-		len = len - copy_len;
-
-	} while (next_block);
-
-	return (bfinal)? LIBNX_OK_STREAM_END : LIBNX_OK;
-}
-
 
 /* 
    zlib.h: If deflate returns with avail_out == 0, deflate must be
@@ -1142,14 +1042,6 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	/* 
 	   update the input pointers
 	*/
-
-	/* if fifo_in is not empty: input is first consumed from fifo_in
-	   then from next_in */
-	first_bytes = fifo_used_first_bytes(s->cur_in, s->used_in, s->len_in);
-	last_bytes = fifo_used_last_bytes(s->cur_in, s->used_in, s->len_in);
-
-	copy_bytes = NX_MIN(spbc, first_bytes);
-
 	/* advance fifo_in head */
 	assert(spbc >= s->used_in);
 	spbc = spbc - s->used_in;
@@ -1190,8 +1082,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	if (s->avail_out == 0) {
 		/* excess tpbc overflowed in to fifo_out */
 		ASSERT( tpbc <= s->len_out );
-		s->cur_out = 0;
-		s->used_out = tpbc;
+		s->used_out += tpbc;
 	}
 	return LIBNX_OK;
 }
@@ -1279,7 +1170,7 @@ static inline retlibnx_t nx_compress_block_append_flush_block(nx_streamp s)
 /* compress as much input as possible creating a single deflate block
    nx_gzip_crb_cpb_t of nx_streamp contains nx parameters and status.
    limit is the max input data to compress: set limit=0 for unlimited  */
-static retlibnx_t nx_compress_block(nx_streamp s, int fc, int limit)
+static int nx_compress_block(nx_streamp s, int fc, int limit)
 {
 	uint32_t bytes_in, bytes_out;	
 	nx_gzip_crb_cpb_t *nxcmdp;
@@ -1320,17 +1211,16 @@ static retlibnx_t nx_compress_block(nx_streamp s, int fc, int limit)
 
 	/* limit the input size; mainly for sampling LZcounts */
 	if (limit) bytes_in = NX_MIN(bytes_in, limit);
-
 	/* initial checksums. TODO arch independent endianness */
-	put32( nxcmdp->cpb, in_crc, s->crc32 );
-	put32( nxcmdp->cpb, in_adler, s->adler32 ); 	
+	put32(nxcmdp->cpb, in_crc, s->crc32);
+	put32(nxcmdp->cpb, in_adler, s->adler32); 	
 
 restart:
 	/* If indirect DDEbc is <= the sum of all the direct DDEbc
 	   values, the accelerator will process only indirect DDEbc
 	   bytes, and no error has occurred. */
 
- 	putp32( ddl_in, ddebc, bytes_in);  /* may adjust the input size on retries */
+ 	putp32(ddl_in, ddebc, bytes_in);  /* may adjust the input size on retries */
 
 	cc = nx_submit_job(ddl_in, ddl_out, nxcmdp, s->nxdevp);
 	s->nx_cc = cc;
@@ -1407,9 +1297,10 @@ restart:
 		/* else just use the compressed data even when
 		   expanding by fall through */
 
-		s->need_stored_block = bytes_in - histbytes;
+		// s->need_stored_block = bytes_in - histbytes;
 		rc = LIBNX_OK_BIG_TARGET;
-		goto do_no_update; 
+		// FIXME: treat as ERR_NX_OK currently
+		// goto do_no_update; 
 		
 	case ERR_NX_OK:
 		/* need to adjust strm and fifo offsets on return */
@@ -1471,9 +1362,9 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 	if ( unlikely(combine) ) {
 		/* because the wrap function code doesn't accept any input cksum */
 		uint32_t cksum;
-		cksum = get32(nxcmdp->cpb, out_adler );	
+		cksum = get32(nxcmdp->cpb, out_adler);	
 		s->adler32 = nx_adler32_combine(s->adler32, cksum, s->spbc);
-		cksum = get32(nxcmdp->cpb, out_crc );	
+		cksum = get32(nxcmdp->cpb, out_crc);	
 		s->crc32 = nx_crc32_combine(s->crc32, cksum, s->spbc);
 	}
 	else { 
@@ -1482,46 +1373,46 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 	}
 }
 
+/* deflate interface */
 int nx_deflate(z_streamp strm, int flush)
 {
 	uint32_t total;
 	retlibnx_t rc;
 	nx_streamp s;
+	const int combine_cksum = 1;
 
+	/* check flush */
 	if (flush > Z_BLOCK || flush < 0) return Z_STREAM_ERROR;
 	
+	/* check z_stream and state */
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	if (NULL == (s = (nx_streamp) strm->state)) return Z_STREAM_ERROR;
 
-	// p_crb_cpb_t *nxcmdp = s->nxcmdp;
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
-	void* handle = ((nx_devp_t)s->nxdevp)->vas_handle;
-	const int combine_cksum = 1;
 
+	/* sync nx_stream with z_stream */
         s->next_in = s->zstrm->next_in;
         s->next_out = s->zstrm->next_out;
         s->avail_in = s->zstrm->avail_in;
         s->avail_out = s->zstrm->avail_out;	
 
-	if (s->next_out == NULL ||
-	    (s->avail_in != 0 && s->next_in == NULL) ||
-	    (s->status == NX_BFINAL_STATE && flush != Z_FINISH)) {
-		return Z_STREAM_ERROR;
-	}
-
+	/* check next_in and next_out buffer */
+	if (s->next_out == NULL || (s->avail_in != 0 && s->next_in == NULL)) return Z_STREAM_ERROR;
 	if (s->avail_out == 0) return Z_BUF_ERROR;
 
 
 	/* Generate a header */
 	if ((s->status & (NX_ZLIB_STATE | NX_GZIP_STATE)) != 0) {
-		nx_deflate_add_header(s);
+		nx_deflate_add_header(s); // status is NX_INIT_STATE here
 	}
+
+	/* if status is NX_BFINAL_STATE, flush should be Z_FINISH */
+	if (s->status == NX_BFINAL_STATE && flush != Z_FINISH) return Z_STREAM_ERROR;
 
 	/* User must not provide more input after the first FINISH: */
-	if (s->status == NX_BFINAL_STATE && s->avail_in != 0) {
-		return Z_BUF_ERROR;
-	}
+	if (s->status == NX_BFINAL_STATE && s->avail_in != 0) return Z_BUF_ERROR;
 
+	/* update flush status here */
 	s->flush = flush;
 
 s1:
@@ -1554,6 +1445,7 @@ s2:
 		goto s1;
 
 	/*  avail_out > 0 and used_out == 0 */
+	// assert(s->avail_out > 0 && s->used_out == 0);
 
 	if ( ((s->used_in + s->avail_in) > nx_compress_threshold) || /* large input */
 	     (flush == Z_SYNC_FLUSH)    ||      /* or requesting flush */
@@ -1568,6 +1460,7 @@ s2:
 		small_copy_nxstrm_in_to_fifo_in(s);
 		return Z_OK;
 	}
+
 s3:
 	/* level=0 is when zlib copies input to output uncompressed */
 	if ((s->level == 0 && s->avail_out > 0) || (s->need_stored_block > 0)) {
@@ -1598,9 +1491,8 @@ s3:
 		nx_compress_update_checksum(s, combine_cksum);
 
 		goto s1;
-	}
 
-	else if (s->strategy == Z_FIXED) {
+	} else if (s->strategy == Z_FIXED) {
 
 		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_FHT, 0);
 

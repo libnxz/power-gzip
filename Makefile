@@ -1,5 +1,5 @@
-# CC=gcc
-CC=/opt/at11.0/bin/gcc
+CC=gcc
+# CC=/opt/at11.0/bin/gcc
 FLG= -std=gnu11
 SFLAGS=-O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
 CFLAGS=$(FLG) $(SFLAGS)
@@ -26,7 +26,7 @@ $(STATICLIB): $(OBJS)
 
 $(SHAREDLIB): $(OBJS)
 	rm -f $@
-	$(CC) -shared  -Wl,-soname,libnxz.so.1,--version-script,zlib.map -o $@ $(OBJS)	
+	$(CC) -shared  -Wl,-soname,libnxz.so,--version-script,zlib.map -o $@ $(OBJS)	
 
 clean:
 	/bin/rm -f *.o *.gcda *.gcno *.so *.a

@@ -274,7 +274,7 @@ typedef struct nx_stream_s *nx_streamp;
 /* for appending bytes in to the stream */
 #define nx_put_byte(s,b)  do { if ((s)->avail_out > 0)			\
 		{*((s)->next_out++) = (b); --(s)->avail_out; ++(s)->total_out; } \
-		else { *((s)->fifo_out + (s)->used_out) = (b); ++(s)->used_out; } } while(0)
+		else { *((s)->fifo_out + (s)->cur_out + (s)->used_out) = (b); ++(s)->used_out; } } while(0)
 
 /* nx_inflate_get_byte is used for header processing.  It goes to
    inf_return when bytes are not sufficient */

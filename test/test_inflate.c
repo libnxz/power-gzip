@@ -11,6 +11,7 @@
 #include <sys/ioctl.h>
 #include <endian.h>
 #include <zlib.h>
+#include "test.h"
 
 
 #define nx_inflateInit(strm) nx_inflateInit_((strm), ZLIB_VERSION, (int)sizeof(z_stream))
@@ -90,12 +91,11 @@ int main()
         uncompr = (Byte*)calloc((uInt)uncomprLen, 1);
 
 	volatile int ex;
-	nx_hw_init();
 
 	// nx_deflate is not implemented, use zlib deflate for test
 	test_deflate(compr, comprLen);
 	// test nx_zlib inflate function
-	for (int len = 1; len < 100; len++) {
+	for (int len = 1; len < 1000; len++) {
 		test_inflate(compr, comprLen, uncompr, uncomprLen, len);
 	}
 }

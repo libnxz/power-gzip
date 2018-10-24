@@ -55,7 +55,6 @@
 #include "nxu.h"
 #include "nx_zlib.h"
 #include "nx.h"
-#include "zutil.h"
 #include "nx_dbg.h"
 
 #define DEF_MEM_LEVEL 8
@@ -102,8 +101,7 @@ static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_per_job_len = (512 * 1024);     /* less than suspend limit */
 static uint32_t nx_strm_bufsz = (1024 * 1024);
 static uint32_t nx_soft_copy_threshold = 1024;      /* choose memcpy or hwcopy */
-// static uint32_t nx_compress_threshold = (10*1024);  /* collect as much input */
-static uint32_t nx_compress_threshold = (10);  /* collect as much input */
+static uint32_t nx_compress_threshold = (10*1024);  /* collect as much input */
 static int      nx_pgfault_retries = 50;         
 
 typedef int retlibnx_t;
@@ -687,7 +685,7 @@ retz_t nx_deflateEnd(z_streamp strm)
 	return Z_OK;
 }
 
-int nx_deflateInit_(z_streamp strm, int level, const char version, int stream_size)
+int nx_deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
 {
 	return nx_deflateInit2_(strm, level, Z_DEFLATED, MAX_WBITS, DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY, version, stream_size);
 }
@@ -1068,14 +1066,20 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 
 	copy_bytes = NX_MIN(tpbc, s->avail_out);
 
+	int bfinal;
+	int bfinal_offset;
 	/* no more input; make this the last block */
 	if (s->avail_in == 0 && s->used_in == 0 && s->flush == Z_FINISH && fc != GZIP_FC_WRAP ) {
-		const int bfinal=1;
-		const int bfinal_offset=0;
+		bfinal = 1;
+		bfinal_offset = 0;
 		s->status = NX_BFINAL_STATE;
 		/* offset is zero because NX can only start byte aligned */
-		set_bfinal(s->next_out, bfinal, bfinal_offset);
 	}
+	else {
+		bfinal = bfinal_offset = 0;
+	}
+
+	set_bfinal(s->next_out, bfinal, bfinal_offset);
 	
 	update_stream_out(s, copy_bytes);
 	update_stream_out(s->zstrm, copy_bytes);

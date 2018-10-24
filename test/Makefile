@@ -1,18 +1,30 @@
-#CC=gcc
-CC=/opt/at11.0/bin/gcc
-FLG= -std=gnu11
-CFLAGS=-O3 $(FLG)
+CC = gcc
+# CC = /opt/at11.0/bin/gcc
+FLG = -std=gnu11
+CFLAGS = -O3 $(FLG)
 
-EXE=test_inflate \
-    test_inflate_large
+INC = -I../ -I../inc_nx
+LIB = -L../
+
+SRC_DEFLATE = ${wildcard test_deflate.c test_utils.c deflate/*.c}
+SRC_INFLATE = ${wildcard test_inflate.c test_utils.c inflate/*.c}
+OBJ_DEFLATE = ${patsubst %.c, %.o, $(SRC_DEFLATE)}
+OBJ_INFLATE = ${patsubst %.c, %.o, $(SRC_INFLATE)}
+
+EXE = test_inflate test_deflate
 
 all: $(EXE)
 
-test_inflate: test_inflate.c
-	$(CC) $(CFLAGS) -L../ -o $@ $^ -lz -lnxz
-test_inflate_large: test_inflate_large.c
-	$(CC) $(CFLAGS) -L../ -o $@ $^ -lz -lnxz
+test_inflate: $(OBJ_INFLATE)
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lz -lnxz
+test_deflate: $(OBJ_DEFLATE)
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lz -lnxz
+
+$(OBJ_DEFLATE): %.o : %.c
+	$(CC) $(CFLAGS) $(INC) -c $^ -o $@
+$(OBJ_INFLATE): %.o : %.c
+	$(CC) $(CFLAGS) $(INC) -c $^ -o $@
 
 clean:
-	/bin/rm -f *.o $(EXE) *.log
+	/bin/rm -f *.o deflate/*.o inflate/*.o $(EXE) *.log
 

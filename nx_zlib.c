@@ -407,7 +407,6 @@ nx_devp_t nx_open(int nx_id)
 	/* TODO open only one device until we learn how to locate them all */
 	if (nx_dev_count > 0)
 		return &nx_devices[0];
-
 	vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0);
 	if (!vas_handle) {
 		prt_err("nx_function_begin failed, errno %d\n", errno);

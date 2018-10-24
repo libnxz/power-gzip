@@ -36,6 +36,18 @@
  *
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <malloc.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <assert.h>
+#include <errno.h>
+#include <sys/fcntl.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <endian.h>
 #include "nxu.h"
 
 #ifndef _NX_ZLIB_H
@@ -333,5 +345,21 @@ extern int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 extern int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len);
 extern int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr);
 extern int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp);
+extern void nx_hw_init(void);
+
+/* nx_deflate.c */
+extern int nx_deflateInit_(z_streamp strm, int level, const char *version, int stream_size);
+extern int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
+		int memLevel __unused, int strategy, const char *version __unused, int stream_size __unused);
+#define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), ZLIB_VERSION, (int)sizeof(z_stream))
+extern int nx_deflate(z_streamp strm, int flush);
+extern int nx_deflateEnd(z_streamp strm);
+
+/* nx_inflate.c */
+extern int nx_inflateInit_(z_streamp strm, const char *version, int stream_size);
+extern int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int stream_size);
+#define nx_inflateInit(strm) nx_inflateInit_((strm), ZLIB_VERSION, (int)sizeof(z_stream))
+extern int nx_inflate(z_streamp strm, int flush);
+extern int nx_inflateEnd(z_streamp strm);
 
 #endif /* _NX_ZLIB_H */

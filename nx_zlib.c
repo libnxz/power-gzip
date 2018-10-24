@@ -60,6 +60,7 @@
 struct nx_config_t nx_config;
 static struct nx_dev_t nx_devices[NX_DEVICES_MAX];
 static int nx_dev_count = 0;
+static int nx_init_done = 0;
 
 int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
@@ -494,6 +495,9 @@ void nx_lib_debug(int onoff)
 void nx_hw_init(void)
 {
 	int nx_count;
+
+	if (nx_init_done == 1) return;
+
 	char *accel_s    = getenv("NX_GZIP_DEV_TYPE");  /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE");   /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM");   /* -1 for default, 0,1,2 for socket# */
@@ -562,6 +566,8 @@ void nx_hw_init(void)
 		nx_gzip_chip_num = atoi(chip_num_s);
 		/* TODO check if that accelerator exists */
 	}
+
+	nx_init_done = 1;
 }
 
 void nx_hw_done(void)

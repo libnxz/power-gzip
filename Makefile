@@ -1,5 +1,5 @@
-CC=gcc
-# CC=/opt/at11.0/bin/gcc
+# CC=gcc
+CC=/opt/at11.0/bin/gcc
 FLG= -std=gnu11
 SFLAGS=-O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
 CFLAGS=$(FLG) $(SFLAGS)

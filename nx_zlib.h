@@ -94,6 +94,8 @@ struct nx_config_t {
 	uint32_t compress_threshold;   /* collect as much input */
 	int 	 inflate_fifo_in_len;
 	int 	 inflate_fifo_out_len;
+	int 	 deflate_fifo_in_len;
+	int 	 deflate_fifo_out_len;
 	int      retry_max;
 	int      window_max;
 	int      pgfault_retries;         
@@ -361,5 +363,14 @@ extern int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version,
 #define nx_inflateInit(strm) nx_inflateInit_((strm), ZLIB_VERSION, (int)sizeof(z_stream))
 extern int nx_inflate(z_streamp strm, int flush);
 extern int nx_inflateEnd(z_streamp strm);
+
+/* nx_compress.c */
+extern int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);
+extern int nx_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+extern uLong nx_compressBound(uLong sourceLen);
+
+/* nx_uncompr.c */
+extern int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
+extern int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 
 #endif /* _NX_ZLIB_H */

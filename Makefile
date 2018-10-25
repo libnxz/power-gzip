@@ -1,8 +1,9 @@
 # CC=gcc
-CC=/opt/at11.0/bin/gcc
-FLG= -std=gnu11
-SFLAGS=-O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
-CFLAGS=$(FLG) $(SFLAGS)
+CC = /opt/at11.0/bin/gcc
+FLG = -std=gnu11
+SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+# ZLIB = -DZLIB_API
+CFLAGS = $(FLG) $(SFLAGS) $(ZLIB)
 
 SRCS = nx_inflate.c nx_deflate.c nx_zlib.c nx_crc.c \
        nx_adler_combine.c gzip_vas.c nx_compress.c nx_uncompr.c
@@ -12,16 +13,12 @@ OBJS = nx_inflate.o nx_deflate.o nx_zlib.o nx_crc.o \
 STATICLIB = libnxz.a
 SHAREDLIB = libnxz.so
 
-ZDIR   = ../p9z/zlib-master
-ZLIB   = $(ZDIR)/libz.so.1.2.11
-ZCONFDIR = CONFIG_ZLIB_PATH="\"$(ZLIB)\""
-
 INC = ./inc_nx
 
 all: $(OBJS) $(STATICLIB) $(SHAREDLIB)
 
 $(OBJS): $(SRCS)
-	$(CC) $(CFLAGS) -I$(INC) -I$(ZDIR) -c $^
+	$(CC) $(CFLAGS) -I$(INC) -c $^
 
 $(STATICLIB): $(OBJS)
 	rm -f $@

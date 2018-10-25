@@ -1,7 +1,7 @@
 #include <zlib.h>
 #include "nx_zlib.h"
 
-int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen)
+int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen)
 {
     z_stream stream;
     int err;
@@ -56,8 +56,21 @@ int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *source
            err;
 }
 
+int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
+{
+    return nx_uncompress2(dest, destLen, source, &sourceLen);
+}
+
+#ifdef ZLIB_API
+
 int uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
 {
-    return uncompress2(dest, destLen, source, &sourceLen);
+	return nx_uncompress(dest, destLen, source, sourceLen);
 }
+int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen)
+{
+	return nx_uncompress2(dest, destLen, source, sourceLen);
+}
+
+#endif
 

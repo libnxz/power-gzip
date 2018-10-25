@@ -22,9 +22,16 @@ int main()
 	check ( run_case1() );
 	check ( run_case2() );
 	check ( run_case3() );
+	check ( run_case3_1() );
 	check ( run_case4() );
 	check ( run_case5() );
 	check ( run_case6() );
 	check ( run_case7() );
+	check ( run_case8() );
+	check ( run_case9() );
+	check ( run_case10() );
+	check ( run_case11() );
+	check ( run_case12() );
+	check ( run_case13() );
 }
 

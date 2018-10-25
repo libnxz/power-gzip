@@ -16,22 +16,31 @@ static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsign
 	
 	err = nx_deflateInit(&c_stream, Z_DEFAULT_COMPRESSION);
 	if (err != 0) {
-		printf("nx_deflateInit err %d\n", err);
+		dbg_printf("nx_deflateInit err %d\n", err);
 		return TEST_ERROR;
+	}
+	else {
+		dbg_printf("nx_deflateInit err %d\n", err);
 	}
 	
 	c_stream.next_in  = (z_const unsigned char *)src;
 	c_stream.next_out = compr;
 
+	dbg_printf("nx_deflate begin \n");
 	while (c_stream.total_in != src_len && c_stream.total_out < compr_len) {
 	    c_stream.avail_in = c_stream.avail_out = step;
 	    err = nx_deflate(&c_stream, Z_NO_FLUSH);
+	    if (c_stream.total_in > src_len) break;
 	}
+	assert(c_stream.total_in == src_len);
+	dbg_printf("nx_deflate c_stream.total_in %d c_stream.total_out %d \n", c_stream.total_in, c_stream.total_out);
         for (;;) {
             c_stream.avail_out = 1;
             err = nx_deflate(&c_stream, Z_FINISH);
             if (err == Z_STREAM_END) break;
         }
+
+	dbg_printf("nx_deflate end \n");
 	err = nx_deflateEnd(&c_stream);
 	if (err != 0) {
 		return TEST_ERROR;
@@ -116,23 +125,44 @@ static int run(unsigned int len, int step, const char* test)
 
 	compr = (Byte*)calloc((uInt)compr_len, 1);
 	uncompr = (Byte*)calloc((uInt)uncompr_len, 1);
+	if (compr == NULL || uncompr == NULL ) {
+		printf("*** alloc buffer failed\n");
+		return TEST_ERROR;
+	}
 
-	if (_test_nx_deflate(src, src_len, compr, compr_len, step)) return TEST_ERROR;
-	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) return TEST_ERROR;
-	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) return TEST_ERROR;
+	if (_test_nx_deflate(src, src_len, compr, compr_len, step)) goto err;
+	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
+	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
 
-	printf("*** deflate %s passed\n", test);
+	printf("*** %s %s passed\n", __FILE__, test);
+	free(compr);
+	free(uncompr);
 	return TEST_OK;
+err:
+	free(compr);
+	free(uncompr);
+	return TEST_ERROR;
 }
+
+/* case prefix is 2 ~ 9 */
 
 /* The total src buffer < nx_compress_threshold (10*1024) and avail_in is 1 */
 int run_case2()
 {
-	return run(5*1024, 1, __func__);
+	return run(5*1024, 1,  __func__);
 }
 
 /* The total src buffer < nx_compress_threshold (10*1024) and 1 < avail_in < total */
 int run_case3()
+{
+	return run(5*1000, 100, __func__);
+}
+
+/* The total src buffer < nx_compress_threshold (10*1024) and 1 < avail_in < total
+ * but avail_in is not aligned with src_len
+ * TODO: this is an error case
+ */
+int run_case3_1()
 {
 	// return run(5*1024, 100, __func__);
 	return 0;
@@ -160,5 +190,17 @@ int run_case6()
 int run_case7()
 {
 	return run(64*20000, 20000, __func__);
+}
+
+/* A large buffer > fifo_in len and and 1 < avail_in < 10*1024 */
+int run_case8()
+{
+	return run(1024*1024*8, 4096, __func__);
+}
+
+/* A large buffer > fifo_in len and and avail_in > 10*1024 */
+int run_case9()
+{
+	return run(1024*1024*8, 1024*32, __func__);
 }
 

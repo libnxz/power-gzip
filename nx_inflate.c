@@ -1206,3 +1206,22 @@ int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, 
 	return cc;
 }
 
+#ifdef ZLIB_API
+int inflateInit_(z_streamp strm, const char *version, int stream_size)
+{
+	return nx_inflateInit_(strm, version, stream_size);
+}
+int inflateInit2_(z_streamp strm, int windowBits, const char *version, int stream_size)
+{
+	return nx_inflateInit2_(strm, windowBits, version, stream_size);
+}
+int inflateEnd(z_streamp strm)
+{
+	return nx_inflateEnd(strm);
+}
+int inflate(z_streamp strm, int flush)
+{
+	return nx_inflate(strm, flush);
+}
+#endif
+

@@ -1,7 +1,7 @@
 #include <zlib.h>
 #include "nx_zlib.h"
 
-int compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level)
+int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level)
 {
     z_stream stream;
     int err;
@@ -40,14 +40,31 @@ int compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen
     return err == Z_STREAM_END ? Z_OK : err;
 }
 
-int compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
+int nx_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
 {
     return compress2(dest, destLen, source, sourceLen, Z_DEFAULT_COMPRESSION);
 }
 
-uLong compressBound(uLong sourceLen)
+uLong nx_compressBound(uLong sourceLen)
 {
     return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) +
            (sourceLen >> 25) + 13;
 }
+
+#ifdef ZLIB_API
+
+int compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
+{
+	return nx_compress(dest, destLen, source, sourceLen);
+}
+int compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level)
+{
+	return nx_compress2(dest, destLen, source, sourceLen, level);
+}
+uLong compressBound(uLong sourceLen)
+{
+	return nx_compressBound(sourceLen);
+}
+
+#endif
 

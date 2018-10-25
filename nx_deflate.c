@@ -99,7 +99,6 @@ static uint32_t nx_max_byte_count_current = (1UL<<30);
 static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_per_job_len = (512 * 1024);     /* less than suspend limit */
-static uint32_t nx_strm_bufsz = (1024 * 1024);
 static uint32_t nx_soft_copy_threshold = 1024;      /* choose memcpy or hwcopy */
 static uint32_t nx_compress_threshold = (10*1024);  /* collect as much input */
 static int      nx_pgfault_retries = 50;         
@@ -294,7 +293,7 @@ static int append_spanning_flush(nx_streamp s, int flush, int tebc, int final)
 	}
 	/* overflowing any remainder in to fifo_out */
 	while (k < nb) {
-		*(s->fifo_out + + s->cur_out + s->used_out) = tmp[k+1];
+		*(s->fifo_out + s->cur_out + s->used_out) = tmp[k+1];
 		++k;
 		++s->used_out;
 	}
@@ -320,10 +319,11 @@ static int append_spanning_flush(nx_streamp s, int flush, int tebc, int final)
 		if (s->tebc > 0) {
 			ASSERT(flush == Z_PARTIAL_FLUSH);
 			update_stream_out(s, -1);
+			update_stream_out(s->zstrm, -1);
 			/* copy the partial byte to fifo_out */
 			*s->fifo_out = *s->next_out;
-			s->cur_out = 0;
 			s->used_out = 1;
+			s->cur_out = 0;
 			-- nb;
 		}
 	}
@@ -516,7 +516,7 @@ static retnx_t nx_get_dde_byte_count(nx_dde_t *d, uint32_t *indirect_count, uint
 		   what happens when d->ddebc is so short it doesn't reach
 		   last couple ddes? */
 		if (total_dde_bytes != getp32(d, ddebc)) {
-			pr_warn("WARN: ddebc mismatch\n");
+			printf("WARN: ddebc mismatch\n");
 		}
 	}
 	return ERR_NX_OK;
@@ -646,7 +646,7 @@ static retlibnx_t nx_to_zstrm_trailer(void *buf, uint32_t cksum)
 	return LIBNX_OK;
 }
 
-retz_t nx_deflateReset(z_streamp strm)
+int nx_deflateReset(z_streamp strm)
 {
 	nx_streamp s;
 	if (strm == Z_NULL)
@@ -659,7 +659,7 @@ retz_t nx_deflateReset(z_streamp strm)
 	return Z_OK;
 }
 
-retz_t nx_deflateEnd(z_streamp strm)
+int nx_deflateEnd(z_streamp strm)
 {
 	int rc;
 	nx_streamp s;
@@ -761,13 +761,11 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	
 	/* TODO consider using caller supplied zalloc and zfree */
 
-	ASSERT( nx_strm_bufsz > nx_page_sz );
-	
-	s->len_in = nx_strm_bufsz;
+	s->len_in = nx_config.deflate_fifo_in_len;
 	if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_page_sz, 0)))
 		return Z_MEM_ERROR;
 
-	s->len_out = nx_strm_bufsz;
+	s->len_out = nx_config.deflate_fifo_out_len;
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_page_sz, 0)))
 		return Z_MEM_ERROR;
 
@@ -854,7 +852,7 @@ static inline void small_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 {
 	uint32_t free_bytes, copy_bytes;
 	
-	free_bytes = s->len_in - s->cur_in - s->used_in;
+	free_bytes = s->len_in/2 - s->cur_in - s->used_in;
 	copy_bytes = NX_MIN(free_bytes, s->avail_in);
 
 	memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, copy_bytes);
@@ -892,7 +890,6 @@ static int nx_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 			pr_err("nx_copy failed\n");
 		}
 
-		update_stream_in(s, copy_bytes);
 		s->used_in += copy_bytes;
 		len = len - copy_bytes;
 	}
@@ -910,7 +907,6 @@ static int nx_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 				memcpy(s->fifo_in, s->next_in, copy_bytes);
 				pr_err("nx_copy failed\n");
 			}
-			update_stream_in(s, copy_bytes);
 			s->used_in += copy_bytes;
 			len -= copy_bytes;
 		}
@@ -990,7 +986,7 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 	if (avail_out > 0)
 		total = nx_append_dde(s->ddl_out, s->next_out, avail_out);
 
-	free_bytes = s->len_out - s->cur_out - s->used_out;
+	free_bytes = s->len_out/2 - s->cur_out - s->used_out;
 	total = nx_append_dde(s->ddl_out, s->fifo_out + s->cur_out + s->used_out, free_bytes);
 	
 	return total;
@@ -1087,7 +1083,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 
 	if (s->avail_out == 0) {
 		/* excess tpbc overflowed in to fifo_out */
-		ASSERT( tpbc <= s->len_out );
+		ASSERT( tpbc <= s->len_out/2 );
 		s->used_out += tpbc;
 	}
 	return LIBNX_OK;
@@ -1225,8 +1221,10 @@ restart:
 	/* If indirect DDEbc is <= the sum of all the direct DDEbc
 	   values, the accelerator will process only indirect DDEbc
 	   bytes, and no error has occurred. */
-
  	putp32(ddl_in, ddebc, bytes_in);  /* may adjust the input size on retries */
+
+	nx_touch_pages_dde(ddl_in, 0, nx_config.page_sz, 0);
+	nx_touch_pages_dde(ddl_out, bytes_out, nx_config.page_sz, 1);
 
 	cc = nx_submit_job(ddl_in, ddl_out, nxcmdp, s->nxdevp);
 	s->nx_cc = cc;
@@ -1319,7 +1317,6 @@ restart:
 		goto err_exit;
 	}
 
-	
 do_update_offsets:
 	nx_compress_block_update_offsets(s, fc);
 
@@ -1515,4 +1512,28 @@ s3:
 
 	return Z_OK;
 }
+
+#ifdef ZLIB_API
+int deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
+{
+	return nx_deflateInit_(strm, level, version, stream_size);
+}
+
+int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
+		int memLevel, int strategy, const char *version,
+		int stream_size)
+{
+	return nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+}
+
+int deflateEnd(z_streamp strm)
+{
+	return nx_deflateEnd(strm);
+}
+
+int deflate(z_streamp strm, int flush)
+{
+	return nx_deflate(strm, flush);
+}
+#endif
 

@@ -1,5 +1,4 @@
 CC = gcc
-# CC = /opt/at11.0/bin/gcc
 FLG = -std=gnu11
 CFLAGS = -O3 $(FLG)
 

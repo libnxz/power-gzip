@@ -1,0 +1,93 @@
+#include "../test_deflate.h"
+#include "../test_utils.h"
+
+/* use nx to compress */
+static int _test_nx_compress(Byte* compr, unsigned long *compr_len, Byte* src, unsigned long src_len)
+{
+	int rc;
+	rc = nx_compress(compr, compr_len, src, src_len);
+	dbg_printf("rc %d src_len %d compr_len %d\n", rc, src_len, *compr_len);
+	return TEST_OK;
+}
+
+/* use zlib to uncomress */
+static int _test_uncompress(Byte* uncompr, unsigned long *uncomprLen, Byte* compr, unsigned long comprLen, Byte* src, unsigned long src_len)
+{
+	int rc;
+	memset(uncompr, 0, *uncomprLen);
+	rc = uncompress(uncompr, uncomprLen, compr, comprLen);
+	dbg_printf("rc %d compr_len %d uncompr_len %d\n", rc, comprLen, *uncomprLen);
+	if (compare_data(uncompr, src, src_len)) {
+		return TEST_ERROR;
+	}
+	return TEST_OK;
+}
+
+/* use nx to uncomress */
+static int _test_nx_uncompress(Byte* uncompr, unsigned long *uncomprLen, Byte* compr, unsigned long comprLen, Byte* src, unsigned long src_len)
+{
+	int rc;
+	memset(uncompr, 0, *uncomprLen);
+	rc = nx_uncompress(uncompr, uncomprLen, compr, comprLen);
+	dbg_printf("rc %d compr_len %d uncompr_len %d\n", rc, comprLen, *uncomprLen);
+	if (compare_data(uncompr, src, src_len)) {
+		return TEST_ERROR;
+	}
+	return TEST_OK;
+}
+
+static int run(unsigned int len, const char* test)
+{
+	Byte *src, *compr, *uncompr;
+	unsigned long src_len = len;
+	unsigned long compr_len = src_len*2;
+	unsigned long uncompr_len = src_len*2;
+	generate_random_data(src_len);
+	src = &ran_data[0];
+
+	compr = (Byte*)calloc((uInt)compr_len, 1);
+	uncompr = (Byte*)calloc((uInt)uncompr_len, 1);
+	if (compr == NULL || uncompr == NULL ) {
+		printf("*** alloc buffer failed\n");
+		return TEST_ERROR;
+	}
+
+	if (_test_nx_compress(compr, &compr_len, src, src_len)) goto err;
+	if (_test_uncompress(uncompr, &uncompr_len, compr, compr_len, src, src_len)) goto err;
+	if (_test_nx_uncompress(uncompr, &uncompr_len, compr, compr_len, src, src_len)) goto err;
+
+	printf("*** %s %s passed\n", __FILE__, test);
+	free(compr);
+	free(uncompr);
+	return TEST_OK;
+err:
+	free(compr);
+	free(uncompr);
+	return TEST_ERROR;
+}
+
+/* case prefix is 10-19 */
+/* The total src buffer < nx_compress_threshold (10*1024) */
+int run_case10()
+{
+	return run(5*1024, __func__);
+}
+
+/* The total src buffer > nx_compress_threshold (10*1024) */
+int run_case11()
+{
+	return run(20*1024, __func__);
+}
+
+/* The total src buffer > 8M */
+int run_case12()
+{
+	return run(20*1024*1024, __func__);
+}
+
+/* The total src buffer > 64M */
+int run_case13()
+{
+	return run(64*1024*1024, __func__);
+}
+

@@ -397,8 +397,6 @@ nx_devp_t nx_open(int nx_id)
 	nx_devp_t nx_devp;
 	void *vas_handle;
 
-	prt_info("nx_open: nx_id %d\n", nx_id);
-
 	if (nx_dev_count >= NX_DEVICES_MAX) {
 		prt_err("nx_open failed: too many open devices\n");
 		return NULL;
@@ -413,8 +411,6 @@ nx_devp_t nx_open(int nx_id)
 		return NULL;
 	}
 
-	prt_info("nx_open: vas handle %p\n", vas_handle);		
-		
 	nx_wait_exclusive((int *) &biglock);
 	nx_devp = &nx_devices[ nx_dev_count ];
 	nx_devp->vas_handle = vas_handle;
@@ -427,7 +423,6 @@ nx_devp_t nx_open(int nx_id)
 int nx_close(nx_devp_t nxdevp)
 {
 	int i;
-	prt_info("nx_close: nxdevp %p\n", nxdevp);
 	
 	/* leave everything open */
 	return 0;
@@ -436,7 +431,6 @@ int nx_close(nx_devp_t nxdevp)
 static void nx_close_all()
 {
 	int i;
-	prt_info("nx_close_all\n");
 	
 	/* no need to lock anything; we're exiting */
 	for (i=0; i < nx_dev_count; i++)
@@ -520,8 +514,8 @@ void nx_hw_init(void)
 	nx_config.compress_threshold = (10*1024);  /* collect as much input */
 	nx_config.inflate_fifo_in_len = ((1<<16)*2); // 128K
 	nx_config.inflate_fifo_out_len = ((1<<24)*2); // 32M
-	nx_config.deflate_fifo_in_len = ((1<<22)*2); // 8M
-	nx_config.deflate_fifo_out_len = ((1<<22)*2); // 8M
+	nx_config.deflate_fifo_in_len = ((1<<21)*2); // 8M
+	nx_config.deflate_fifo_out_len = ((1<<22)*4); // 16M
 	nx_config.retry_max = 50;	
 	nx_config.window_max = (1<<15);
 	nx_config.pgfault_retries = 50;         
@@ -538,6 +532,8 @@ void nx_hw_init(void)
 
 	if (logfile != NULL)
 		nx_gzip_log = fopen(logfile, "a+");
+	else
+		nx_gzip_log = fopen("/dev/null", "a+");
 	
 	if (trace_s != NULL)
 		nx_gzip_trace = strtol(trace_s, (char **)NULL, 0);

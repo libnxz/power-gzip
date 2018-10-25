@@ -95,7 +95,8 @@ static long nx_page_sz = (1<<16);
 static const int nx_stored_block_len = 32768;
 static uint32_t nx_max_byte_count_low = (1UL<<30);
 static uint32_t nx_max_byte_count_high = (1UL<<30);
-static uint32_t nx_max_byte_count_current = (1UL<<30);
+// static uint32_t nx_max_byte_count_current = (1UL<<30);
+static uint32_t nx_max_byte_count_current = (1UL<<20);
 static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_per_job_len = (512 * 1024);     /* less than suspend limit */
@@ -691,8 +692,8 @@ int nx_deflateInit_(z_streamp strm, int level, const char* version, int stream_s
 }
 
 int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits, 
-		int memLevel __unused, int strategy, const char *version __unused,
-		int stream_size __unused)
+		int memLevel, int strategy, const char *version,
+		int stream_size)
 {
 	int rc;
 	int wrap;
@@ -738,7 +739,8 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		return Z_STREAM_ERROR;
 	}
 
-	if (level == Z_DEFAULT_COMPRESSION) level = 6;
+	/* only support level 6 here */
+	level = 6;
 
 	s = nx_alloc_buffer(sizeof(*s), nx_page_sz, 0);
 	/* s = calloc(1, sizeof(*s)); */
@@ -1222,7 +1224,6 @@ restart:
 	   values, the accelerator will process only indirect DDEbc
 	   bytes, and no error has occurred. */
  	putp32(ddl_in, ddebc, bytes_in);  /* may adjust the input size on retries */
-
 	nx_touch_pages_dde(ddl_in, 0, nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_out, bytes_out, nx_config.page_sz, 1);
 
@@ -1399,10 +1400,13 @@ int nx_deflate(z_streamp strm, int flush)
         s->avail_in = s->zstrm->avail_in;
         s->avail_out = s->zstrm->avail_out;	
 
+
 	/* check next_in and next_out buffer */
 	if (s->next_out == NULL || (s->avail_in != 0 && s->next_in == NULL)) return Z_STREAM_ERROR;
-	if (s->avail_out == 0) return Z_BUF_ERROR;
-
+	if (s->avail_out == 0) {
+		prt_err("s->avail_out is 0\n");
+		return Z_BUF_ERROR;
+	}
 
 	/* Generate a header */
 	if ((s->status & (NX_ZLIB_STATE | NX_GZIP_STATE)) != 0) {
@@ -1413,7 +1417,10 @@ int nx_deflate(z_streamp strm, int flush)
 	if (s->status == NX_BFINAL_STATE && flush != Z_FINISH) return Z_STREAM_ERROR;
 
 	/* User must not provide more input after the first FINISH: */
-	if (s->status == NX_BFINAL_STATE && s->avail_in != 0) return Z_BUF_ERROR;
+	if (s->status == NX_BFINAL_STATE && s->avail_in != 0) {
+		prt_err("s->status is NX_BFINAL_STATE but s->avail_out is not 0\n");
+		return Z_BUF_ERROR;
+	}
 
 	/* update flush status here */
 	s->flush = flush;

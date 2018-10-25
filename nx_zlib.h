@@ -49,6 +49,7 @@
 #include <sys/ioctl.h>
 #include <endian.h>
 #include "nxu.h"
+#include "nx_dbg.h"
 
 #ifndef _NX_ZLIB_H
 #define _NX_ZLIB_H

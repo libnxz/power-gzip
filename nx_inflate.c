@@ -193,7 +193,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 		prt_err("nx_alloc_buffer\n");		
 		return ret;
 	}
-	prt_info("nx_inflateInit2_: allocated\n");
 
 	s->zstrm   = strm;
 	s->nxcmdp  = &s->nxcmd0;
@@ -862,8 +861,6 @@ restart_nx:
 	 * send job to NX 
 	 */
 	cc = nx_submit_job(ddl_in, ddl_out, cmdp, s->nxdevp);
-
-	NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );	
 
 	switch (cc) {
 

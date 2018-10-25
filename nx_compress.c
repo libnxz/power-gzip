@@ -22,7 +22,6 @@ int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong source
     stream.avail_out = 0;
     stream.next_in = (z_const Bytef *)source;
     stream.avail_in = 0;
-
     do {
         if (stream.avail_out == 0) {
             stream.avail_out = left > (uLong)max ? max : (uInt)left;
@@ -47,8 +46,9 @@ int nx_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceL
 
 uLong nx_compressBound(uLong sourceLen)
 {
-    return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) +
-           (sourceLen >> 25) + 13;
+    return sourceLen * 15/8 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
+    // return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) +
+    //        (sourceLen >> 25) + 13;
 }
 
 #ifdef ZLIB_API

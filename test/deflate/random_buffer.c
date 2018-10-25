@@ -16,31 +16,26 @@ static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsign
 	
 	err = nx_deflateInit(&c_stream, Z_DEFAULT_COMPRESSION);
 	if (err != 0) {
-		dbg_printf("nx_deflateInit err %d\n", err);
+		printf("nx_deflateInit err %d\n", err);
 		return TEST_ERROR;
-	}
-	else {
-		dbg_printf("nx_deflateInit err %d\n", err);
 	}
 	
 	c_stream.next_in  = (z_const unsigned char *)src;
 	c_stream.next_out = compr;
 
-	dbg_printf("nx_deflate begin \n");
 	while (c_stream.total_in != src_len && c_stream.total_out < compr_len) {
 	    c_stream.avail_in = c_stream.avail_out = step;
 	    err = nx_deflate(&c_stream, Z_NO_FLUSH);
 	    if (c_stream.total_in > src_len) break;
 	}
 	assert(c_stream.total_in == src_len);
-	dbg_printf("nx_deflate c_stream.total_in %d c_stream.total_out %d \n", c_stream.total_in, c_stream.total_out);
+
         for (;;) {
             c_stream.avail_out = 1;
             err = nx_deflate(&c_stream, Z_FINISH);
             if (err == Z_STREAM_END) break;
         }
 
-	dbg_printf("nx_deflate end \n");
 	err = nx_deflateEnd(&c_stream);
 	if (err != 0) {
 		return TEST_ERROR;

@@ -30,7 +30,6 @@ int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sou
 
     stream.next_out = dest;
     stream.avail_out = 0;
-
     do {
         if (stream.avail_out == 0) {
             stream.avail_out = left > (uLong)max ? max : (uInt)left;

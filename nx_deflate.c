@@ -396,12 +396,14 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 	}
 	else if (s->wrap == WRAP_ZLIB) {
 		uint32_t cksum = s->adler32;
+		prt_info("     s->adler32 %x s->used_out %d s->total_out %d\n", s->adler32, s->used_out, s->total_out);
 		/* TODO hto32le */
 		k=0;
 		while (k++ < 4) {
 			nx_put_byte(s, (cksum & 0xFF000000) >> 24);
 			cksum = cksum << 8;
 		}
+		prt_info("     s->adler32 %x s->used_out %d s->total_out %d\n", s->adler32, s->used_out, s->total_out);
 		return k;
 	}
 	return 0;
@@ -1010,7 +1012,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	int with_count;
 	uint32_t adler, crc, spbc, tpbc;
 	int tebc;
-	uint32_t first_bytes, last_bytes, copy_bytes, histbytes;
+	uint32_t first_bytes, last_bytes, copy_bytes, histbytes, overflow;
 
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
 
@@ -1037,6 +1039,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 
 	s->last_ratio = ((long)tpbc * 1000) / ((long)spbc + 1);
 	
+	prt_info("     spbc %d tpbc %d tebc %d histbytes %d\n", spbc, tpbc, tebc, histbytes);
 	/* 
 	   update the input pointers
 	*/
@@ -1062,12 +1065,13 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	/* output first written to next_out then the overflow amount
 	   goes to fifo_out */
 
-	copy_bytes = NX_MIN(tpbc, s->avail_out);
+	copy_bytes = NX_MIN(NX_MIN(tpbc, s->avail_out), nx_max_byte_count_current);
 
 	int bfinal;
 	int bfinal_offset;
 	/* no more input; make this the last block */
 	if (s->avail_in == 0 && s->used_in == 0 && s->flush == Z_FINISH && fc != GZIP_FC_WRAP ) {
+		prt_info("     1084 set final block\n");
 		bfinal = 1;
 		bfinal_offset = 0;
 		s->status = NX_BFINAL_STATE;
@@ -1081,13 +1085,13 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	
 	update_stream_out(s, copy_bytes);
 	update_stream_out(s->zstrm, copy_bytes);
-	tpbc = tpbc - copy_bytes;
+	overflow = tpbc - copy_bytes;
 
-	if (s->avail_out == 0) {
-		/* excess tpbc overflowed in to fifo_out */
-		ASSERT( tpbc <= s->len_out/2 );
-		s->used_out += tpbc;
-	}
+	/* excess tpbc overflowed in to fifo_out */
+	ASSERT( overflow <= s->len_out/2 );
+	s->used_out += overflow;
+
+	print_dbg_info(s, __LINE__);
 	return LIBNX_OK;
 }
 
@@ -1146,8 +1150,9 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 */
 
 
-static inline retlibnx_t nx_compress_block_append_flush_block(nx_streamp s)
+static inline int nx_compress_block_append_flush_block(nx_streamp s)
 {
+	prt_info(" == 1168 s->flush %d s->status %d s->tebc %d\n", s->flush, s->status, s->tebc);
 	if (s->used_out == 0) {
 		/* fifo_out is empty; compressor output did not overflow */
 		if (s->status == NX_BFINAL_STATE)
@@ -1158,6 +1163,7 @@ static inline retlibnx_t nx_compress_block_append_flush_block(nx_streamp s)
 		}
 
 		else if ( (s->flush == Z_NO_FLUSH && s->tebc > 0) || /* NX requirement */
+			  (s->status != NX_BFINAL_STATE && s->tebc > 0) || /* Caller don't finish but tebc > 0 */
 			  s->flush == Z_SYNC_FLUSH ||                /* Caller request */
 			  s->flush == Z_FULL_FLUSH ) {               /* Caller request */
 			append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, 0);
@@ -1230,18 +1236,20 @@ restart:
 	cc = nx_submit_job(ddl_in, ddl_out, nxcmdp, s->nxdevp);
 	s->nx_cc = cc;
 
+	prt_info("     cc == %d\n", cc);	
 	if (s->dry_run && (cc == ERR_NX_TPBC_GT_SPBC || cc == ERR_NX_OK)) {
 		/* only needed for sampling LZcounts (symbol stats) */
 		s->dry_run = 0;
 		return LIBNX_OK_DRYRUN;
 	}
-	
+
 	switch (cc) {
 	case ERR_NX_TRANSLATION:
 
 		/* touch 1 byte */
 		nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1);
 
+		prt_info("     pgfault_retries %d bytes_in %d\n", --pgfault_retries, bytes_in);
 		if (pgfault_retries == nx_pgfault_retries) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
@@ -1400,6 +1408,12 @@ int nx_deflate(z_streamp strm, int flush)
         s->avail_in = s->zstrm->avail_in;
         s->avail_out = s->zstrm->avail_out;	
 
+	/* update flush status here */
+	s->flush = flush;
+
+	prt_info("\n");
+	print_dbg_info(s, __LINE__);
+	prt_info("     s->flush %d s->status %d \n", s->flush, s->status);
 
 	/* check next_in and next_out buffer */
 	if (s->next_out == NULL || (s->avail_in != 0 && s->next_in == NULL)) return Z_STREAM_ERROR;
@@ -1422,13 +1436,11 @@ int nx_deflate(z_streamp strm, int flush)
 		return Z_BUF_ERROR;
 	}
 
-	/* update flush status here */
-	s->flush = flush;
-
 s1:
 	/* when fifo_out has data copy it to output stream first */
 	if (s->used_out > 0) {
 		nx_copy_fifo_out_to_nxstrm_out(s);
+		print_dbg_info(s, __LINE__);
 		if (s->avail_out == 0 && !(s->status & (NX_BFINAL_STATE | NX_TRAILER_STATE))) {
 			return Z_OK; /* need more output space */
 		}
@@ -1437,16 +1449,23 @@ s1:
 	/* check if stream end has been reached */
 	if (s->avail_in == 0 && s->used_in == 0 && s->used_out == 0) {
 		if (s->status == NX_INIT_STATE) {
+			prt_info("     change status NX_INIT_STATE to NX_BFINAL_STATE\n");
 			append_spanning_flush(s, Z_SYNC_FLUSH, 0, 1);
 			s->status = NX_BFINAL_STATE;
 		}
 		if (s->status == NX_BFINAL_STATE) {
+			prt_info("     change status NX_BFINAL_STATE to NX_TRAILER_STATE\n");
 			nx_compress_append_trailer(s);
 			s->status = NX_TRAILER_STATE;
 		}
 		if (s->used_out == 0 && s->status == NX_TRAILER_STATE)
 			return Z_STREAM_END;
-		goto s1;
+		
+		if (s->used_out == 0 && s->flush == Z_FINISH)
+			return Z_STREAM_END;
+
+		print_dbg_info(s, __LINE__);
+		goto s1; // FIXME: how to void dead cycle
 	}
 
 s2:
@@ -1505,7 +1524,8 @@ s3:
 	} else if (s->strategy == Z_FIXED) {
 
 		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_FHT, 0);
-
+		print_dbg_info(s, __LINE__);
+		
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
 			/* compressed data has expanded; write a type0 block */
 			s->need_stored_block = s->spbc;
@@ -1516,6 +1536,13 @@ s3:
 
 		nx_compress_update_checksum(s, !combine_cksum);
 	}
+
+	print_dbg_info(s, __LINE__);
+	if (((s->flush == Z_SYNC_FLUSH) ||
+	   (s->flush == Z_PARTIAL_FLUSH) ||
+	   (s->flush == Z_PARTIAL_FLUSH) ||
+	   (s->flush == Z_FINISH)) && (s->avail_in == 0)  && (s->used_in == 0) && (s->used_out == 0))
+		return Z_STREAM_END;
 
 	return Z_OK;
 }

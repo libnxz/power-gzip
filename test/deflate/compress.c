@@ -36,13 +36,16 @@ static int _test_nx_uncompress(Byte* uncompr, unsigned long *uncomprLen, Byte* c
 	return TEST_OK;
 }
 
-static int run(unsigned int len, const char* test)
+static int run(unsigned int len, int all, char digit, const char* test)
 {
 	Byte *src, *compr, *uncompr;
 	unsigned long src_len = len;
 	unsigned long compr_len = src_len*2;
 	unsigned long uncompr_len = src_len*2;
-	generate_random_data(src_len);
+	if (all)
+		generate_all_data(src_len, digit);
+	else
+		generate_random_data(src_len);
 	src = &ran_data[0];
 
 	compr = (Byte*)calloc((uInt)compr_len, 1);
@@ -54,7 +57,7 @@ static int run(unsigned int len, const char* test)
 
 	if (_test_nx_compress(compr, &compr_len, src, src_len)) goto err;
 	if (_test_uncompress(uncompr, &uncompr_len, compr, compr_len, src, src_len)) goto err;
-	if (_test_nx_uncompress(uncompr, &uncompr_len, compr, compr_len, src, src_len)) goto err;
+	// if (_test_nx_uncompress(uncompr, &uncompr_len, compr, compr_len, src, src_len)) goto err;
 
 	printf("*** %s %s passed\n", __FILE__, test);
 	free(compr);
@@ -70,24 +73,36 @@ err:
 /* The total src buffer < nx_compress_threshold (10*1024) */
 int run_case10()
 {
-	return run(5*1024, __func__);
+	return run(5*1024, 0, 0, __func__);
 }
 
 /* The total src buffer > nx_compress_threshold (10*1024) */
 int run_case11()
 {
-	return run(20*1024, __func__);
+	return run(20*1024, 0, 0, __func__);
+}
+
+/* The total src buffer = 2M */
+int run_case12()
+{
+	return run(2*1024*1024, 0, 0, __func__);
 }
 
 /* The total src buffer > 8M */
-int run_case12()
+int run_case13()
 {
-	return run(20*1024*1024, __func__);
+	return run(20*1024*1024, 0, 0, __func__);
 }
 
 /* The total src buffer > 64M */
-int run_case13()
+int run_case14()
 {
-	return run(64*1024*1024, __func__);
+	return run(64*1024*1024, 0, 0, __func__);
+}
+
+/* The total buffer is 0 */
+int run_case15()
+{
+	return run(2*1024*1024, 1, 0, __func__);
 }
 

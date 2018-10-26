@@ -69,7 +69,7 @@ do { if ((s)->cur_in > (s)->len_in/2) { \
 	(s)->cur_in = 0; } \
 } while(0)
 
-static int nx_inflate_(nx_streamp s);
+static int nx_inflate_(nx_streamp s, int flush);
 
 voidpf zcalloc(voidpf opaque, unsigned items, unsigned size)
 {
@@ -611,7 +611,7 @@ inf_forever:
 		s->inf_state = inf_state_inflate; /* go to inflate proper */
 
 	case inf_state_inflate:
-		rc = nx_inflate_(s);
+		rc = nx_inflate_(s, flush);
 		goto inf_return;
 	case inf_state_data_error:
 		rc = Z_DATA_ERROR;
@@ -634,7 +634,7 @@ inf_return:
 }	
 
 
-static int nx_inflate_(nx_streamp s)
+static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
 	int read_sz, n;
@@ -656,6 +656,15 @@ static int nx_inflate_(nx_streamp s)
 	int pgfault_retries;
 	int cc, rc;
 
+	print_dbg_info(s, __LINE__);
+
+	if ((flush == Z_FINISH) && (s->avail_in == 0) && (s->used_out == 0))
+		return Z_STREAM_END;
+
+	if (s->avail_in == 0 && s->used_in == 0 &&
+	    s->avail_out == 0 && s->used_out == 0)
+		return Z_STREAM_END;
+
 copy_fifo_out_to_next_out:
 	/* if fifo_out is not empty, first copy contents to
 	   next_out. Remember to keep up to last 32KB as the history
@@ -670,6 +679,7 @@ copy_fifo_out_to_next_out:
 			s->cur_out += write_sz;
 			fifo_out_len_check(s);
 		}
+		print_dbg_info(s, __LINE__);
 		/* if final is find, will not go ahead */
 		if (s->is_final == 1 && s->used_in == 0) return Z_STREAM_END;
 	}
@@ -708,6 +718,7 @@ small_next_in:
 			   is_eof = 1;
 			   goto write_state; */
 		}
+		print_dbg_info(s, __LINE__);
 	}
 	else {
 		/* FIXME: */
@@ -748,6 +759,7 @@ decomp_state:
 			nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - s->history_len),
 					      s->history_len);
 		}
+		print_dbg_info(s, __LINE__);
 	}
 	else {
 		/* First decompress job */
@@ -827,21 +839,19 @@ decomp_state:
 	*/
 	target_max = NX_MAX(0, s->len_out - s->cur_out - (1<<16)); // FIXME here
 	source_sz_estimate = ((uint64_t)target_max * s->last_comp_ratio * 3UL)/4000;
-
+/*
 	if ( source_sz_estimate < source_sz ) {
-		/* target might be small, therefore limiting the
-		   source data */
+		// target might be small, therefore limiting the source data
 		source_sz = source_sz_estimate;
 		target_sz_estimate = target_max;
 	}
 	else {
-		/* Source file might be small, therefore limiting target
-		   touch pages to a smaller value to save processor cycles.
-		*/
+		// Source file might be small, therefore limiting target
+		// touch pages to a smaller value to save processor cycles.
 		target_sz_estimate = ((uint64_t)source_sz * 1000UL) / (s->last_comp_ratio + 1);
 		target_sz_estimate = NX_MIN( 2 * target_sz_estimate, target_max );
 	}
-
+*/
 	source_sz = source_sz + s->history_len;
 
 	/* Some NX condition codes require submitting the NX job
@@ -849,6 +859,7 @@ decomp_state:
 	  code to touch pages */
 	pgfault_retries = nx_config.retry_max;
 
+	prt_info("     source_sz %d target_sz_estimate %d\n", source_sz, target_sz_estimate);
 restart_nx:
 
  	putp32(ddl_in, ddebc, source_sz);  
@@ -1114,7 +1125,7 @@ offsets_state:
 	}
 
 	if (s->avail_in > 0 && s->avail_out > 0) {
-		goto small_next_in;
+		goto copy_fifo_out_to_next_out;
 	}
 
 	return Z_OK;

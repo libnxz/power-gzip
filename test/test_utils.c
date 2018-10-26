@@ -24,6 +24,17 @@ static char dict[] = {
 	',', '.', '!', '?', '.', '{', '}'
 };
 
+int generate_all_data(int len, char digit)
+{
+	assert(len > 0);
+
+	srand(time(NULL));
+
+	for (int i = 0; i < len; i++) {
+		ran_data[i] = digit;
+	}
+}
+
 int generate_random_data(int len)
 {
 	assert(len > 0);

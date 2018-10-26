@@ -32,16 +32,18 @@ int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong source
             sourceLen -= stream.avail_in;
         }
         err = nx_deflate(&stream, sourceLen ? Z_NO_FLUSH : Z_FINISH);
+	prt_info("     err %d\n", err);
     } while (err == Z_OK);
 
     *destLen = stream.total_out;
     nx_deflateEnd(&stream);
+
     return err == Z_STREAM_END ? Z_OK : err;
 }
 
 int nx_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
 {
-    return compress2(dest, destLen, source, sourceLen, Z_DEFAULT_COMPRESSION);
+    return nx_compress2(dest, destLen, source, sourceLen, Z_DEFAULT_COMPRESSION);
 }
 
 uLong nx_compressBound(uLong sourceLen)

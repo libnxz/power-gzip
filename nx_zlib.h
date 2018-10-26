@@ -288,7 +288,8 @@ typedef struct nx_stream_s *nx_streamp;
 
 /* for appending bytes in to the stream */
 #define nx_put_byte(s,b)  do { if ((s)->avail_out > 0)			\
-		{*((s)->next_out++) = (b); --(s)->avail_out; ++(s)->total_out; } \
+		{ *((s)->next_out++) = (b); --(s)->avail_out; ++(s)->total_out; \
+		  *((s)->zstrm->next_out++) = (b); --(s)->zstrm->avail_out; ++(s)->zstrm->total_out; } \
 		else { *((s)->fifo_out + (s)->cur_out + (s)->used_out) = (b); ++(s)->used_out; } } while(0)
 
 /* nx_inflate_get_byte is used for header processing.  It goes to
@@ -301,6 +302,19 @@ typedef struct nx_stream_s *nx_streamp;
 			(s)->cksum = nx_crc32((s)->cksum, (s)->ckbuf.buf, (s)->ckidx); \
 			(s)->ckidx = 0;	}				\
 	} while(0)
+
+#define print_dbg_info(s, line) \
+do { prt_info(\
+"== %d s->avail_in %d s->total_in %d \
+s->used_in %d s->cur_in %d \
+s->avail_out %d s->total_out %d \
+s->used_out %d s->cur_out %d\n", line, \
+(s)->avail_in, (s)->total_in, \
+(s)->used_in, (s)->cur_in, \
+(s)->avail_out, (s)->total_out, \
+(s)->used_out, (s)->cur_out);\
+} while (0)
+
 
 /* inflate states */
 typedef enum {

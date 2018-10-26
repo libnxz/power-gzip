@@ -2,7 +2,7 @@
 CC = /opt/at11.0/bin/gcc
 FLG = -std=gnu11
 SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
-ZLIB = -DZLIB_API
+#ZLIB = -DZLIB_API
 CFLAGS = $(FLG) $(SFLAGS) $(ZLIB)
 
 SRCS = nx_inflate.c nx_deflate.c nx_zlib.c nx_crc.c \

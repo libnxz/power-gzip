@@ -27,5 +27,6 @@ int main()
 	check ( run_case7() );
 	check ( run_case8() );
 	check ( run_case9() );
+	check ( run_case9_1() );
 }
 

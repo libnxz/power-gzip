@@ -29,18 +29,52 @@ static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned 
 	    if (c_stream.total_in > src_len) break;
 	}
 	assert(c_stream.total_in == src_len);
-	printf("c_stream.total_out %d\n", c_stream.total_out);
 
         for (;;) {
             c_stream.avail_out = 1;
             err = deflate(&c_stream, Z_FINISH);
             if (err == Z_STREAM_END) break;
         }
+	printf("\n*** c_stream.total_out %d\n", c_stream.total_out);
 
 	err = deflateEnd(&c_stream);
 	if (err != 0) {
 		return TEST_ERROR;
 	}
+
+	return TEST_OK;
+}
+
+/* use zlib inflate to infalte */
+static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsigned int uncomprLen, Byte* src, unsigned int src_len, int step)
+{
+        int err;
+        z_stream d_stream;
+
+	memset(uncompr, 0, uncomprLen);
+
+        d_stream.zalloc = zalloc;
+        d_stream.zfree = zfree;
+        d_stream.opaque = (voidpf)0;
+
+        d_stream.next_in  = compr;
+        d_stream.avail_in = 0;
+        d_stream.next_out = uncompr;
+
+        err = inflateInit(&d_stream);
+        while (d_stream.total_out < uncomprLen && d_stream.total_in < comprLen) {
+                d_stream.avail_in = d_stream.avail_out = step;
+                err = inflate(&d_stream, Z_NO_FLUSH);
+                if (err == Z_STREAM_END) break;
+        }
+	printf("*** d_stream.total_in %d d_stream.total_out %d src_len %d\n", d_stream.total_in, d_stream.total_out, src_len);
+	assert(d_stream.total_out == src_len);
+
+        err = inflateEnd(&d_stream);
+
+        if (compare_data(uncompr, src, src_len)) {
+		return TEST_ERROR;
+        }
 
 	return TEST_OK;
 }
@@ -67,6 +101,8 @@ static int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, u
                 err = nx_inflate(&d_stream, Z_NO_FLUSH);
                 if (err == Z_STREAM_END) break;
         }
+	printf("*** d_stream.total_in %d d_stream.total_out %d src_len %d\n", d_stream.total_in, d_stream.total_out, src_len);
+	assert(d_stream.total_out == src_len);
 
         err = nx_inflateEnd(&d_stream);
 
@@ -94,6 +130,7 @@ static int run(unsigned int len, int step, const char* test)
 	}
 
 	if (_test_deflate(src, src_len, compr, compr_len, src_len)) goto err;
+	// if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
 	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
 
 	printf("*** %s %s passed\n", __FILE__, test);
@@ -154,5 +191,11 @@ int run_case8()
 int run_case9()
 {
 	return run(1024*1024*64, 1024*1024*64*2, __func__);
+}
+
+/* A large buffer and avail_in > total */
+int run_case9_1()
+{
+	return run(4194304, 4194304, __func__);
 }
 

@@ -925,7 +925,7 @@ restart_nx:
 			   We have a bug */
 			rc = Z_ERRNO;
 			fprintf(stderr, "history length error cc= %d\n", cc);
-			// FIXME goto err5;
+			goto err5;
 		}
 		
 	case ERR_NX_TARGET_SPACE:
@@ -970,7 +970,6 @@ ok_cc3:
 	   bytes of source were given to the accelerator including
 	   history bytes.
 	*/
-
 	switch (sfbt) { 
 		int dhtlen;
 		
@@ -1059,6 +1058,7 @@ ok_cc3:
 offsets_state:	
 
 	/* Adjust the source and target buffer offsets and lengths  */
+	/* source_sz is the real used in size */
 	s->used_in -= source_sz;
 	s->cur_in += source_sz;
 	fifo_in_len_check(s);
@@ -1066,7 +1066,7 @@ offsets_state:
 	int overflow_len = tpbc - len_next_out;
 	if (overflow_len <= 0) { // there is no overflow
 		assert(s->used_out == 0);
-		int need_len = NX_MIN(1<<15, tpbc);
+		int need_len = NX_MIN(INF_HIS_LEN, tpbc);
 		memcpy(s->fifo_out + s->cur_out, s->next_out + tpbc - need_len, need_len);
 		s->cur_out += need_len;
 		fifo_out_len_check(s);
@@ -1104,13 +1104,17 @@ offsets_state:
 
 	s->resuming = 1;
 
-	if (s->avail_in > 0 && s->avail_out > 0) {
-		goto copy_fifo_out_to_next_out;
-	}
-
 	if (s->is_final == 1 || cc == ERR_NX_OK) {
+		/* update total_in */
+		s->total_in = s->total_in - read_sz + source_sz;
+		s->zstrm->total_in = s->total_in;
+		s->used_in = 0; // FIXME
 		if (s->used_out == 0)
 			return Z_STREAM_END;
+	}
+
+	if (s->avail_in > 0 && s->avail_out > 0) {
+		goto small_next_in;
 	}
 
 	return Z_OK;

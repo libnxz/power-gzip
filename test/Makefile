@@ -10,10 +10,7 @@ SRC_INFLATE = ${wildcard test_inflate.c test_utils.c inflate/*.c}
 OBJ_DEFLATE = ${patsubst %.c, %.o, $(SRC_DEFLATE)}
 OBJ_INFLATE = ${patsubst %.c, %.o, $(SRC_INFLATE)}
 
-SRC_TOOLS   = uncompr.c
-OBJ_TOOLS   = ${patsubst %.c, %.o, $(SRC_TOOLS)}
-
-EXE = test_inflate test_deflate uncompr
+EXE = test_inflate test_deflate
 
 all: $(EXE)
 
@@ -21,14 +18,10 @@ test_inflate: $(OBJ_INFLATE)
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lz -lnxz
 test_deflate: $(OBJ_DEFLATE)
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lz -lnxz
-uncompr: $(OBJ_TOOLS)
-	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lz -lnxz
 
 $(OBJ_DEFLATE): %.o : %.c
 	$(CC) $(CFLAGS) $(INC) -c $^ -o $@
 $(OBJ_INFLATE): %.o : %.c
-	$(CC) $(CFLAGS) $(INC) -c $^ -o $@
-$(OBJ_TOOLS): %.o : %.c
 	$(CC) $(CFLAGS) $(INC) -c $^ -o $@
 
 clean:

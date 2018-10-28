@@ -953,7 +953,7 @@ restart_nx:
 
 		/* This should not happen for gzip formatted data;
 		 * we need trailing crc and isize */
-		fprintf(stderr, "ERR_NX_OK\n");
+		prt_info("ERR_NX_OK\n");
 		spbc = get32(cmdp->cpb, out_spbc_decomp);
 		tpbc = get32(cmdp->crb.csb, tpbc);
 		ASSERT(target_max >= tpbc);			

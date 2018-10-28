@@ -13,7 +13,7 @@
 #include <zlib.h>
 
 #include "test.h"
-#include "test_deflate.h"
+#include "test_inflate.h"
 
 #define check(s) do { if(s) exit(1); } while(0)
 

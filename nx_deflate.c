@@ -396,14 +396,12 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 	}
 	else if (s->wrap == WRAP_ZLIB) {
 		uint32_t cksum = s->adler32;
-		prt_info("     s->adler32 %x s->used_out %d s->total_out %d\n", s->adler32, s->used_out, s->total_out);
 		/* TODO hto32le */
 		k=0;
 		while (k++ < 4) {
 			nx_put_byte(s, (cksum & 0xFF000000) >> 24);
 			cksum = cksum << 8;
 		}
-		prt_info("     s->adler32 %x s->used_out %d s->total_out %d\n", s->adler32, s->used_out, s->total_out);
 		return k;
 	}
 	return 0;
@@ -665,6 +663,7 @@ int nx_deflateReset(z_streamp strm)
 int nx_deflateEnd(z_streamp strm)
 {
 	int rc;
+	int status;
 	nx_streamp s;
 
 	if (strm == Z_NULL)
@@ -674,10 +673,11 @@ int nx_deflateEnd(z_streamp strm)
 	if (s == NULL)
 		return Z_STREAM_ERROR;
 
+	status = s->status;
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
 
-	nx_deflateReset(strm);
+	// nx_deflateReset(strm);
 	
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
@@ -685,7 +685,7 @@ int nx_deflateEnd(z_streamp strm)
 
 	nx_free_buffer(s, sizeof(*s), 0);
 	
-	return Z_OK;
+	return status == NX_BUSY_STATE ? Z_DATA_ERROR : Z_OK;
 }
 
 int nx_deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
@@ -730,6 +730,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	}
 	else wrap = WRAP_ZLIB;
 
+	prt_info(" windowBits %d wrap %d \n", windowBits, wrap);
 	if (method != Z_DEFLATED || (strategy != Z_FIXED && strategy != Z_DEFAULT_STRATEGY)) {
 		pr_err("unsupported zlib method or strategy\n");		
 		return Z_STREAM_ERROR;
@@ -1458,13 +1459,15 @@ s1:
 			nx_compress_append_trailer(s);
 			s->status = NX_TRAILER_STATE;
 		}
+
+		print_dbg_info(s, __LINE__);
+		prt_info("s->zstrm->total_out %d\n", s->zstrm->total_out);
 		if (s->used_out == 0 && s->status == NX_TRAILER_STATE)
 			return Z_STREAM_END;
 		
 		if (s->used_out == 0 && s->flush == Z_FINISH)
 			return Z_STREAM_END;
 
-		print_dbg_info(s, __LINE__);
 		goto s1; // FIXME: how to void dead cycle
 	}
 
@@ -1538,11 +1541,17 @@ s3:
 	}
 
 	print_dbg_info(s, __LINE__);
-	if (((s->flush == Z_SYNC_FLUSH) ||
+
+	if ((s->flush == Z_SYNC_FLUSH) ||
 	   (s->flush == Z_PARTIAL_FLUSH) ||
-	   (s->flush == Z_PARTIAL_FLUSH) ||
-	   (s->flush == Z_FINISH)) && (s->avail_in == 0)  && (s->used_in == 0) && (s->used_out == 0))
-		return Z_STREAM_END;
+	   (s->flush == Z_FULL_FLUSH))
+		if ((s->avail_in == 0)  && (s->used_in == 0) && (s->used_out == 0))
+			return Z_STREAM_END;
+
+	if (s->flush == Z_FINISH) {
+		if ((s->avail_in > 0) && (s->avail_out > 0)) goto s1;
+		if ((s->status == NX_BFINAL_STATE) && (s->avail_out > 0)) goto s1;
+	}
 
 	return Z_OK;
 }

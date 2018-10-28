@@ -15,6 +15,8 @@ int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong source
     stream.zfree = (free_func)0;
     stream.opaque = (voidpf)0;
 
+    prt_info("nx_compress2 begin: sourceLen %d\n", sourceLen);
+
     err = nx_deflateInit(&stream, level);
     if (err != Z_OK) return err;
 
@@ -38,6 +40,7 @@ int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong source
     *destLen = stream.total_out;
     nx_deflateEnd(&stream);
 
+    prt_info("nx_compress2 end: destLen %d\n", *destLen);
     return err == Z_STREAM_END ? Z_OK : err;
 }
 

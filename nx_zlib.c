@@ -60,6 +60,7 @@
 struct nx_config_t nx_config;
 static struct nx_dev_t nx_devices[NX_DEVICES_MAX];
 static int nx_dev_count = 0;
+static int nx_init_done = 0;
 
 int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
@@ -396,8 +397,6 @@ nx_devp_t nx_open(int nx_id)
 	nx_devp_t nx_devp;
 	void *vas_handle;
 
-	prt_info("nx_open: nx_id %d\n", nx_id);
-
 	if (nx_dev_count >= NX_DEVICES_MAX) {
 		prt_err("nx_open failed: too many open devices\n");
 		return NULL;
@@ -406,15 +405,12 @@ nx_devp_t nx_open(int nx_id)
 	/* TODO open only one device until we learn how to locate them all */
 	if (nx_dev_count > 0)
 		return &nx_devices[0];
-
 	vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0);
 	if (!vas_handle) {
 		prt_err("nx_function_begin failed, errno %d\n", errno);
 		return NULL;
 	}
 
-	prt_info("nx_open: vas handle %p\n", vas_handle);		
-		
 	nx_wait_exclusive((int *) &biglock);
 	nx_devp = &nx_devices[ nx_dev_count ];
 	nx_devp->vas_handle = vas_handle;
@@ -427,7 +423,6 @@ nx_devp_t nx_open(int nx_id)
 int nx_close(nx_devp_t nxdevp)
 {
 	int i;
-	prt_info("nx_close: nxdevp %p\n", nxdevp);
 	
 	/* leave everything open */
 	return 0;
@@ -436,7 +431,6 @@ int nx_close(nx_devp_t nxdevp)
 static void nx_close_all()
 {
 	int i;
-	prt_info("nx_close_all\n");
 	
 	/* no need to lock anything; we're exiting */
 	for (i=0; i < nx_dev_count; i++)
@@ -494,6 +488,9 @@ void nx_lib_debug(int onoff)
 void nx_hw_init(void)
 {
 	int nx_count;
+
+	if (nx_init_done == 1) return;
+
 	char *accel_s    = getenv("NX_GZIP_DEV_TYPE");  /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE");   /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM");   /* -1 for default, 0,1,2 for socket# */
@@ -515,8 +512,10 @@ void nx_hw_init(void)
 	nx_config.strm_bufsz = (1024 * 1024);
 	nx_config.soft_copy_threshold = 1024;      /* choose memcpy or hwcopy */
 	nx_config.compress_threshold = (10*1024);  /* collect as much input */
-	nx_config.inflate_fifo_in_len = (1<<16);
-	nx_config.inflate_fifo_out_len = (1<<24);
+	nx_config.inflate_fifo_in_len = ((1<<16)*2); // 128K
+	nx_config.inflate_fifo_out_len = ((1<<24)*2); // 32M
+	nx_config.deflate_fifo_in_len = ((1<<21)*2); // 8M
+	nx_config.deflate_fifo_out_len = ((1<<22)*4); // 16M
 	nx_config.retry_max = 50;	
 	nx_config.window_max = (1<<15);
 	nx_config.pgfault_retries = 50;         
@@ -533,6 +532,8 @@ void nx_hw_init(void)
 
 	if (logfile != NULL)
 		nx_gzip_log = fopen(logfile, "a+");
+	else
+		nx_gzip_log = fopen("/dev/null", "a+");
 	
 	if (trace_s != NULL)
 		nx_gzip_trace = strtol(trace_s, (char **)NULL, 0);
@@ -562,6 +563,8 @@ void nx_hw_init(void)
 		nx_gzip_chip_num = atoi(chip_num_s);
 		/* TODO check if that accelerator exists */
 	}
+
+	nx_init_done = 1;
 }
 
 void nx_hw_done(void)
@@ -581,72 +584,6 @@ void nx_hw_done(void)
 
 	
 #ifdef _NX_ZLIB_TEST
-static alloc_func zalloc = (alloc_func)0;
-static free_func zfree = (free_func)0;
-static z_const char hello[] = "hello, hello!";
-void test_deflate(Byte* compr, uLong comprLen)
-{
-	z_stream c_stream; /* compression stream */
-	int err;
-	uLong len = (uLong)strlen(hello)+1;
-	
-	c_stream.zalloc = zalloc;
-	c_stream.zfree = zfree;
-	c_stream.opaque = (voidpf)0;
-	
-	err = deflateInit(&c_stream, Z_DEFAULT_COMPRESSION);
-	
-	c_stream.next_in  = (z_const unsigned char *)hello;
-	c_stream.next_out = compr;
-	
-	while (c_stream.total_in != len && c_stream.total_out < comprLen) {
-	    c_stream.avail_in = c_stream.avail_out = 1; /* force small buffers */
-	    err = deflate(&c_stream, Z_NO_FLUSH);
-	}
-	
-	/* Finish the stream, still forcing small buffers: */
-	for (;;) {
-	    c_stream.avail_out = 1;
-	    err = deflate(&c_stream, Z_FINISH);
-	    if (err == Z_STREAM_END) break;
-	}
-	
-	err = deflateEnd(&c_stream);
-}
-#define nx_inflateInit(strm) nx_inflateInit_((strm), ZLIB_VERSION, (int)sizeof(z_stream))
-void test_inflate(Byte* compr, uLong comprLen, Byte* uncompr, uLong uncomprLen)
-{
-	int err;
-	z_stream d_stream; /* decompression stream */
-
-	strcpy((char*)uncompr, "garbage");
-
-	d_stream.zalloc = zalloc;
-	d_stream.zfree = zfree;
-	d_stream.opaque = (voidpf)0;
-	
-	d_stream.next_in  = compr;
-	d_stream.avail_in = 0;
-	d_stream.next_out = uncompr;
-	
-	err = nx_inflateInit(&d_stream);
-	
-	while (d_stream.total_out < uncomprLen && d_stream.total_in < comprLen) {
-		d_stream.avail_in = d_stream.avail_out = 1; /* force small buffers */
-		err = nx_inflate(&d_stream, Z_NO_FLUSH);
-		if (err == Z_STREAM_END) break;
-	}
-	
-	err = inflateEnd(&d_stream);
-	
-	if (strcmp((char*)uncompr, hello)) {
-	    fprintf(stderr, "bad inflate\n");
-	    exit(1);
-	} else {
-	    printf("inflate(): %s\n", (char *)uncompr);
-	}
-}
-
 int main()
 {
         Byte *compr, *uncompr;
@@ -659,12 +596,6 @@ int main()
 	nx_hw_init();
 	nx_init_exclusive((int *) &ex);	
 	nx_wait_exclusive((int *) &ex);
-
-	// nx_deflate is not implemented, use zlib deflate for test
-	test_deflate(compr, comprLen);
-	// test nx_zlib inflate function
-	test_inflate(compr, comprLen, uncompr, uncomprLen);
-
 	nx_exit_exclusive((int *) &ex);
 	if (__builtin_cpu_is("power8")) fprintf(stderr, "cpu is power8\n");
 }

@@ -1,31 +1,33 @@
-CC=gcc
-# CC=/opt/at11.0/bin/gcc
-FLG= -std=gnu11
-CFLAGS=-O3 $(FLG)
+# CC=gcc
+CC = /opt/at11.0/bin/gcc
+FLG = -std=gnu11
+SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+ZLIB = -DZLIB_API
+CFLAGS = $(FLG) $(SFLAGS) $(ZLIB)
 
-LIBOBJ = libnxz.so
-SRCS = nx_inflate.c nx_zlib.c nx_crc.c nx_adler_combine.c gzip_vas.c
-OBJS = nx_inflate.o nx_zlib.o nx_crc.o nx_adler_combine.o gzip_vas.o
+SRCS = nx_inflate.c nx_deflate.c nx_zlib.c nx_crc.c \
+       nx_adler_combine.c gzip_vas.c nx_compress.c nx_uncompr.c
+OBJS = nx_inflate.o nx_deflate.o nx_zlib.o nx_crc.o \
+       nx_adler_combine.o gzip_vas.o nx_compress.o nx_uncompr.o
 
-ZDIR   = ../p9z/zlib-master
-ZLIB   = $(ZDIR)/libz.so.1.2.11
-ZCONFDIR = CONFIG_ZLIB_PATH="\"$(ZLIB)\""
+STATICLIB = libnxz.a
+SHAREDLIB = libnxz.so
 
 INC = ./inc_nx
-#NXFLAGS = -DNXDBG
 
-all: nx_zlib_test $(OBJS) $(LIBOBJ)
+all: $(OBJS) $(STATICLIB) $(SHAREDLIB)
 
 $(OBJS): $(SRCS)
-	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -I$(ZDIR) -c $^
+	$(CC) $(CFLAGS) -I$(INC) -c $^
 
-$(LIBOBJ): $(OBJS)
+$(STATICLIB): $(OBJS)
 	rm -f $@
-	$(CC) -shared -o $@ $(OBJS)	
+	ar rcs -o $@ $(OBJS)
 
-nx_zlib_test: nx_zlib.c gzip_vas.c nx_adler_combine.c nx_crc.c nx_inflate.c
-	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -I$(ZDIR) -D_NX_ZLIB_TEST -o $@ $^ -lz
+$(SHAREDLIB): $(OBJS)
+	rm -f $@
+	$(CC) -shared  -Wl,-soname,libnxz.so,--version-script,zlib.map -o $@ $(OBJS)	
 
 clean:
-	/bin/rm -f *.o *~ nx_zlib_test *.gcda *.gcno *.so
+	/bin/rm -f *.o *.gcda *.gcno *.so *.a
 

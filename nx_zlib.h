@@ -36,7 +36,20 @@
  *
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <malloc.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <assert.h>
+#include <errno.h>
+#include <sys/fcntl.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <endian.h>
 #include "nxu.h"
+#include "nx_dbg.h"
 
 #ifndef _NX_ZLIB_H
 #define _NX_ZLIB_H
@@ -82,6 +95,8 @@ struct nx_config_t {
 	uint32_t compress_threshold;   /* collect as much input */
 	int 	 inflate_fifo_in_len;
 	int 	 inflate_fifo_out_len;
+	int 	 deflate_fifo_in_len;
+	int 	 deflate_fifo_out_len;
 	int      retry_max;
 	int      window_max;
 	int      pgfault_retries;         
@@ -158,6 +173,8 @@ typedef struct nx_stream_s {
 	int             inf_held;	
 	int		resuming;
 	int		history_len;
+	int		last_comp_ratio;
+	int		is_final;
 
         z_streamp       zstrm;          /* point to the parent  */
 
@@ -271,8 +288,9 @@ typedef struct nx_stream_s *nx_streamp;
 
 /* for appending bytes in to the stream */
 #define nx_put_byte(s,b)  do { if ((s)->avail_out > 0)			\
-		{*((s)->next_out++) = (b); --(s)->avail_out; ++(s)->total_out; } \
-		else { *((s)->fifo_out + (s)->used_out) = (b); ++(s)->used_out; } } while(0)
+		{ *((s)->next_out++) = (b); --(s)->avail_out; ++(s)->total_out; \
+		  *((s)->zstrm->next_out++) = (b); --(s)->zstrm->avail_out; ++(s)->zstrm->total_out; } \
+		else { *((s)->fifo_out + (s)->cur_out + (s)->used_out) = (b); ++(s)->used_out; } } while(0)
 
 /* nx_inflate_get_byte is used for header processing.  It goes to
    inf_return when bytes are not sufficient */
@@ -284,6 +302,19 @@ typedef struct nx_stream_s *nx_streamp;
 			(s)->cksum = nx_crc32((s)->cksum, (s)->ckbuf.buf, (s)->ckidx); \
 			(s)->ckidx = 0;	}				\
 	} while(0)
+
+#define print_dbg_info(s, line) \
+do { prt_info(\
+"== %d s->avail_in %d s->total_in %d \
+s->used_in %d s->cur_in %d \
+s->avail_out %d s->total_out %d \
+s->used_out %d s->cur_out %d\n", line, \
+(s)->avail_in, (s)->total_in, \
+(s)->used_in, (s)->cur_in, \
+(s)->avail_out, (s)->total_out, \
+(s)->used_out, (s)->cur_out);\
+} while (0)
+
 
 /* inflate states */
 typedef enum {
@@ -331,5 +362,30 @@ extern int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 extern int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len);
 extern int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr);
 extern int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp);
+extern void nx_hw_init(void);
+
+/* nx_deflate.c */
+extern int nx_deflateInit_(z_streamp strm, int level, const char *version, int stream_size);
+extern int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
+		int memLevel __unused, int strategy, const char *version __unused, int stream_size __unused);
+#define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), ZLIB_VERSION, (int)sizeof(z_stream))
+extern int nx_deflate(z_streamp strm, int flush);
+extern int nx_deflateEnd(z_streamp strm);
+
+/* nx_inflate.c */
+extern int nx_inflateInit_(z_streamp strm, const char *version, int stream_size);
+extern int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int stream_size);
+#define nx_inflateInit(strm) nx_inflateInit_((strm), ZLIB_VERSION, (int)sizeof(z_stream))
+extern int nx_inflate(z_streamp strm, int flush);
+extern int nx_inflateEnd(z_streamp strm);
+
+/* nx_compress.c */
+extern int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);
+extern int nx_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+extern uLong nx_compressBound(uLong sourceLen);
+
+/* nx_uncompr.c */
+extern int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
+extern int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 
 #endif /* _NX_ZLIB_H */

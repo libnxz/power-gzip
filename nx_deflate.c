@@ -1556,6 +1556,11 @@ s3:
 	return Z_OK;
 }
 
+unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
+{
+	return (sourceLen*2);
+}
+
 #ifdef ZLIB_API
 int deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
 {
@@ -1577,6 +1582,11 @@ int deflateEnd(z_streamp strm)
 int deflate(z_streamp strm, int flush)
 {
 	return nx_deflate(strm, flush);
+}
+
+unsigned long deflateBound(z_streamp strm, unsigned long sourceLen)
+{
+	return nx_deflateBound(strm, sourceLen);
 }
 #endif
 

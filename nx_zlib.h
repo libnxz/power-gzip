@@ -371,6 +371,7 @@ extern int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBit
 #define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), ZLIB_VERSION, (int)sizeof(z_stream))
 extern int nx_deflate(z_streamp strm, int flush);
 extern int nx_deflateEnd(z_streamp strm);
+extern unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen);
 
 /* nx_inflate.c */
 extern int nx_inflateInit_(z_streamp strm, const char *version, int stream_size);

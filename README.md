@@ -43,5 +43,5 @@ For example, use "nx_compress" instead of "compress".
      
 - inflateInit_, inflateInit2_, inflateEnd, inflate
     
-- deflateInit_, deflateInit2_, deflateEnd, deflate
+- deflateInit_, deflateInit2_, deflateEnd, deflate, deflateBound
 

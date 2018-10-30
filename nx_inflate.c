@@ -57,13 +57,43 @@
 #include "nx_zlib.h"
 #include "nx_dbg.h"
 
-/* TODO get these from nx_init */
-const int fifo_in_len = 1<<24;
-const int fifo_out_len = 1<<24;	
-const int page_sz = 1<<16;
-const int line_sz = 1<<7;
-const int window_max = 1<<15;
-const int retry_max = 50;
+#define INF_HIS_LEN (1<<15)
+#define fifo_out_len_check(s) \
+do { if ((s)->cur_out > (s)->len_out/2) { \
+	memmove((s)->fifo_out, (s)->fifo_out + (s)->cur_out - INF_HIS_LEN, INF_HIS_LEN + (s)->used_out); \
+	(s)->cur_out = INF_HIS_LEN; } \
+} while(0)
+#define fifo_in_len_check(s) \
+do { if ((s)->cur_in > (s)->len_in/2) { \
+	memmove((s)->fifo_in, (s)->fifo_in + (s)->cur_in, (s)->used_in); \
+	(s)->cur_in = 0; } \
+} while(0)
+
+static int nx_inflate_(nx_streamp s, int flush);
+
+voidpf zcalloc(voidpf opaque, unsigned items, unsigned size)
+{
+	(void)opaque;
+	return sizeof(uInt) > 2 ? (voidpf)malloc(items * size):(voidpf)calloc(items, size);
+}
+
+void zcfree(voidpf opaque, voidpf ptr)
+{
+	(void)opaque;
+	free(ptr);
+}
+
+int nx_inflateResetKeep(z_streamp strm)
+{
+	nx_streamp s;
+	if (strm == Z_NULL)
+		return Z_STREAM_ERROR;
+	s = (nx_streamp) strm->state;
+	strm->total_in = strm->total_out = s->total_in = 0;
+	strm->msg = Z_NULL;
+	return Z_OK;
+}
+
 
 int nx_inflateReset(z_streamp strm)
 {
@@ -80,7 +110,11 @@ int nx_inflateReset(z_streamp strm)
 	s->total_in = s->total_out = 0;
 	
 	s->used_in = s->used_out = 0;
-	s->cur_in  = s->cur_out = 0;
+	s->cur_in = 0;
+	s->cur_out = INF_HIS_LEN; // keep a 32k gap here
+	s->inf_state = 0;
+	s->resuming = 0;
+	s->history_len = 0;
 
 	s->nxcmdp  = &s->nxcmd0;
 
@@ -90,7 +124,7 @@ int nx_inflateReset(z_streamp strm)
 	s->cksum = INIT_CRC;	
 	s->havedict = 0;
 		
-	return Z_OK;
+	return nx_inflateResetKeep(strm);
 }
 
 int nx_inflateReset2(z_streamp strm, int windowBits)
@@ -104,15 +138,15 @@ int nx_inflateReset2(z_streamp strm, int windowBits)
 	
 	/* extract wrap request from windowBits parameter */
 	if (windowBits < 0) {
-		wrap = WRAP_RAW;
+		wrap = HEADER_RAW;
 		windowBits = -windowBits;
 	}
 	else if (windowBits >= 8 && windowBits <= 15)
-		wrap = WRAP_ZLIB;
+		wrap = HEADER_ZLIB;
 	else if (windowBits >= 8+16 && windowBits <= 15+16)
-		wrap = WRAP_GZIP;
+		wrap = HEADER_GZIP;
 	else if (windowBits >= 8+32 && windowBits <= 15+32)
-		wrap = WRAP_ZLIB | WRAP_GZIP; /* auto detect header */
+		wrap = HEADER_ZLIB | HEADER_GZIP; /* auto detect header */
 	else
 		return Z_STREAM_ERROR;
 
@@ -127,7 +161,9 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	int ret;
 	nx_streamp s;
 	nx_devp_t h;
-	
+
+	nx_hw_init();
+
 	if (version == Z_NULL || version[0] != ZLIB_VERSION[0] ||
 	    stream_size != (int)(sizeof(z_stream)))
 		return Z_VERSION_ERROR;
@@ -137,11 +173,11 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	strm->msg = Z_NULL;                 /* in case we return an error */
 
 	if (strm->zalloc == (alloc_func)0) {
-		/* strm->zalloc = zcalloc; TODO
-		   strm->opaque = (voidpf)0; */
+		strm->zalloc = zcalloc;
+		strm->opaque = (voidpf)0;
 	}
 	if (strm->zfree == (free_func)0) {
-		/* strm->zfree = zcfree; TODO */
+		strm->zfree = zcfree;
 	}
 
 	h = nx_open(-1); /* TODO allow picking specific NX device */
@@ -151,12 +187,12 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	}
 
 	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
+
 	if (s == NULL) {
 		ret = Z_MEM_ERROR;
 		prt_err("nx_alloc_buffer\n");		
 		return ret;
 	}
-	prt_info("nx_inflateInit2_: allocated\n");
 
 	s->zstrm   = strm;
 	s->nxcmdp  = &s->nxcmd0;
@@ -182,13 +218,14 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 		goto alloc_err;
 	}
 	
+	strm->state = (void *) s;
+
 	ret = nx_inflateReset2(strm, windowBits);
 	if (ret != Z_OK) {
 		prt_err("nx_inflateReset2\n");
 		goto reset_err;
 	}
 
-	strm->state = (void *) s;
 	return ret;
 
 reset_err:	
@@ -245,17 +282,20 @@ int nx_inflate(z_streamp strm, int flush)
 		return Z_STREAM_ERROR;
 	}
 
-	
-inf_forever:
-	/* using gotos because it's a state machine and also don't
-	 * want too much indentation due to all the zlib states */
+	s->next_in = s->zstrm->next_in;
+	s->avail_in = s->zstrm->avail_in;
+	s->next_out = s->zstrm->next_out;
+	s->avail_out = s->zstrm->avail_out;
 
+inf_forever:
+	/* inflate state machine */
+	
 	switch (s->inf_state) {
 		unsigned int c, copy;
 
 	case inf_state_header:
 
-		if (s->wrap == (WRAP_ZLIB | WRAP_GZIP)) {
+		if (s->wrap == (HEADER_ZLIB | HEADER_GZIP)) {
 			/* auto detect zlib/gzip */
 			nx_inflate_get_byte(s, c);
 			if (c == 0x1f) /* looks like gzip */
@@ -268,13 +308,13 @@ inf_forever:
 				s->inf_state = inf_state_data_error;
 			}
 		}
-		else if (s->wrap == WRAP_ZLIB) {
+		else if (s->wrap == HEADER_ZLIB) {
 			/* look for a zlib header */
 			s->inf_state = inf_state_zlib_id1;
 			if (s->gzhead != NULL)
 				s->gzhead->done = -1;			
 		}
-		else if (s->wrap == WRAP_GZIP) {
+		else if (s->wrap == HEADER_GZIP) {
 			/* look for a gzip header */			
 			if (s->gzhead != NULL)
 				s->gzhead->done = 0;
@@ -515,13 +555,12 @@ inf_forever:
 		break;
 		
 	case inf_state_zlib_id1:
-
 		nx_inflate_get_byte(s, c);
-		if ((c & 0xf0) != 0x80) {
+		if ((c & 0x0f) != 0x08) {
 			strm->msg = (char *)"unknown compression method";
 			s->inf_state = inf_state_data_error;
 			break;
-		} else if ((c & 0x0f) >= 8) {
+		} else if (((c & 0xf0) >> 4) >= 8) {
 			strm->msg = (char *)"invalid window size";
 			s->inf_state = inf_state_data_error;
 			break;
@@ -533,13 +572,13 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_zlib_flg:
-
 		nx_inflate_get_byte(s, c);
 		if ( ((s->zlib_cmf * 256 + c) % 31) != 0 ) {
 			strm->msg = (char *)"incorrect header check";
 			s->inf_state = inf_state_data_error;
 			break;
 		}
+		/* FIXME: Need double check and test here */
 		if (c & 1<<5) {
 			s->inf_state = inf_state_zlib_dictid;
 			s->dictid = 0;			
@@ -547,12 +586,11 @@ inf_forever:
 		else {
 			s->inf_state = inf_state_inflate; /* go to inflate proper */
 			s->adler = s->adler32 = INIT_ADLER;
-		}
+		} 
 		s->inf_held = 0;
 		break;
 
 	case inf_state_zlib_dictid:		
-
 		while( s->inf_held < 4) { 
 			nx_inflate_get_byte(s, c);
 			s->dictid = (s->dictid << 8) | (c & 0xff);
@@ -573,18 +611,11 @@ inf_forever:
 		s->inf_state = inf_state_inflate; /* go to inflate proper */
 
 	case inf_state_inflate:
-
-
-
-
-		break;
-
-
-
-		
+		rc = nx_inflate_(s, flush);
+		goto inf_return;
 	case inf_state_data_error:
 		rc = Z_DATA_ERROR;
-		break;
+		goto inf_return;
 	case inf_state_mem_error:
 		rc = Z_MEM_ERROR;
 		break;
@@ -602,366 +633,144 @@ inf_return:
 	return rc;
 }	
 
-static int nx_inflate_(	nx_streamp state )
-{
-#ifdef NX_MMAP
-	int inpf;
-	int outf;
-#else
-	FILE *inpf;
-	FILE *outf;
-#endif
-	int c, expect, i, cc, rc = 0;
-	char gzfname[1024];
 
+static int nx_inflate_(nx_streamp s, int flush)
+{
 	/* queuing, file ops, byte counting */
-	char *fifo_in, *fifo_out;
-	int used_in, cur_in, used_out, cur_out, free_in, read_sz, n;
+	int read_sz, n;
 	int first_free, last_free, first_used, last_used;
 	int first_offset, last_offset;
 	int write_sz, free_space, copy_sz, source_sz;
-	int source_sz_estimate, target_sz_estimate;
+	int source_sz_estimate, target_sz_estimate, target_max;
 	uint64_t last_comp_ratio; /* 1000 max */
 	uint64_t total_out;
-	int is_final, is_eof;
+	int is_final = 0, is_eof;
+	int cnt = 0;
 	
 	/* nx hardware */
 	int sfbt, subc, spbc, tpbc, nx_ce, fc, resuming = 0;
-	int history_len=0;
-	nx_gzip_crb_cpb_t cmd, *cmdp;
-        nx_dde_t *ddl_in;        
-        nx_dde_t dde_in[6]  __attribute__ ((aligned (128)));
-        nx_dde_t *ddl_out;
-        nx_dde_t dde_out[6] __attribute__ ((aligned (128)));
+	int history_len = 0;
+	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
+        nx_dde_t *ddl_in = s->ddl_in;
+        nx_dde_t *ddl_out = s->ddl_out;
 	int pgfault_retries;
+	int cc, rc;
 
-	/* when using mmap'ed files */
-	off_t input_file_size;	
-	off_t input_file_offset;
-	off_t fifo_in_mmap_offset;
-	off_t fifo_out_mmap_offset;
-	size_t fifo_in_mmap_size;
-	size_t fifo_out_mmap_size;
+	print_dbg_info(s, __LINE__);
 
-	NX_CLK( memset(&td, 0, sizeof(td)) );
-	NX_CLK( (td.freq = nx_get_freq())  );
-	
-	if (argc == 1) {
-#ifndef NX_MMAP		
-		inpf = stdin;
-		outf = stdout;
-#else
-		fprintf(stderr, "mmap needs a file name");
-		return -1;
-#endif		
-	}
-	else if (argc == 2) {
-		char w[1024];
-		char *wp;
-#ifdef NX_MMAP
-		struct stat statbuf;
-		inpf = open(argv[1], O_RDONLY);
-		if (inpf < 0) {
-			perror(argv[1]);
-			return -1;
-		}
-		if (fstat(inpf, &statbuf)) {
-			perror("cannot stat file");
-			return -1;
-		}
-		input_file_size = statbuf.st_size;
-		input_file_offset = 0;
+	if ((flush == Z_FINISH) && (s->avail_in == 0) && (s->used_out == 0))
+		return Z_STREAM_END;
 
-		fifo_in_mmap_offset = 0;
-		fifo_in_mmap_size = fifo_in_len + nx_config.page_sz;
-		fifo_in = mmap(0, fifo_in_mmap_size, PROT_READ, MAP_PRIVATE, inpf, fifo_in_mmap_offset);
-		if (fifo_in == MAP_FAILED) {
-			perror("cannot mmap input file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "mmap fifo_in %p %p %lx\n", (void *)fifo_in, (void *)fifo_in + fifo_in_mmap_size, fifo_in_mmap_offset));
-#else	/* !NX_MMAP */		
-		inpf = fopen(argv[1], "r");
-		if (inpf == NULL) {
-			perror(argv[1]);
-			return -1;
-		}			
-#endif
+	if (s->avail_in == 0 && s->used_in == 0 &&
+	    s->avail_out == 0 && s->used_out == 0)
+		return Z_STREAM_END;
 
-		/* make a new file name to write to; ignoring .gz stored name */
-		wp = ( NULL != (wp = strrchr(argv[1], '/')) ) ? ++wp : argv[1];
-		strcpy(w, wp);
-		strcat(w, ".nx.gunzip");
-
-#ifdef NX_MMAP
-		outf = open(w, O_RDWR|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP );
-		if (outf < 0) {
-			perror(argv[1]);
-			return -1;
+copy_fifo_out_to_next_out:
+	/* if fifo_out is not empty, first copy contents to
+	   next_out. Remember to keep up to last 32KB as the history
+	   in fifo_out */
+	if (s->used_out > 0) {
+		write_sz = NX_MIN(s->used_out, s->avail_out);
+		if (write_sz > 0) {
+			memcpy(s->next_out, s->fifo_out + s->cur_out, write_sz);
+			update_stream_out(s, write_sz);
+			update_stream_out(s->zstrm, write_sz);
+			s->used_out -= write_sz;
+			s->cur_out += write_sz;
+			fifo_out_len_check(s);
 		}
-		total_out = 0;
-
-		fifo_out_mmap_offset = 0;
-		fifo_out_mmap_size = fifo_out_len + nx_config.page_sz;		
-		
-		/* since output doesn't exist yet we pick an mmap size
-		   that can be truncated at the end */
-		if (ftruncate(outf, fifo_out_mmap_size)) {
-			perror("cannot resize output");
-			return -1;
-		}
-
-		/* and get a memory address for it */
-		fifo_out = mmap(0, fifo_out_mmap_size, PROT_READ|PROT_WRITE, MAP_SHARED, outf, fifo_out_mmap_offset);
-		if (fifo_out == MAP_FAILED) {
-			perror("cannot mmap output file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "mmap fifo_out %p %p %lx\n", (void *)fifo_out, (void *)fifo_out + fifo_out_mmap_size, fifo_out_mmap_offset) );		
-#else	/* !NX_MMAP */
-		outf = fopen(w, "w");
-		if (outf == NULL) {
-			perror(w);
-			return -1;
-		}
-#endif
+		print_dbg_info(s, __LINE__);
+		/* if final is find, will not go ahead */
+		if (s->is_final == 1 && s->used_in == 0) return Z_STREAM_END;
 	}
 
-#ifdef NX_MMAP
-#define GETINPC(X) ((input_file_offset < input_file_size) ? ((int)((char)fifo_in[input_file_offset++])) : EOF)
-#else
-#define GETINPC(X) fgetc(X)
-#endif
-	
+	/* if s->avail_out or  s->avail_in is 0, return */
+	if (s->avail_out == 0 || s->avail_in == 0) return Z_OK;
+	/* we should flush all data to next_out here, s->used_out should be 0 */
+	assert(s->used_out == 0);
 
-	used_in = cur_in = used_out = cur_out = 0;
-	is_final = is_eof = 0;
-#ifdef NX_MMAP
-	cur_in = input_file_offset;
-#endif	
+small_next_in:
+	/* if the total input size is below some threshold, avoid
+	   accelerator overhead and memcpy next_in to fifo_in */
 
+	/* TODO use config variable instead of 1024 */
+	/* used_in is the data amount waiting in fifo_in; avail_in is
+	   the data amount waiting in the user buffer next_in */
+	// if (s->used_in < nx_config.soft_copy_threshold &&
+	//    s->avail_in < nx_config.soft_copy_threshold) {
+	if (s->avail_in > 0 && s->avail_out > 0) {
+		/* reset fifo head to reduce unnecessary wrap arounds */
+		s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;	
+		fifo_in_len_check(s);
+		free_space = s->len_in/2 - s->used_in;
 
-	
-	
-	
-	ddl_in  = &dde_in[0];
-	ddl_out = &dde_out[0];	
-	cmdp = &cmd;
-	memset( &cmdp->crb, 0, sizeof(cmdp->crb) );
-	
-read_state:
-
-
-	NXPRT( fprintf(stderr, "read_state:\n") );	
-	
-	if (is_eof != 0) goto write_state;
-
-	/* TODO use config variable instead of 1024 */	
-	if (used_in < 1024 && avail_in < 1024) {
-
-		/* If the input is too small, accumulate in fifo_in
-		   with memcpy.  If the input is small but fifo_in is
-		   above some threshold do not memcpy; will append the
-		   small buffer to the tail of the DDL for hardware
-		   decomp */
-		
-		/* free space total is reduced by a line size gap */
-		free_space = NX_MAX( 0, fifo_free_bytes(used_in, fifo_in_len) - line_sz);
-
-		/* free space may wrap around as first and last buffers */
-		first_free = fifo_free_first_bytes(cur_in, used_in, fifo_in_len);
-		last_free  = fifo_free_last_bytes(cur_in, used_in, fifo_in_len);
-
-		/* start offsets of the free memory in the first and last */
-		first_offset = fifo_free_first_offset(cur_in, used_in);
-		last_offset  = fifo_free_last_offset(cur_in, used_in, fifo_in_len);
-
-		/* reduce read_sz because of the line_sz gap */
-		read_sz = NX_MIN(NX_MIN(free_space, first_free), avail_in);
-
+		read_sz = NX_MIN(free_space, s->avail_in);
+		if (read_sz <= 0) return -1;
 		if (read_sz > 0) {
-			/* read in to offset cur_in + used_in */
-			memcpy(fifo_in + first_offset, next_in, read_sz);
-			used_in = used_in + read_sz;
-			free_space = free_space - read_sz;
-			next_in = next_in + read_sz;
-			avail_in = avail_in - read_sz;
+			/* copy from next_in to the offset cur_in + used_in */
+			memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, read_sz);
+			update_stream_in(s, read_sz);
+			update_stream_in(s->zstrm, read_sz);
+			s->used_in = s->used_in + read_sz;
 		}
 		else {
 			/* check if Z_FINISH is set 
 			   is_eof = 1;
 			   goto write_state; */
 		}
-			
-
-		/* if the free space wrapped around */
-		if (last_free > 0) {
-			read_sz = NX_MIN(NX_MIN(free_space, last_free), avail_in);			
-			if (read_sz > 0) {
-				memcpy(fifo_in + last_offset, next_in, read_sz);
-				used_in = used_in + read_sz;       /* increase used space */
-				free_space = free_space - read_sz; /* decrease free space */
-				next_in = next_in + read_sz;
-				avail_in = avail_in - read_sz;				
-			}
-			else {
-				/* check if Z_FINISH is set
-				   is_eof = 1;
-				   goto write_state; */
-			}
-			
-		}
-		
-		/* At this point we have used_in bytes in fifo_in with the
-		   data head starting at cur_in and possibly wrapping
-		   around */
+		print_dbg_info(s, __LINE__);
+	}
+	else {
+		/* FIXME: */
 	}
 	
-
-write_state:
-
-	NXPRT( fprintf(stderr, "write_state:\n") );
-	
-	if (used_out == 0) goto decomp_state;
-
-#ifndef NX_MMAP	
-	/* If fifo_out has data waiting, write it out to the file to
-	   make free target space for the accelerator used bytes in
-	   the first and last parts of fifo_out */
-
-	first_used = fifo_used_first_bytes(cur_out, used_out, fifo_out_len);
-	last_used  = fifo_used_last_bytes(cur_out, used_out, fifo_out_len);
-
-	write_sz = first_used;
-
-	n = 0;
-	if (write_sz > 0) {
-		n = fwrite(fifo_out + cur_out, 1, write_sz, outf);
-		used_out = used_out - n; 
-		cur_out = (cur_out + n) % fifo_out_len; /* move head of the fifo */
-		ASSERT(n <= write_sz);
-		if (n != write_sz) {
-			fprintf(stderr, "error: write\n");
-			rc = -1;
-			goto err5;
-		}
-	}
-	
-	if (last_used > 0) { /* if more data available in the last part */
-		write_sz = last_used; /* keep it here for later */
-		n = 0;		
-		if (write_sz > 0) {
-			n = fwrite(fifo_out, 1, write_sz, outf);
-			used_out = used_out - n; 
-			cur_out = (cur_out + n) % fifo_out_len;		
-			ASSERT(n <= write_sz);
-			if (n != write_sz) {
-				fprintf(stderr, "error: write\n");
-				rc = -1;
-				goto err5;				
-			}
-		}
-	}
-	
-	/* reset the fifo tail to reduce unnecessary wrap arounds
-	   cur_out = (used_out == 0) ? 0 : cur_out; */
-
-#else  /* NX_MMAP */
-
-	cur_out = (int)(total_out - fifo_out_mmap_offset);	
-	/* valid bytes from beginning of the mmap window to cur_out */
-	used_out = 0;
-
-	ASSERT( fifo_out_len > 2*page_sz );
-	if (cur_out > (fifo_out_len - 2*page_sz)) {
-		/* when near the tail of the mmap'ed region move the mmap window */
-		if (munmap(fifo_out, fifo_out_mmap_size)) {
-			perror("munmap");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "munmap %p %p\n", (void *)fifo_out, (void *)fifo_out + fifo_out_mmap_size) ); 
-		/* round down to page boundary; keep a page from behind for the LZ history */
-		if (total_out > page_sz)
-			fifo_out_mmap_offset = ( ((off_t)total_out - page_sz) / page_sz) * page_sz;
-		else
-			fifo_out_mmap_offset = 0;
-
-		fifo_out_mmap_size = fifo_out_len + page_sz;
-
-		/* resize output file */
-		if (ftruncate(outf, fifo_out_mmap_offset + fifo_out_mmap_size)) {
-			perror("cannot resize output");
-			return -1;
-		}
-
-		fifo_out = mmap(0, fifo_out_mmap_size, PROT_READ|PROT_WRITE, MAP_SHARED, outf, fifo_out_mmap_offset);
-		if (fifo_out == MAP_FAILED) {
-			perror("cannot mmap input file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr,"mmap fifo_out %p %p %lx\n", (void *)fifo_out, (void *)fifo_out + fifo_out_mmap_size,fifo_out_mmap_offset));
-
-		cur_out = (int)(total_out - fifo_out_mmap_offset);
-		used_out = 0; 
-	}
-	
-#endif /* NX_MMAP */	
-
 decomp_state:
 
 	/* NX decompresses input data */
 	
 	NXPRT( fprintf(stderr, "decomp_state:\n") );
 	
-	if (is_final) goto finish_state;
+	// FIXME if (is_final) goto finish_state;
 	
 	/* address/len lists */
 	clearp_dde(ddl_in);
 	clearp_dde(ddl_out);	
 	
 	/* FC, CRC, HistLen, Table 6-6 */
-	if (resuming) {
-		/* Resuming a partially decompressed input.
-		   The key to resume is supplying the 32KB
-		   dictionary (history) to NX, which is basically
-		   the last 32KB of output produced. 
+	if (s->resuming) {
+		/* Resuming a partially decompressed input.  The key
+		   to resume is supplying the max 32KB dictionary
+		   (history) to NX, which is basically the last 32KB
+		   or less of the output earlier produced. And also
+		   make sure partial checksums are carried forward
 		*/
 		fc = GZIP_FC_DECOMPRESS_RESUME; 
-
+		/* Crc of prev job passed to the job to be resumed */
 		cmdp->cpb.in_crc   = cmdp->cpb.out_crc;
 		cmdp->cpb.in_adler = cmdp->cpb.out_adler;
 
 		/* Round up the history size to quadword. Section 2.10 */
-		history_len = (history_len + 15) / 16;
-		putnn(cmdp->cpb, in_histlen, history_len);
-		history_len = history_len * 16; /* bytes */
+		s->history_len = (s->history_len + 15) / 16;
+		putnn(cmdp->cpb, in_histlen, s->history_len);
+		s->history_len = s->history_len * 16; /* convert to bytes */
 
-		if (history_len > 0) {
-			/* Chain in the history buffer to the DDE list */
-			if ( cur_out >= history_len ) {
-				nx_append_dde(ddl_in, fifo_out + (cur_out - history_len),
-					      history_len);
-			}
-			else {
-				nx_append_dde(ddl_in, fifo_out + ((fifo_out_len + cur_out) - history_len),
-					      history_len - cur_out);
-#ifndef NX_MMAP			
-				/* Up to 32KB history wraps around fifo_out */
-				nx_append_dde(ddl_in, fifo_out, cur_out);
-#endif				
-			}
-
+		if (s->history_len > 0) {
+			assert(s->cur_out >= s->history_len);
+			nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - s->history_len),
+					      s->history_len);
 		}
+		print_dbg_info(s, __LINE__);
 	}
 	else {
-		/* first decompress job */
+		/* First decompress job */
 		fc = GZIP_FC_DECOMPRESS; 
 
-		history_len = 0;
-		/* writing 0 clears out subc as well */
+		s->history_len = 0;
+		/* writing a 0 clears out subc as well */
 		cmdp->cpb.in_histlen = 0;
-		total_out = 0;
-		
+		s->total_out = 0;
+
+		/* initialize the crc values */
 		put32(cmdp->cpb, in_crc, INIT_CRC );
 		put32(cmdp->cpb, in_adler, INIT_ADLER);
 		put32(cmdp->cpb, out_crc, INIT_CRC );
@@ -973,66 +782,34 @@ decomp_state:
 		   sizes. If we give too much input, the target buffer
 		   overflows and NX cycles are wasted, and then we
 		   must retry with smaller input size. 1000 is 100%  */
-		last_comp_ratio = 100UL;
+		s->last_comp_ratio = 100UL;
 	}
-	cmdp->crb.gzip_fc = 0;   
+	/* clear then copy fc to the crb */
+	cmdp->crb.gzip_fc = 0; 
 	putnn(cmdp->crb, gzip_fc, fc);
 
 	/*
 	 * NX source buffers
 	 */
-	first_used = fifo_used_first_bytes(cur_in, used_in, fifo_in_len);
-#ifndef NX_MMAP	
-	last_used = fifo_used_last_bytes(cur_in, used_in, fifo_in_len);
-#else
-	last_used = 0;
-#endif
-	
-	if (first_used > 0)
-		nx_append_dde(ddl_in, fifo_in + cur_in, first_used);
+	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
 		
-	if (last_used > 0)
-		nx_append_dde(ddl_in, fifo_in, last_used);
 
 	/*
 	 * NX target buffers
 	 */
-	first_free = fifo_free_first_bytes(cur_out, used_out, fifo_out_len);
-#ifndef NX_MMAP	
-	last_free = fifo_free_last_bytes(cur_out, used_out, fifo_out_len);
-#else
-	last_free = 0;
-#endif
+	int len_next_out = NX_MIN(s->avail_out, s->len_out); // bug here
+	nx_append_dde(ddl_out, s->next_out, len_next_out);
 
-#ifndef NX_MMAP	
-	/* reduce output free space amount not to overwrite the history */
-	int target_max = NX_MAX(0, fifo_free_bytes(used_out, fifo_out_len) - (1<<16));
-#else
-	int target_max = first_free; /* no wrap-around in the mmap case */
-#endif
-	NXPRT( fprintf(stderr, "target_max %d (0x%x)\n", target_max, target_max) );
-	
-	first_free = NX_MIN(target_max, first_free);
-	if (first_free > 0) {
-		first_offset = fifo_free_first_offset(cur_out, used_out);		
-		nx_append_dde(ddl_out, fifo_out + first_offset, first_free);
-	}
-
-	if (last_free > 0) {
-		last_free = NX_MIN(target_max - first_free, last_free); 
-		if (last_free > 0) {
-			last_offset = fifo_free_last_offset(cur_out, used_out, fifo_out_len);
-			nx_append_dde(ddl_out, fifo_out + last_offset, last_free);
-		}
-	}
+	assert(s->used_out == 0);
+	nx_append_dde(ddl_out, s->fifo_out + s->cur_out + s->used_out, s->len_out - s->cur_out - s->used_out);
 
 	/* Target buffer size is used to limit the source data size
 	   based on previous measurements of compression ratio. */
 
 	/* source_sz includes history */
 	source_sz = getp32(ddl_in, ddebc);
-	ASSERT( source_sz > history_len );
-	source_sz = source_sz - history_len;
+	ASSERT( source_sz > s->history_len );
+	source_sz = source_sz - s->history_len;
 
 	/* Estimating how much source is needed to 3/4 fill a
 	   target_max size target buffer. If we overshoot, then NX
@@ -1040,67 +817,77 @@ decomp_state:
 	   bandwidth. If we undershoot then we use more NX calls than
 	   necessary. */
 
-	source_sz_estimate = ((uint64_t)target_max * last_comp_ratio * 3UL)/4000;
+	/* 
 
+	   FIXME Need to fill in next_out then 32KB more in fifo_out.
+	   The last 32KB of output serves as a history. On the next inflate
+	   call fifo_out will also be copied to next_out.  
+
+	   We will estimate the source size so that next_out plus 32KB
+	   will equal the target size.  
+
+	   If next_out did not fill, copy the last fill part up to
+	   32KB to the history tail in fifo_out (suboptimal).  
+
+	   If next_out filled but fifo_out has less than 32KB,
+	   (history overlapping two buffers) copy the the remainder
+	   from next_out to the history tail in fifo_out.
+	   
+	   If next_out filled but fifo_out has more than 32KB (history
+	   entirely in fifo_out), no history copy is required
+
+	*/
+	target_max = NX_MAX(0, s->len_out - s->cur_out - (1<<16)); // FIXME here
+	source_sz_estimate = ((uint64_t)target_max * s->last_comp_ratio * 3UL)/4000;
+/*
 	if ( source_sz_estimate < source_sz ) {
-		/* target might be small, therefore limiting the
-		   source data */
+		// target might be small, therefore limiting the source data
 		source_sz = source_sz_estimate;
 		target_sz_estimate = target_max;
 	}
 	else {
-		/* Source file might be small, therefore limiting target
-		   touch pages to a smaller value to save processor cycles.
-		*/
-		target_sz_estimate = ((uint64_t)source_sz * 1000UL) / (last_comp_ratio + 1);
+		// Source file might be small, therefore limiting target
+		// touch pages to a smaller value to save processor cycles.
+		target_sz_estimate = ((uint64_t)source_sz * 1000UL) / (s->last_comp_ratio + 1);
 		target_sz_estimate = NX_MIN( 2 * target_sz_estimate, target_max );
 	}
+*/
+	source_sz = source_sz + s->history_len;
 
-	source_sz = source_sz + history_len;
+	/* Some NX condition codes require submitting the NX job
+	  again.  Kernel doesn't fault-in NX page faults. Expects user
+	  code to touch pages */
+	pgfault_retries = nx_config.retry_max;
 
-	/* Some NX condition codes require submitting the NX job again */
-	/* Kernel doesn't handle NX page faults. Expects user code to
-	   touch pages */
-	pgfault_retries = retry_max;
-
-#ifndef REPCNT	
-#define REPCNT 1L
-#endif
-	
+	prt_info("     source_sz %d target_sz_estimate %d\n", source_sz, target_sz_estimate);
 restart_nx:
 
  	putp32(ddl_in, ddebc, source_sz);  
 
-	NX_CLK( (td.touch1 = nx_get_time()) );	
-	
 	/* fault in pages */
-	nx_touch_pages_dde(ddl_in, 0, page_sz, 0);
-	nx_touch_pages_dde(ddl_out, target_sz_estimate, page_sz, 1);
+	nx_touch_pages_dde(ddl_in, 0, nx_config.page_sz, 0);
+	nx_touch_pages_dde(ddl_out, target_sz_estimate, nx_config.page_sz, 1);
 
-	NX_CLK( (td.touch2 += (nx_get_time() - td.touch1)) );	
+	/* 
+	 * send job to NX 
+	 */
+	cc = nx_submit_job(ddl_in, ddl_out, cmdp, s->nxdevp);
 
-	NX_CLK( (td.sub1 = nx_get_time()) );
-	NX_CLK( (td.subc += 1) );
-	
-	/* send job to NX */
-	cc = nx_submit_job(ddl_in, ddl_out, cmdp, devhandle);
-
-	NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );	
-	
 	switch (cc) {
 
 	case ERR_NX_TRANSLATION:
 
-		/* We touched the pages ahead of time. In the most common case we shouldn't
-		   be here. But may be some pages were paged out. Kernel should have 
-		   placed the faulting address to fsaddr */
+		/* We touched the pages ahead of time. In the most
+		   common case we shouldn't be here. But may be some
+		   pages were paged out. Kernel should have placed the
+		   faulting address to fsaddr */
 		NXPRT( fprintf(stderr, "ERR_NX_TRANSLATION %p\n", (void *)cmdp->crb.csb.fsaddr) );
 		NX_CLK( (td.faultc += 1) );
 
 		/* Touch 1 byte, read-only  */
-		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, page_sz, 0);
+		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);
 
-		if (pgfault_retries == retry_max) {
+		if (pgfault_retries == nx_config.retry_max) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
 			goto restart_nx;
@@ -1108,8 +895,8 @@ restart_nx:
 		else if (pgfault_retries > 0) {
 			/* if still faulting try fewer input pages
 			 * assuming memory outage */
-			if (source_sz > page_sz)
-				source_sz = NX_MAX(source_sz / 2, page_sz);
+			if (source_sz > nx_config.page_sz)
+				source_sz = NX_MAX(source_sz / 2, nx_config.page_sz);
 			--pgfault_retries;
 			goto restart_nx;
 		}
@@ -1117,7 +904,7 @@ restart_nx:
 			/* TODO what to do when page faults are too many?
 			   Kernel MM would have killed the process. */
 			fprintf(stderr, "cannot make progress; too many page fault retries cc= %d\n", cc);
-			rc = -1;
+			rc = Z_ERRNO;
 			goto err5;
 		}
 
@@ -1126,7 +913,7 @@ restart_nx:
 		NXPRT( fprintf(stderr, "ERR_NX_DATA_LENGTH\n") );
 		NX_CLK( (td.datalenc += 1) );
 		
-		/* Not an error in the most common case; it just says 
+		/* Not an error in the most common case; it just says
 		   there is trailing data that we must examine */
 
 		/* CC=3 CE(1)=0 CE(0)=1 indicates partial completion
@@ -1147,7 +934,7 @@ restart_nx:
 		else {
 			/* History length error when CE(1)=1 CE(0)=0. 
 			   We have a bug */
-			rc = -1;
+			rc = Z_ERRNO;
 			fprintf(stderr, "history length error cc= %d\n", cc);
 			goto err5;
 		}
@@ -1157,35 +944,35 @@ restart_nx:
 		NX_CLK( (td.targetlenc += 1) );		
 		/* Target buffer not large enough; retry smaller input
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
-		ASSERT( source_sz > history_len );
-		source_sz = ((source_sz - history_len + 2) / 2) + history_len;
-		NXPRT( fprintf(stderr, "ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, history_len) );
+		ASSERT( source_sz > s->history_len );
+		source_sz = ((source_sz - s->history_len + 2) / 2) + s->history_len;
+		NXPRT( fprintf(stderr, "ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len) );
 		goto restart_nx;
 
 	case ERR_NX_OK:
 
 		/* This should not happen for gzip formatted data;
 		 * we need trailing crc and isize */
-		fprintf(stderr, "ERR_NX_OK\n");
+		prt_info("ERR_NX_OK\n");
 		spbc = get32(cmdp->cpb, out_spbc_decomp);
 		tpbc = get32(cmdp->crb.csb, tpbc);
 		ASSERT(target_max >= tpbc);			
-		ASSERT(spbc >= history_len);
-		source_sz = spbc - history_len;		
+		ASSERT(spbc >= s->history_len);
+		source_sz = spbc - s->history_len;		
 		goto offsets_state;
 
 	default:
 		fprintf(stderr, "error: cc= %d\n", cc);
-		rc = -1;
-		goto err5;
+		rc = Z_ERRNO;
+		goto err5; 
 	}
 
 ok_cc3:
 
 	NXPRT( fprintf(stderr, "cc3: sfbt: %x\n", sfbt) );
 
-	ASSERT(spbc > history_len);
-	source_sz = spbc - history_len;
+	ASSERT(spbc > s->history_len);
+	source_sz = spbc - s->history_len;
 
 	/* Table 6-4: Source Final Block Type (SFBT) describes the
 	   last processed deflate block and clues the software how to
@@ -1194,16 +981,14 @@ ok_cc3:
 	   bytes of source were given to the accelerator including
 	   history bytes.
 	*/
-
 	switch (sfbt) { 
 		int dhtlen;
 		
 	case 0b0000: /* Deflate final EOB received */
 
 		/* Calculating the checksum start position. */
-
 		source_sz = source_sz - subc / 8;
-		is_final = 1;
+		s->is_final = 1;
 		break;
 
 		/* Resume decompression cases are below. Basically
@@ -1216,7 +1001,8 @@ ok_cc3:
 		/* Supply the partially processed source byte again */
 		source_sz = source_sz - ((subc + 7) / 8);
 
-		/* SUBC LS 3bits: number of bits in the first source byte need to be processed. */
+		/* SUBC LS 3bits: number of bits in the first source
+		 * byte need to be processed. */
 		/* 000 means all 8 bits;  Table 6-3 */
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen  */
 		cmdp->cpb.in_subc = 0;
@@ -1283,106 +1069,171 @@ ok_cc3:
 offsets_state:	
 
 	/* Adjust the source and target buffer offsets and lengths  */
+	/* source_sz is the real used in size */
+	s->used_in -= source_sz;
+	s->cur_in += source_sz;
+	fifo_in_len_check(s);
 
-	NXPRT( fprintf(stderr, "offsets_state:\n") );
-
-	/* delete input data from fifo_in */
-	used_in = used_in - source_sz;
-	cur_in = (cur_in + source_sz) % fifo_in_len;
-	input_file_offset = input_file_offset + source_sz;
-
-	/* add output data to fifo_out */
-	used_out = used_out + tpbc;
-
-	ASSERT(used_out <= fifo_out_len);
-
-	total_out = total_out + tpbc;
-	
-	/* Deflate history is 32KB max. No need to supply more
-	   than 32KB on a resume */
-	history_len = (total_out > window_max) ? window_max : total_out;
-
-	/* To estimate expected expansion in the next NX job; 500 means 50%.
-	   Deflate best case is around 1 to 1000 */
-	last_comp_ratio = (1000UL * ((uint64_t)source_sz + 1)) / ((uint64_t)tpbc + 1);
-	last_comp_ratio = NX_MAX( NX_MIN(1000UL, last_comp_ratio), 1 );
-	NXPRT( fprintf(stderr, "comp_ratio %ld source_sz %d spbc %d tpbc %d\n", last_comp_ratio, source_sz, spbc, tpbc ) );
-	
-	resuming = 1;
-
-finish_state:	
-
-	NXPRT( fprintf(stderr, "finish_state:\n") );
-
-	if (is_final) {
-		if (used_out) goto write_state; /* more data to write out */
-		else if(used_in < 8) {
-			/* need at least 8 more bytes containing gzip crc and isize */
-			rc = -1;
-			goto err4;
+	int overflow_len = tpbc - len_next_out;
+	if (overflow_len <= 0) { // there is no overflow
+		assert(s->used_out == 0);
+		int need_len = NX_MIN(INF_HIS_LEN, tpbc);
+		memcpy(s->fifo_out + s->cur_out, s->next_out + tpbc - need_len, need_len);
+		s->cur_out += need_len;
+		fifo_out_len_check(s);
+		update_stream_out(s, tpbc);
+		update_stream_out(s->zstrm, tpbc);
+	}
+	else if (overflow_len > 0 && overflow_len < INF_HIS_LEN){
+		int need_len = INF_HIS_LEN - overflow_len;
+		need_len = NX_MIN(need_len, len_next_out);
+		int len;
+		if (len_next_out + overflow_len > INF_HIS_LEN) {
+			len = len_next_out + overflow_len - INF_HIS_LEN;
+			memcpy(s->fifo_out + s->cur_out - len, s->next_out + len_next_out - len, len);
 		}
 		else {
-			/* compare checksums and exit */
-			int i;
-			char tail[8];
-			uint32_t cksum, isize;
-			for(i=0; i<8; i++) tail[i] = fifo_in[(cur_in + i) % fifo_in_len];
-			fprintf(stderr, "computed checksum %08x isize %08x\n", cmdp->cpb.out_crc, (uint32_t)(total_out % (1ULL<<32)));
-			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16 | tail[3]<<24);
-			isize = (tail[4] | tail[5]<<8 | tail[6]<<16 | tail[7]<<24);
-			fprintf(stderr, "stored   checksum %08x isize %08x\n", cksum, isize);
-
-			NX_CLK( fprintf(stderr, "DECOMP %s ", argv[1]) );			
-			NX_CLK( fprintf(stderr, "obytes %ld ", total_out*REPCNT) );
-			NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );	
-			NX_CLK( fprintf(stderr, "submit %ld ticks %ld count ", td.sub2, td.subc) );
-			NX_CLK( fprintf(stderr, "touch  %ld ticks ", td.touch2)     );
-			NX_CLK( fprintf(stderr, "%g byte/s ", ((double)total_out*REPCNT)/((double)td.sub2/(double)td.freq)) );
-			NX_CLK( fprintf(stderr, "fault %ld target %ld datalen %ld\n", td.faultc, td.targetlenc, td.datalenc) );
-			/* NX_CLK( fprintf(stderr, "dbgtimer %ld\n", dbgtimer) ); */
-
-			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(total_out % (1ULL<<32))) {
-				rc = 0;	goto ok1;
-			}
-			else {
-				rc = -1; goto err4;
-			}
+			len = INF_HIS_LEN - (len_next_out + overflow_len);
+			memcpy(s->fifo_out + s->cur_out - len_next_out - len, s->fifo_out + s->cur_out - len, len);
+			memcpy(s->fifo_out + s->cur_out - len_next_out, s->next_out, len_next_out);
 		}
+			
+		s->used_out += overflow_len;
+		update_stream_out(s, len_next_out);
+		update_stream_out(s->zstrm, len_next_out);
 	}
-	else goto read_state;
-	
-	return -1;
+	else {// overflow_len > 1<<15)
+		s->used_out += overflow_len;
+		update_stream_out(s, len_next_out);
+		update_stream_out(s->zstrm, len_next_out);
+	}
 
-err1:
-	fprintf(stderr, "error: not a gzip file, expect %x, read %x\n", expect, c);
-	return -1;
+	s->history_len = (s->total_out + s->used_out > nx_config.window_max) ? nx_config.window_max : (s->total_out + s->used_out);
 
-err2:
-	fprintf(stderr, "error: the FLG byte is wrong or not handled by this code sample\n");
-	return -1;
+	s->last_comp_ratio = (1000UL * ((uint64_t)source_sz + 1)) / ((uint64_t)tpbc + 1);
+	last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 1 );
 
-err3:
-	fprintf(stderr, "error: gzip header\n");
-	return -1;
+	s->resuming = 1;
 
-err4:
-	fprintf(stderr, "error: checksum\n");
+	if (s->is_final == 1 || cc == ERR_NX_OK) {
+		/* update total_in */
+		s->total_in = s->total_in - read_sz + source_sz;
+		s->zstrm->total_in = s->total_in;
+		s->used_in = 0; // FIXME
+		if (s->used_out == 0)
+			return Z_STREAM_END;
+	}
 
+	if (s->avail_in > 0 && s->avail_out > 0) {
+		goto copy_fifo_out_to_next_out;
+	}
+
+	return Z_OK;
 err5:
-ok1:
-	fprintf(stderr, "decomp is complete: fclose\n");
-#ifndef NX_MMAP	
-	fclose(outf);
-#else
-	NXPRT( fprintf(stderr, "ftruncate %ld\n", total_out) );
-	if (ftruncate(outf, (off_t)total_out)) {
-		perror("cannot resize file");
-		rc = -1;
-	}
-	close(outf);
-#endif
 	return rc;
 }
 
 
+/* 
+   Use NX gzip wrap function to copy data.  crc and adler are output
+   checksum values only because GZIP_FC_WRAP doesn't take any initial
+   values.
+*/
+static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
+{
+	nx_gzip_crb_cpb_t cmd;
+	int cc;
+	int pgfault_retries;
+
+	pgfault_retries = nx_config.retry_max;
+	
+	ASSERT(!!dst && !!src && len > 0);
+
+ restart_copy:
+	/* setup command crb */
+	clear_struct(cmd.crb);
+	put32(cmd.crb, gzip_fc, GZIP_FC_WRAP);
+	put64(cmd.crb, csb_address, (uint64_t) &cmd.crb.csb & csb_address_mask);
+
+	putnn(cmd.crb.source_dde, dde_count, 0);          /* direct dde */
+	put32(cmd.crb.source_dde, ddebc, len);            /* bytes */
+	put64(cmd.crb.source_dde, ddead, (uint64_t) src); /* src address */
+
+	putnn(cmd.crb.target_dde, dde_count, 0); 
+	put32(cmd.crb.target_dde, ddebc, len);   
+	put64(cmd.crb.target_dde, ddead, (uint64_t) dst);
+
+	/* fault in src and target pages */
+	nx_touch_pages(dst, len, nx_config.page_sz, 1);
+	nx_touch_pages(src, len, nx_config.page_sz, 0);
+	
+	cc = nx_submit_job(&cmd.crb.source_dde, &cmd.crb.target_dde, &cmd, nxdevp);
+
+	if (cc == ERR_NX_OK) {
+		/* TODO check endianness compatible with the combine functions */
+		if (!!crc) *crc     = get32( cmd.cpb, out_crc );
+		if (!!adler) *adler = get32( cmd.cpb, out_adler );
+	}
+	else if ((cc == ERR_NX_TRANSLATION) && (pgfault_retries > 0)) {
+		--pgfault_retries;
+		goto restart_copy;
+	}
+	
+	return cc;
+}
+
+/*
+  Use NX-gzip hardware to copy src to dst. May use several NX jobs
+  crc and adler are inputs and outputs.
+*/
+int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
+{
+	int cc = ERR_NX_OK;
+	uint32_t in_crc, in_adler, out_crc, out_adler;
+
+	if (len < nx_config.soft_copy_threshold && !crc && !adler) {
+		memcpy(dst, src, len);
+		return cc;
+	}
+	
+	/* caller supplies initial cksums */
+	if (!!crc) in_crc = *crc;
+	if (!!adler) in_adler = *adler;
+	    
+	while (len > 0) {
+		uint64_t job_len = NX_MIN((uint64_t)nx_config.per_job_len, len);
+		cc = __nx_copy(dst, src, (uint32_t)job_len, &out_crc, &out_adler, nxdevp);
+		if (cc != ERR_NX_OK)
+			return cc;
+		/* combine initial cksums with the computed cksums */
+		if (!!crc) in_crc = nx_crc32_combine(in_crc, out_crc, job_len);
+		if (!!adler) in_adler = nx_adler32_combine(in_adler, out_adler, job_len);		
+		len = len - job_len;
+		dst = dst + job_len;
+		src = src + job_len;
+	}
+	/* return final cksums */
+	if (!!crc) *crc = in_crc;
+	if (!!adler) *adler = in_adler;
+	return cc;
+}
+
+#ifdef ZLIB_API
+int inflateInit_(z_streamp strm, const char *version, int stream_size)
+{
+	return nx_inflateInit_(strm, version, stream_size);
+}
+int inflateInit2_(z_streamp strm, int windowBits, const char *version, int stream_size)
+{
+	return nx_inflateInit2_(strm, windowBits, version, stream_size);
+}
+int inflateEnd(z_streamp strm)
+{
+	return nx_inflateEnd(strm);
+}
+int inflate(z_streamp strm, int flush)
+{
+	return nx_inflate(strm, flush);
+}
+#endif
 

@@ -1089,7 +1089,7 @@ offsets_state:
 		need_len = NX_MIN(need_len, len_next_out);
 		int len;
 		if (len_next_out + overflow_len > INF_HIS_LEN) {
-			len = len_next_out + overflow_len - INF_HIS_LEN;
+			len = INF_HIS_LEN - overflow_len;
 			memcpy(s->fifo_out + s->cur_out - len, s->next_out + len_next_out - len, len);
 		}
 		else {

@@ -1553,7 +1553,7 @@ s3:
 
 unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 {
-	return (sourceLen*2);
+	return (sourceLen*2 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 ));
 }
 
 #ifdef ZLIB_API

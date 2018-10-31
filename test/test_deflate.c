@@ -39,5 +39,11 @@ int main()
 	check ( run_case14() );
 	check ( run_case15() );
 	check ( run_case21() );
+	check ( run_case30() );
+	check ( run_case31() );
+	check ( run_case32() );
+	check ( run_case33() );
+	check ( run_case33_1() );
+	check ( run_case34() );
 }
 

@@ -20,4 +20,10 @@ extern int run_case13();
 extern int run_case14();
 extern int run_case15();
 extern int run_case21();
+extern int run_case30();
+extern int run_case31();
+extern int run_case32();
+extern int run_case33();
+extern int run_case33_1();
+extern int run_case34();
 

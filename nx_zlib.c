@@ -489,33 +489,35 @@ void nx_hw_init(void)
 {
 	int nx_count;
 
+	/* only init one time for the program */
 	if (nx_init_done == 1) return;
 
-	char *accel_s    = getenv("NX_GZIP_DEV_TYPE");  /* look for string NXGZIP*/
-	char *verbo_s    = getenv("NX_GZIP_VERBOSE");   /* 0 to 255 */
-	char *chip_num_s = getenv("NX_GZIP_DEV_NUM");   /* -1 for default, 0,1,2 for socket# */
-	char *strm_bufsz = getenv("NX_GZIP_BUF_SIZE");  /* KiB MiB GiB suffix */
-	
-	/* from wrapper.c */
-	char *logfile = getenv("NX_GZIP_LOGFILE");
-	char *trace_s = getenv("NX_GZIP_TRACE");
+	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
+	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
+	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0,1,2 for socket# */
+	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE"); /* KiB MiB GiB suffix */
+	char *inf_bufsz  = getenv("NX_GZIP_INF_BUF_SIZE"); /* KiB MiB GiB suffix */	
+	char *logfile    = getenv("NX_GZIP_LOGFILE");
+	char *trace_s    = getenv("NX_GZIP_TRACE");
 
+	/* Init nx_config a defalut value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
-	nx_config.line_sz = 128;	
+	nx_config.line_sz = 128;
 	nx_config.stored_block_len = (1<<15);
 	nx_config.max_byte_count_low = (1UL<<30);
 	nx_config.max_byte_count_high = (1UL<<30);
 	nx_config.max_byte_count_current = (1UL<<30);
 	nx_config.max_source_dde_count = MAX_DDE_COUNT;
 	nx_config.max_target_dde_count = MAX_DDE_COUNT;
-	nx_config.per_job_len = (1024 * 1024);      /* less than suspend limit */
-	nx_config.strm_bufsz = (1024 * 1024);
-	nx_config.soft_copy_threshold = 1024;      /* choose memcpy or hwcopy */
-	nx_config.compress_threshold = (10*1024);  /* collect as much input */
-	nx_config.inflate_fifo_in_len = ((1<<16)*2); // 128K
-	nx_config.inflate_fifo_out_len = ((1<<24)*2); // 32M
-	nx_config.deflate_fifo_in_len = ((1<<21)*2); // 8M
-	nx_config.deflate_fifo_out_len = ((1<<22)*4); // 16M
+	nx_config.per_job_len = (1024 * 1024); /* less than suspend limit */
+	nx_config.strm_def_bufsz = (1024 * 1024); /* affect the deflate fifo_out */
+	nx_config.strm_inf_bufsz = (1<<16); /* affect the inflate fifo_in and fifo_out */
+	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */
+	nx_config.compress_threshold = (10*1024); /* collect as much input */
+	nx_config.inflate_fifo_in_len = ((1<<16)*2); /* default 128K, half used */
+	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
+	nx_config.deflate_fifo_in_len = ((1<<20)*2); /* default 8M, half used */
+	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.retry_max = 50;	
 	nx_config.window_max = (1<<15);
 	nx_config.pgfault_retries = 50;         
@@ -526,14 +528,14 @@ void nx_hw_init(void)
 	nx_count = nx_enumerate_engines();
 
 	if (nx_count == 0) {
-		fprintf(stderr, "NX-gzip accelerators found: %d\n", nx_count);		  
+		prt_err("NX-gzip accelerators found: %d\n", nx_count);		  
 		return;
 	}
 
 	if (logfile != NULL)
 		nx_gzip_log = fopen(logfile, "a+");
 	else
-		nx_gzip_log = fopen("/dev/null", "a+");
+		nx_gzip_log = fopen("/tmp/nx.log", "a+");
 	
 	if (trace_s != NULL)
 		nx_gzip_trace = strtol(trace_s, (char **)NULL, 0);
@@ -545,16 +547,32 @@ void nx_hw_init(void)
 		nx_lib_debug(z);
 	}
 
-	if (strm_bufsz != NULL) {
-		/* permit 64KB to 1GB */
+	if (def_bufsz != NULL) {
+		/* permit 64KB to 8MB */
 		uint64_t sz;
-		sz = str_to_num (strm_bufsz);
-		if (sz > (1ULL<<30))
-			sz = (1ULL<<30); 
+		sz = str_to_num (def_bufsz);
+		if (sz > (1ULL<<23))
+			sz = (1ULL<<23); 
 		else if (sz < nx_config.page_sz)
 			sz = nx_config.page_sz;
-		nx_config.strm_bufsz = (uint32_t) sz;
-	}
+		nx_config.strm_def_bufsz = (uint32_t) sz;
+	}	
+	if (inf_bufsz != NULL) {
+		/* permit 64KB to 1MB */
+		uint64_t sz;
+		sz = str_to_num (inf_bufsz);
+		if (sz > (1ULL<<21))
+			sz = (1ULL<<21); 
+		else if (sz < nx_config.page_sz)
+			sz = nx_config.page_sz;
+		nx_config.strm_inf_bufsz = (uint32_t) sz;
+	}	
+
+	/* revalue the fifo_in and fifo_out */	
+	nx_config.inflate_fifo_in_len = (nx_config.strm_inf_bufsz * 2);
+	nx_config.inflate_fifo_out_len = (nx_config.strm_inf_bufsz * 2 * 256);
+	nx_config.deflate_fifo_in_len = (nx_config.strm_def_bufsz);
+	nx_config.deflate_fifo_out_len = (nx_config.strm_def_bufsz * 2);
 	
 	/* If user is asking for a specific accelerator. Otherwise we
 	   accept the accelerator(s) assigned by kernel */

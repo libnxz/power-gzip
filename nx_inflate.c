@@ -1128,8 +1128,10 @@ offsets_state:
 		goto copy_fifo_out_to_next_out;
 	}
 
+	print_dbg_info(s, __LINE__);
 	return Z_OK;
 err5:
+	prt_err("rc %d\n", rc);
 	return rc;
 }
 

@@ -90,7 +90,8 @@ struct nx_config_t {
 	uint32_t max_source_dde_count;
 	uint32_t max_target_dde_count;
 	uint32_t per_job_len;          /* less than suspend limit */
-	uint32_t strm_bufsz;
+	uint32_t strm_def_bufsz;
+	uint32_t strm_inf_bufsz;
 	uint32_t soft_copy_threshold;  /* choose memcpy or hwcopy */
 	uint32_t compress_threshold;   /* collect as much input */
 	int 	 inflate_fifo_in_len;

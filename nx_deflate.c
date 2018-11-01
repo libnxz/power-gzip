@@ -91,12 +91,9 @@ do { put_byte(s, (Byte)(b >> 8)); put_byte(s, (Byte)(b & 0xff)); } while(0)
 #define unlikely(x)  __builtin_expect(!!(x), 0)
 
 /* config variables */
-static long nx_page_sz = (1<<16);
 static const int nx_stored_block_len = 32768;
 static uint32_t nx_max_byte_count_low = (1UL<<30);
 static uint32_t nx_max_byte_count_high = (1UL<<30);
-// static uint32_t nx_max_byte_count_current = (1UL<<30);
-static uint32_t nx_max_byte_count_current = (1UL<<20);
 static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_per_job_len = (512 * 1024);     /* less than suspend limit */
@@ -745,7 +742,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	/* only support level 6 here */
 	level = 6;
 
-	s = nx_alloc_buffer(sizeof(*s), nx_page_sz, 0);
+	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
 	/* s = calloc(1, sizeof(*s)); */
 	if (s == NULL) return Z_MEM_ERROR;
 
@@ -757,7 +754,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->strategy   = strategy;
 	s->strategy   = Z_FIXED; // Only support Z_FIXED
 	s->zstrm      = strm; /* pointer to parent */
-	s->page_sz    = nx_page_sz;
+	s->page_sz    = nx_config.page_sz;
 	s->nxdevp     = h;
 	s->gzhead     = NULL;
 	if (wrap == 0)      s->status = NX_RAW_STATE;
@@ -767,11 +764,11 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	/* TODO consider using caller supplied zalloc and zfree */
 
 	s->len_in = nx_config.deflate_fifo_in_len;
-	if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_page_sz, 0)))
+	if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
 
 	s->len_out = nx_config.deflate_fifo_out_len;
-	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_page_sz, 0)))
+	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
 
 	s->used_in = s->used_out = 0;
@@ -947,7 +944,7 @@ static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, uint32_t history)
 	/* TODO may need a way to limit the input size from top level
 	   to prevent CC=13 */
 	
-	avail_in = NX_MIN(s->avail_in, nx_max_byte_count_current);	
+	avail_in = NX_MIN(s->avail_in, nx_config.strm_def_bufsz);	
 	clearp_dde(s->ddl_in);
 	/* TODO add history */
 	total = nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in, s->used_in);
@@ -984,7 +981,7 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 	// s->cur_out = s->used_out = 0; /* reset fifo_out head */
 
 	/* restrict NX per dde size to 1GB */
-	avail_out = NX_MIN(s->avail_out, nx_max_byte_count_current);	
+	avail_out = NX_MIN(s->avail_out, nx_config.strm_def_bufsz);	
 	
 	clearp_dde(s->ddl_out);
 
@@ -1066,7 +1063,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	/* output first written to next_out then the overflow amount
 	   goes to fifo_out */
 
-	copy_bytes = NX_MIN(NX_MIN(tpbc, s->avail_out), nx_max_byte_count_current);
+	copy_bytes = NX_MIN(NX_MIN(tpbc, s->avail_out), nx_config.strm_def_bufsz);
 
 	int bfinal;
 	int bfinal_offset;

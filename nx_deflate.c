@@ -1528,11 +1528,10 @@ s1:
 		 * The logic is a little confused here. Like some patches to pass the test.
 		 * Maybe need a new design and recombination.
 		 * */
-		if (s->avail_out == 0 && !(s->status & (NX_BFINAL_STATE | NX_TRAILER_STATE))) {
-			return Z_OK; /* need more output space */
+		if (!(s->status & (NX_BFINAL_STATE | NX_TRAILER_STATE))) {
+			if (s->avail_out == 0) return Z_OK; /* need more output space */
+			if ((s->used_out == 0) && (s->avail_in == 0)) return Z_OK; /* no input here */
 		}
-		if ((s->used_out == 0) && (s->avail_in == 0)) // NO input
-			return Z_OK;
 	}
 
 	/* check if stream end has been reached */

@@ -48,6 +48,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <endian.h>
+#include <pthread.h>
 #include "nxu.h"
 #include "nx_dbg.h"
 
@@ -343,6 +344,60 @@ typedef enum {
 	inf_state_stream_error,			
 } inf_state_t;
 
+#define ZLIB_SIZE_SLOTS 256	/* Each slot represents 4KiB, the last
+				   slot is represending everything
+				   which larger or equal 1024KiB */
+
+struct zlib_stats {
+	unsigned long deflateInit;
+	unsigned long deflate;
+	unsigned long deflate_avail_in[ZLIB_SIZE_SLOTS];
+	unsigned long deflate_avail_out[ZLIB_SIZE_SLOTS];
+	unsigned long deflateReset;
+	unsigned long deflate_total_in[ZLIB_SIZE_SLOTS];
+	unsigned long deflate_total_out[ZLIB_SIZE_SLOTS];
+	unsigned long deflateSetDictionary;
+	unsigned long deflateSetHeader;
+	unsigned long deflateParams;
+	unsigned long deflateBound;
+	unsigned long deflatePrime;
+	unsigned long deflateCopy;
+	unsigned long deflateEnd;
+
+	unsigned long inflateInit;
+	unsigned long inflate;
+	unsigned long inflate_avail_in[ZLIB_SIZE_SLOTS];
+	unsigned long inflate_avail_out[ZLIB_SIZE_SLOTS];
+	unsigned long inflateReset;
+	unsigned long inflateReset2;
+	unsigned long inflate_total_in[ZLIB_SIZE_SLOTS];
+	unsigned long inflate_total_out[ZLIB_SIZE_SLOTS];
+	unsigned long inflateSetDictionary;
+	unsigned long inflateGetDictionary;
+	unsigned long inflateGetHeader;
+	unsigned long inflateSync;
+	unsigned long inflatePrime;
+	unsigned long inflateCopy;
+	unsigned long inflateEnd;
+
+};
+
+extern pthread_mutex_t zlib_stats_mutex; 
+extern struct zlib_stats zlib_stats; 
+inline void zlib_stats_inc(unsigned long *count)
+{
+        if (!nx_gzip_gather_statistics())
+                return;
+
+        pthread_mutex_lock(&zlib_stats_mutex);
+        *count = *count + 1;
+        pthread_mutex_unlock(&zlib_stats_mutex);
+}
+
+#ifndef ARRAY_SIZE
+#  define ARRAY_SIZE(a)	 (sizeof((a)) / sizeof((a)[0]))
+#endif
+
 /* gzip_vas.c */
 extern void *nx_fault_storage_address;
 extern void *nx_function_begin(int function, int pri);
@@ -364,6 +419,7 @@ extern int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len);
 extern int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr);
 extern int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp);
 extern void nx_hw_init(void);
+extern void nx_hw_done(void);
 
 /* nx_deflate.c */
 extern int nx_deflateInit_(z_streamp strm, int level, const char *version, int stream_size);

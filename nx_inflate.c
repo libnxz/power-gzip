@@ -169,6 +169,9 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 		return Z_VERSION_ERROR;
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
+	
+	/* statistic */
+	zlib_stats_inc(&zlib_stats.inflateInit);
 
 	strm->msg = Z_NULL;                 /* in case we return an error */
 
@@ -254,6 +257,9 @@ int nx_inflateEnd(z_streamp strm)
 	s = (nx_streamp) strm->state;
 	if (s == NULL) return Z_STREAM_ERROR;
 
+	/* statistic */
+	zlib_stats_inc(&zlib_stats.inflateEnd);
+
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
 
@@ -272,6 +278,7 @@ int nx_inflate(z_streamp strm, int flush)
 {
 	int rc = Z_OK;
 	nx_streamp s;
+	unsigned int avail_in_slot, avail_out_slot;
 	
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
@@ -281,6 +288,22 @@ int nx_inflate(z_streamp strm, int flush)
 		strm->msg = (char *)"Z_BLOCK or Z_TREES not implemented";
 		return Z_STREAM_ERROR;
 	}
+
+	/* statistic */ 
+	if (nx_gzip_gather_statistics()) {
+                pthread_mutex_lock(&zlib_stats_mutex);
+                avail_in_slot = strm->avail_in / 4096;
+                if (avail_in_slot >= ZLIB_SIZE_SLOTS)
+                        avail_in_slot = ZLIB_SIZE_SLOTS - 1;
+                zlib_stats.inflate_avail_in[avail_in_slot]++;
+
+                avail_out_slot = strm->avail_out / 4096;
+                if (avail_out_slot >= ZLIB_SIZE_SLOTS)
+                        avail_out_slot = ZLIB_SIZE_SLOTS - 1;
+                zlib_stats.inflate_avail_out[avail_out_slot]++;
+                zlib_stats.inflate++;
+                pthread_mutex_unlock(&zlib_stats_mutex);
+        }
 
 	s->next_in = s->zstrm->next_in;
 	s->avail_in = s->zstrm->avail_in;
@@ -388,20 +411,20 @@ inf_forever:
 
 	case inf_state_gzip_mtime:
 
-		while( s->inf_held < 4) { /* need 4 bytes for MTIME */
-			nx_inflate_get_byte(s, c);
-			if (s->gzhead != NULL)
+		if (s->gzhead != NULL){
+			while( s->inf_held < 4) { /* need 4 bytes for MTIME */
+				nx_inflate_get_byte(s, c);
 				s->gzhead->time = s->gzhead->time << 8 | c;
-			++ s->inf_held;
+				++ s->inf_held;
+			}
+			s->gzhead->time = le32toh(s->gzhead->time);
+			s->inf_held = 0;
+
+			assert( (s->gzhead->time & (1<<31) == 0) );
+			/* assertion is a reminder for endian check; either
+			   fires right away or in the year 2038 if we're still
+			   alive */
 		}
-		s->gzhead->time = le32toh(s->gzhead->time);
-		s->inf_held = 0;
-
-		assert( (s->gzhead->time & (1<<31) == 0) );
-		/* assertion is a reminder for endian check; either
-		   fires right away or in the year 2038 if we're still
-		   alive */
-
 		s->inf_state = inf_state_gzip_xfl;		
 		/* fall thru */
 

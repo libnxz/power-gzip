@@ -48,6 +48,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <endian.h>
+#include <pthread.h>
 #include "zlib.h"
 #include "nx_dbg.h"
 #include "copy-paste.h"
@@ -670,6 +671,9 @@ int nx_deflateEnd(z_streamp strm)
 	if (s == NULL)
 		return Z_STREAM_ERROR;
 
+	/* statistic*/
+	zlib_stats_inc(&zlib_stats.deflateEnd);
+
 	status = s->status;
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
@@ -702,6 +706,9 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	nx_hw_init();
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
+
+	/* statistic */
+	zlib_stats_inc(&zlib_stats.deflateInit); 
 
 	strm->msg = Z_NULL;
 	
@@ -1474,6 +1481,7 @@ int nx_deflate(z_streamp strm, int flush)
 	retlibnx_t rc;
 	nx_streamp s;
 	const int combine_cksum = 1;
+	unsigned int avail_in_slot, avail_out_slot;
 
 	/* check flush */
 	if (flush > Z_BLOCK || flush < 0) return Z_STREAM_ERROR;
@@ -1481,6 +1489,23 @@ int nx_deflate(z_streamp strm, int flush)
 	/* check z_stream and state */
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	if (NULL == (s = (nx_streamp) strm->state)) return Z_STREAM_ERROR;
+
+	/* statistic*/
+	if (nx_gzip_gather_statistics()) {
+		pthread_mutex_lock(&zlib_stats_mutex);
+		avail_in_slot = strm->avail_in / 4096;
+		if (avail_in_slot >= ZLIB_SIZE_SLOTS)
+			avail_in_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats.deflate_avail_in[avail_in_slot]++;
+		
+		avail_out_slot = strm->avail_out / 4096;
+		if (avail_out_slot >= ZLIB_SIZE_SLOTS)
+			avail_out_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats.deflate_avail_out[avail_out_slot]++;
+		zlib_stats.deflate++;
+		pthread_mutex_unlock(&zlib_stats_mutex);
+	}
+
 
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 
@@ -1647,6 +1672,7 @@ s3:
 
 unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 {
+	zlib_stats_inc(&zlib_stats.deflateBound);
 	return (sourceLen*2 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 ));
 }
 

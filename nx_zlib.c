@@ -48,6 +48,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <endian.h>
+#include <pthread.h>
 #include "zlib.h"
 #include "copy-paste.h"
 #include "nx-ftw.h"
@@ -66,8 +67,11 @@ int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
 int nx_gzip_chip_num = -1;		
 
-int nx_gzip_trace = 0x0;		/* no trace by default */
+int nx_gzip_trace = 0x8;		/* no trace by default */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
+
+pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
+struct zlib_stats zlib_stats;	/* global statistics */
 
 /* **************************************************************** */
 
@@ -482,12 +486,62 @@ void nx_lib_debug(int onoff)
 	nx_dbg = onoff;
 }
 
+static void print_stats(void)
+{
+	unsigned int i;
+	struct zlib_stats *s = &zlib_stats;
+
+	pthread_mutex_lock(&zlib_stats_mutex);	
+	prt_info("API call statistic:\n");
+	prt_info("deflateInit: %ld\n", s->deflateInit);
+	prt_info("deflate: %ld\n", s->deflate);
+
+	for (i = 0; i < ARRAY_SIZE(s->deflate_avail_in); i++) {
+		if (s->deflate_avail_in[i] == 0)
+			continue;
+		prt_info("  deflate_avail_in %4i KiB: %ld\n",
+			(i + 1) * 4, s->deflate_avail_in[i]);
+	}
+         
+	for (i = 0; i < ARRAY_SIZE(s->deflate_avail_out); i++) {
+		if (s->deflate_avail_out[i] == 0)
+			continue;
+		prt_info("  deflate_avail_out %4i KiB: %ld\n",
+			(i + 1) * 4, s->deflate_avail_out[i]);
+	}
+
+	prt_info("deflateBound: %ld\n", s->deflateBound);
+        prt_info("deflateEnd: %ld\n", s->deflateEnd);
+        prt_info("inflateInit: %ld\n", s->inflateInit);
+        prt_info("inflate: %ld\n", s->inflate);
+        
+        for (i = 0; i < ARRAY_SIZE(s->inflate_avail_in); i++) {
+                if (s->inflate_avail_in[i] == 0)
+                        continue;
+                prt_info("  inflate_avail_in %4i KiB: %ld\n",
+                        (i + 1) * 4, s->inflate_avail_in[i]);
+        }
+
+        for (i = 0; i < ARRAY_SIZE(s->inflate_avail_out); i++) {
+                if (s->inflate_avail_out[i] == 0)
+                        continue;
+                prt_info("  inflate_avail_out %4i KiB: %ld\n",
+                        (i + 1) * 4, s->inflate_avail_out[i]);
+        }
+        
+        prt_info("inflateEnd: %ld\n", s->inflateEnd);
+
+	pthread_mutex_unlock(&zlib_stats_mutex);
+	return;
+}
+
 /* 
  * Execute on library load 
  */
 void nx_hw_init(void)
 {
 	int nx_count;
+	int rc = 0;
 
 	/* only init one time for the program */
 	if (nx_init_done == 1) return;
@@ -524,6 +578,15 @@ void nx_hw_init(void)
 	nx_config.verbose = 0;	
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;
+	
+	/* Initialize the stats structure*/
+	if (nx_gzip_gather_statistics()) {
+ 		rc = pthread_mutex_init(&zlib_stats_mutex, NULL);
+		if (rc != 0){
+			fprintf(stderr,"initializing phtread_mutex failed!\n");
+			return;
+		}
+        }
 
 	nx_count = nx_enumerate_engines();
 
@@ -594,10 +657,23 @@ void nx_hw_done(void)
 	fflush(stderr);
 
 	nx_close_all();
-	
+
 	if (nx_gzip_log != stderr) {
 		nx_gzip_log = NULL;
 	}
+}
+
+static void _done(void) __attribute__((destructor));
+
+static void _done(void)
+{
+	if (nx_gzip_gather_statistics()) {
+		print_stats();
+		pthread_mutex_destroy(&zlib_stats_mutex);
+	}
+
+	nx_hw_done();
+	return;
 }
 
 	

@@ -310,11 +310,13 @@ do { prt_info(\
 "== %d s->avail_in %d s->total_in %d \
 s->used_in %d s->cur_in %d \
 s->avail_out %d s->total_out %d \
-s->used_out %d s->cur_out %d\n", line, \
+s->used_out %d s->cur_out %d \
+s->len_in %d s->len_out %d\n", line, \
 (s)->avail_in, (s)->total_in, \
 (s)->used_in, (s)->cur_in, \
 (s)->avail_out, (s)->total_out, \
-(s)->used_out, (s)->cur_out);\
+(s)->used_out, (s)->cur_out, \
+(s)->len_in, (s)->len_out);\
 } while (0)
 
 

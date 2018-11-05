@@ -15,9 +15,9 @@ EXE = test_inflate test_deflate
 all: $(EXE)
 
 test_inflate: $(OBJ_INFLATE)
-	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lz -lnxz
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lz -lnxz -lpthread
 test_deflate: $(OBJ_DEFLATE)
-	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lz -lnxz
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lz -lnxz -lpthread
 
 $(OBJ_DEFLATE): %.o : %.c
 	$(CC) $(CFLAGS) $(INC) -c $^ -o $@

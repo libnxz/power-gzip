@@ -752,6 +752,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
 	/* s = calloc(1, sizeof(*s)); */
 	if (s == NULL) return Z_MEM_ERROR;
+	memset(s, 0, sizeof(*s));
 
 	s->nxcmdp     = &s->nxcmd0;
 	s->wrap       = wrap;
@@ -774,10 +775,13 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
 
+	s->fifo_in = NULL;
+
 	s->len_out = nx_config.deflate_fifo_out_len;
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
 
+	s->fifo_out = NULL;
 	s->used_in = s->used_out = 0;
 	s->cur_in  = s->cur_out = 0;
 	s->tebc = 0;
@@ -1254,7 +1258,7 @@ restart:
 		/* touch 1 byte */
 		nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1);
 
-		prt_info("     pgfault_retries %d bytes_in %d\n", --pgfault_retries, bytes_in);
+		prt_warn("     pgfault_retries %d bytes_in %d\n", --pgfault_retries, bytes_in);
 		if (pgfault_retries == nx_pgfault_retries) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
@@ -1338,7 +1342,7 @@ do_append_flush:
 	nx_compress_block_append_flush_block(s);
 		
 do_no_update:
-err_exit:		
+err_exit:
 	return rc;
 }
 
@@ -1515,6 +1519,14 @@ int nx_deflate(z_streamp strm, int flush)
         s->avail_in = s->zstrm->avail_in;
         s->avail_out = s->zstrm->avail_out;	
 
+        if (s->fifo_out == NULL) {
+                s->len_out = NX_MAX( nx_config.page_sz * 2, ((s->zstrm->avail_in * 20)/100)*2);
+                if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
+                        prt_err("nx_alloc_buffer\n");
+                        return Z_MEM_ERROR;
+                }
+        }
+
 	/* update flush status here */
 	s->flush = flush;
 
@@ -1601,6 +1613,11 @@ s2:
 		goto s3; /* compress */
 	}
 	else {
+		if (s->fifo_in == NULL) {
+			s->len_in = nx_config.deflate_fifo_in_len;
+			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0)))
+				return Z_MEM_ERROR;
+		}
 		/* small input and no request made for flush or finish */
 		small_copy_nxstrm_in_to_fifo_in(s);
 		return Z_OK;
@@ -1672,6 +1689,7 @@ s3:
 unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 {
 	zlib_stats_inc(&zlib_stats.deflateBound);
+	// return (sourceLen + sourceLen*10/100 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 ));
 	return (sourceLen*2 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 ));
 }
 

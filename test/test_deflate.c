@@ -45,5 +45,6 @@ int main()
 	check ( run_case33() );
 	check ( run_case33_1() );
 	check ( run_case34() );
+	check ( run_case41() );
 }
 

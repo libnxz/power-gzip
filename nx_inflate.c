@@ -190,6 +190,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	}
 
 	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
+	memset(s, 0, sizeof(*s));
 
 	if (s == NULL) {
 		ret = Z_MEM_ERROR;
@@ -214,12 +215,15 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	}
 	
 	/* overflow buffer */
+/*	
 	s->len_out = nx_config.inflate_fifo_out_len;
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
 		ret = Z_MEM_ERROR;
 		prt_err("nx_alloc_buffer\n");				
 		goto alloc_err;
 	}
+*/
+	s->fifo_out = NULL;
 	
 	strm->state = (void *) s;
 
@@ -287,6 +291,15 @@ int nx_inflate(z_streamp strm, int flush)
 	if (flush == Z_BLOCK || flush == Z_TREES) {
 		strm->msg = (char *)"Z_BLOCK or Z_TREES not implemented";
 		return Z_STREAM_ERROR;
+	}
+
+	if (s->fifo_out == NULL) {
+		s->len_out = NX_MAX( nx_config.page_sz * 2, (32*1024 + (s->zstrm->avail_in * 20)/100)*2);
+		if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
+			rc = Z_MEM_ERROR;
+			prt_err("nx_alloc_buffer\n");
+			return rc;
+		}
 	}
 
 	/* statistic */ 
@@ -676,9 +689,10 @@ static int nx_inflate_(nx_streamp s, int flush)
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
         nx_dde_t *ddl_in = s->ddl_in;
         nx_dde_t *ddl_out = s->ddl_out;
-	int pgfault_retries;
+	int pgfault_retries, nx_space_retries;
 	int cc, rc;
 
+	prt_info("nx_inflate_\n");
 	print_dbg_info(s, __LINE__);
 
 	if ((flush == Z_FINISH) && (s->avail_in == 0) && (s->used_out == 0))
@@ -703,14 +717,19 @@ copy_fifo_out_to_next_out:
 			fifo_out_len_check(s);
 		}
 		print_dbg_info(s, __LINE__);
+
+		if (s->used_out > 0 && s->avail_out == 0) return Z_OK; /* Need more space */
+
 		/* if final is find, will not go ahead */
 		if (s->is_final == 1 && s->used_in == 0) return Z_STREAM_END;
 	}
 
-	/* if s->avail_out or  s->avail_in is 0, return */
-	if (s->avail_out == 0 || s->avail_in == 0) return Z_OK;
-	/* we should flush all data to next_out here, s->used_out should be 0 */
 	assert(s->used_out == 0);
+
+	/* if s->avail_out and  s->avail_in is 0, return */
+	if (s->avail_out == 0 || (s->avail_in == 0 && s->used_in == 0)) return Z_OK;
+	if (s->used_out == 0 && s->avail_in == 0 && s->used_in == 0) return Z_OK;
+	/* we should flush all data to next_out here, s->used_out should be 0 */
 
 small_next_in:
 	/* if the total input size is below some threshold, avoid
@@ -720,7 +739,7 @@ small_next_in:
 	/* used_in is the data amount waiting in fifo_in; avail_in is
 	   the data amount waiting in the user buffer next_in */
 	// if (s->used_in < nx_config.soft_copy_threshold &&
-	//    s->avail_in < nx_config.soft_copy_threshold) {
+	//     s->avail_in < nx_config.soft_copy_threshold) {
 	if (s->avail_in > 0 && s->avail_out > 0) {
 		/* reset fifo head to reduce unnecessary wrap arounds */
 		s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;	
@@ -815,12 +834,14 @@ decomp_state:
 	 * NX source buffers
 	 */
 	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
+	// nx_append_dde(ddl_in, s->next_in, s->avail_in);
 		
 
 	/*
 	 * NX target buffers
 	 */
-	int len_next_out = NX_MIN(s->avail_out, s->len_out); // bug here
+	// int len_next_out = NX_MIN(s->avail_out, s->len_out); // bug here
+	int len_next_out = s->avail_out; // bug here
 	nx_append_dde(ddl_out, s->next_out, len_next_out);
 
 	assert(s->used_out == 0);
@@ -831,6 +852,7 @@ decomp_state:
 
 	/* source_sz includes history */
 	source_sz = getp32(ddl_in, ddebc);
+	prt_info("len_next_out %d s->len_out - s->cur_out - s->used_out %d source_sz %d s->history_len %d\n", len_next_out, s->len_out - s->cur_out - s->used_out, source_sz, s->history_len);
 	ASSERT( source_sz > s->history_len );
 	source_sz = source_sz - s->history_len;
 
@@ -860,8 +882,10 @@ decomp_state:
 	   entirely in fifo_out), no history copy is required
 
 	*/
-	target_max = NX_MAX(0, s->len_out - s->cur_out - (1<<16)); // FIXME here
+	// target_max = NX_MAX(0, s->len_out - s->cur_out - (1<<16)); // FIXME here
+	target_max = s->avail_out + s->len_out - s->cur_out -s->used_out;
 	source_sz_estimate = ((uint64_t)target_max * s->last_comp_ratio * 3UL)/4000;
+	target_sz_estimate = target_max;
 /*
 	if ( source_sz_estimate < source_sz ) {
 		// target might be small, therefore limiting the source data
@@ -881,8 +905,9 @@ decomp_state:
 	  again.  Kernel doesn't fault-in NX page faults. Expects user
 	  code to touch pages */
 	pgfault_retries = nx_config.retry_max;
+	nx_space_retries = 0;
 
-	prt_info("     source_sz %d target_sz_estimate %d\n", source_sz, target_sz_estimate);
+	prt_info("     source_sz %d target_sz_estimate %d target_max %d\n", source_sz, target_sz_estimate, target_max);
 restart_nx:
 
  	putp32(ddl_in, ddebc, source_sz);  
@@ -904,7 +929,7 @@ restart_nx:
 		   common case we shouldn't be here. But may be some
 		   pages were paged out. Kernel should have placed the
 		   faulting address to fsaddr */
-		NXPRT( fprintf(stderr, "ERR_NX_TRANSLATION %p\n", (void *)cmdp->crb.csb.fsaddr) );
+		prt_err("ERR_NX_TRANSLATION %p\n", (void *)cmdp->crb.csb.fsaddr);
 		NX_CLK( (td.faultc += 1) );
 
 		/* Touch 1 byte, read-only  */
@@ -926,14 +951,14 @@ restart_nx:
 		else {
 			/* TODO what to do when page faults are too many?
 			   Kernel MM would have killed the process. */
-			fprintf(stderr, "cannot make progress; too many page fault retries cc= %d\n", cc);
+			prt_err("cannot make progress; too many page fault retries cc= %d\n", cc);
 			rc = Z_ERRNO;
 			goto err5;
 		}
 
 	case ERR_NX_DATA_LENGTH:
 
-		NXPRT( fprintf(stderr, "ERR_NX_DATA_LENGTH\n") );
+		prt_warn("ERR_NX_DATA_LENGTH\n");
 		NX_CLK( (td.datalenc += 1) );
 		
 		/* Not an error in the most common case; it just says
@@ -958,7 +983,7 @@ restart_nx:
 			/* History length error when CE(1)=1 CE(0)=0. 
 			   We have a bug */
 			rc = Z_ERRNO;
-			fprintf(stderr, "history length error cc= %d\n", cc);
+			prt_err("history length error cc= %d\n", cc);
 			goto err5;
 		}
 		
@@ -969,7 +994,8 @@ restart_nx:
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > s->history_len );
 		source_sz = ((source_sz - s->history_len + 2) / 2) + s->history_len;
-		NXPRT( fprintf(stderr, "ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len) );
+		prt_err("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len);
+		nx_space_retries++;
 		goto restart_nx;
 
 	case ERR_NX_OK:
@@ -985,14 +1011,14 @@ restart_nx:
 		goto offsets_state;
 
 	default:
-		fprintf(stderr, "error: cc= %d\n", cc);
+		prt_err("error: cc= %d\n", cc);
 		rc = Z_ERRNO;
 		goto err5; 
 	}
 
 ok_cc3:
 
-	NXPRT( fprintf(stderr, "cc3: sfbt: %x\n", sfbt) );
+	prt_info("cc3: sfbt: %x\n", sfbt);
 
 	ASSERT(spbc > s->history_len);
 	source_sz = spbc - s->history_len;
@@ -1140,15 +1166,26 @@ offsets_state:
 
 	if (s->is_final == 1 || cc == ERR_NX_OK) {
 		/* update total_in */
-		s->total_in = s->total_in - read_sz + source_sz;
+		// s->total_in = s->total_in - read_sz + source_sz;
+		s->total_in = s->total_in - s->used_in;
 		s->zstrm->total_in = s->total_in;
+		s->is_final = 1;
 		s->used_in = 0; // FIXME
-		if (s->used_out == 0)
+		if (s->used_out == 0) {
+			print_dbg_info(s, __LINE__);
 			return Z_STREAM_END;
+		}
+		else
+			goto copy_fifo_out_to_next_out;
 	}
 
 	if (s->avail_in > 0 && s->avail_out > 0) {
 		goto copy_fifo_out_to_next_out;
+	}
+	
+	if (s->used_in > 1 && s->avail_out > 0 && nx_space_retries > 0) {
+		goto copy_fifo_out_to_next_out;
+		// goto decomp_state;
 	}
 
 	print_dbg_info(s, __LINE__);

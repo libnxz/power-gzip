@@ -67,7 +67,8 @@ int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
 int nx_gzip_chip_num = -1;		
 
-int nx_gzip_trace = 0x8;		/* no trace by default */
+// int nx_gzip_trace = 0x8;		/* no trace by default */
+int nx_gzip_trace = 0x0;		/* no trace by default */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
 
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
@@ -154,7 +155,7 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 	if (buf == NULL)
 		return buf;
 	nx_touch_pages(buf, len, alignment, 1);
-	memset(buf, 0, len);
+	// memset(buf, 0, len);
 
 	if (lock) {
 		if (mlock(buf, len))
@@ -634,7 +635,8 @@ void nx_hw_init(void)
 	/* revalue the fifo_in and fifo_out */	
 	nx_config.inflate_fifo_in_len = (nx_config.strm_inf_bufsz * 2);
 	nx_config.inflate_fifo_out_len = (nx_config.strm_inf_bufsz * 2 * 256);
-	nx_config.deflate_fifo_in_len = (nx_config.strm_def_bufsz);
+	// nx_config.deflate_fifo_in_len = (nx_config.strm_def_bufsz);
+	nx_config.deflate_fifo_in_len = (64*1024);
 	nx_config.deflate_fifo_out_len = (nx_config.strm_def_bufsz * 2);
 	
 	/* If user is asking for a specific accelerator. Otherwise we

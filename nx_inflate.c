@@ -913,7 +913,7 @@ restart_nx:
  	putp32(ddl_in, ddebc, source_sz);  
 
 	/* fault in pages */
-	nx_touch_pages_dde(ddl_in, 0, nx_config.page_sz, 0);
+	nx_touch_pages_dde(ddl_in, source_sz, nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_out, target_sz_estimate, nx_config.page_sz, 1);
 
 	/* 
@@ -929,7 +929,8 @@ restart_nx:
 		   common case we shouldn't be here. But may be some
 		   pages were paged out. Kernel should have placed the
 		   faulting address to fsaddr */
-		prt_err("ERR_NX_TRANSLATION %p\n", (void *)cmdp->crb.csb.fsaddr);
+		prt_err("ERR_NX_TRANSLATION %p source_sz %d\n", (void *)cmdp->crb.csb.fsaddr, source_sz);
+		print_dbg_info(s, __LINE__);
 		NX_CLK( (td.faultc += 1) );
 
 		/* Touch 1 byte, read-only  */
@@ -1185,8 +1186,9 @@ offsets_state:
 	
 	if (s->used_in > 1 && s->avail_out > 0 && nx_space_retries > 0) {
 		goto copy_fifo_out_to_next_out;
-		// goto decomp_state;
 	}
+
+	if (flush == Z_FINISH) return Z_STREAM_END;
 
 	print_dbg_info(s, __LINE__);
 	return Z_OK;

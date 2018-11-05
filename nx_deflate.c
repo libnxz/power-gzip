@@ -781,7 +781,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
 
-	s->fifo_out = NULL;
+	// s->fifo_out = NULL;
 	s->used_in = s->used_out = 0;
 	s->cur_in  = s->cur_out = 0;
 	s->tebc = 0;
@@ -1518,7 +1518,7 @@ int nx_deflate(z_streamp strm, int flush)
         s->next_out = s->zstrm->next_out;
         s->avail_in = s->zstrm->avail_in;
         s->avail_out = s->zstrm->avail_out;	
-
+/*
         if (s->fifo_out == NULL) {
                 s->len_out = NX_MAX( nx_config.page_sz * 2, ((s->zstrm->avail_in * 20)/100)*2);
                 if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
@@ -1526,7 +1526,7 @@ int nx_deflate(z_streamp strm, int flush)
                         return Z_MEM_ERROR;
                 }
         }
-
+*/
 	/* update flush status here */
 	s->flush = flush;
 

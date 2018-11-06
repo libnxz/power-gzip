@@ -58,6 +58,12 @@ extern int nx_dbg;
 			fprintf(nx_gzip_log, "### " fmt, ## __VA_ARGS__); \
 	} while (0)
 
+/* Trace statistics */
+#define prt_stat(fmt, ...) do {					\
+                if (nx_gzip_gather_statistics())				\
+			fprintf(nx_gzip_log, "### " fmt, ## __VA_ARGS__); \
+	} while (0)
+
 /* Trace zlib hardware implementation */
 #define hw_trace(fmt, ...) do {						\
 		if (nx_gzip_hw_trace_enabled())				\

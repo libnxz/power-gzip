@@ -55,7 +55,7 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 
 	memset(&txattr, 0, sizeof(txattr));
 	txattr.version = 1;
-	txattr.vas_id = -1;
+	txattr.vas_id = pri;
 	txattr.tc_mode  = 0;
 	txattr.rsvd_txbuf = 0;
 	rc = ioctl(fd, VAS_GZIP_TX_WIN_OPEN, (unsigned long)&txattr);
@@ -102,7 +102,7 @@ void *nx_function_begin(int function, int pri)
 	}
 
 	nxhandle->function = function;
-	rc = open_device_nodes(devname, 1, nxhandle);
+	rc = open_device_nodes(devname, pri, nxhandle);
 	if (rc < 0) {
 		errno = -rc;
 		fprintf(stderr, " open_device_nodes failed\n");

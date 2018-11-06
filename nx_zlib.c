@@ -67,11 +67,11 @@ int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
 int nx_gzip_chip_num = -1;		
 
-// int nx_gzip_trace = 0x8;		/* no trace by default */
 int nx_gzip_trace = 0x0;		/* no trace by default */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
 
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
+pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */
 struct zlib_stats zlib_stats;	/* global statistics */
 
 /* **************************************************************** */
@@ -395,7 +395,7 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 
 
 /* 
-   open nx_id = -1 for any nx device. or open a particular nx device 
+   nx_id will not be used here, use nx_gzip_chip_num to decide use which nx
 */
 nx_devp_t nx_open(int nx_id)
 {
@@ -407,21 +407,38 @@ nx_devp_t nx_open(int nx_id)
 		return NULL;
 	}
 
-	/* TODO open only one device until we learn how to locate them all */
-	if (nx_dev_count > 0)
-		return &nx_devices[0];
-	vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0);
-	if (!vas_handle) {
-		prt_err("nx_function_begin failed, errno %d\n", errno);
-		return NULL;
+	pthread_mutex_lock(&nx_devices_mutex);
+	/* Open device firstly anyway */
+	if (nx_dev_count == 0) {
+		for (int i = -1; i <= NX_MIN(nx_gzip_chip_num, 1); i++) {
+			vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, i);
+			if (!vas_handle) {
+				prt_err("nx_function_begin failed, errno %d\n", errno);
+				nx_devp = NULL;
+				goto ret;
+			}
+			nx_devp = &nx_devices[ nx_dev_count ];
+			nx_devp->vas_handle = vas_handle;
+			++ nx_dev_count;
+		}
 	}
 
-	nx_wait_exclusive((int *) &biglock);
-	nx_devp = &nx_devices[ nx_dev_count ];
-	nx_devp->vas_handle = vas_handle;
-	++ nx_dev_count;
-	nx_exit_exclusive((int *) &biglock);
+	/*
+	 * nx_devices[0] is nx_function_begin(NX_FUNC_COMP_GZIP, -1)
+	 * nx_devices[1] is nx_function_begin(NX_FUNC_COMP_GZIP, 0)
+	 * nx_devices[2] is nx_function_begin(NX_FUNC_COMP_GZIP, 1)
+	 */
 
+	if (nx_gzip_chip_num != 2) {
+		nx_devp = &nx_devices[nx_gzip_chip_num+1];
+	}
+	else { /* use both nx, to make sure balance among threads */
+		if (nx_devices[1].open_cnt <= nx_devices[2].open_cnt) nx_devp = &nx_devices[1];
+		else nx_devp = &nx_devices[2];
+	}
+	nx_devp->open_cnt++;
+ret:
+	pthread_mutex_unlock(&nx_devices_mutex);
 	return nx_devp;
 }
 
@@ -493,46 +510,50 @@ static void print_stats(void)
 	struct zlib_stats *s = &zlib_stats;
 
 	pthread_mutex_lock(&zlib_stats_mutex);	
-	prt_info("API call statistic:\n");
-	prt_info("deflateInit: %ld\n", s->deflateInit);
-	prt_info("deflate: %ld\n", s->deflate);
+	prt_stat("API call statistic:\n");
+	prt_stat("deflateInit: %ld\n", s->deflateInit);
+	prt_stat("deflate: %ld\n", s->deflate);
 
 	for (i = 0; i < ARRAY_SIZE(s->deflate_avail_in); i++) {
 		if (s->deflate_avail_in[i] == 0)
 			continue;
-		prt_info("  deflate_avail_in %4i KiB: %ld\n",
+		prt_stat("  deflate_avail_in %4i KiB: %ld\n",
 			(i + 1) * 4, s->deflate_avail_in[i]);
 	}
          
 	for (i = 0; i < ARRAY_SIZE(s->deflate_avail_out); i++) {
 		if (s->deflate_avail_out[i] == 0)
 			continue;
-		prt_info("  deflate_avail_out %4i KiB: %ld\n",
+		prt_stat("  deflate_avail_out %4i KiB: %ld\n",
 			(i + 1) * 4, s->deflate_avail_out[i]);
 	}
 
-	prt_info("deflateBound: %ld\n", s->deflateBound);
-        prt_info("deflateEnd: %ld\n", s->deflateEnd);
-        prt_info("inflateInit: %ld\n", s->inflateInit);
-        prt_info("inflate: %ld\n", s->inflate);
+	prt_stat("deflateBound: %ld\n", s->deflateBound);
+        prt_stat("deflateEnd: %ld\n", s->deflateEnd);
+        prt_stat("inflateInit: %ld\n", s->inflateInit);
+        prt_stat("inflate: %ld\n", s->inflate);
         
         for (i = 0; i < ARRAY_SIZE(s->inflate_avail_in); i++) {
                 if (s->inflate_avail_in[i] == 0)
                         continue;
-                prt_info("  inflate_avail_in %4i KiB: %ld\n",
+                prt_stat("  inflate_avail_in %4i KiB: %ld\n",
                         (i + 1) * 4, s->inflate_avail_in[i]);
         }
 
         for (i = 0; i < ARRAY_SIZE(s->inflate_avail_out); i++) {
                 if (s->inflate_avail_out[i] == 0)
                         continue;
-                prt_info("  inflate_avail_out %4i KiB: %ld\n",
+                prt_stat("  inflate_avail_out %4i KiB: %ld\n",
                         (i + 1) * 4, s->inflate_avail_out[i]);
         }
         
-        prt_info("inflateEnd: %ld\n", s->inflateEnd);
+        prt_stat("inflateEnd: %ld\n", s->inflateEnd);
 
 	pthread_mutex_unlock(&zlib_stats_mutex);
+
+	for (int i = 0; i <= NX_MIN(2, nx_gzip_chip_num+1); i++) {
+		prt_stat("nx_devices[%d].open_cnt %d\n", i, nx_devices[i].open_cnt);
+	}
 	return;
 }
 
@@ -549,7 +570,7 @@ void nx_hw_init(void)
 
 	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
-	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0,1,2 for socket# */
+	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE"); /* KiB MiB GiB suffix */
 	char *inf_bufsz  = getenv("NX_GZIP_INF_BUF_SIZE"); /* KiB MiB GiB suffix */	
 	char *logfile    = getenv("NX_GZIP_LOGFILE");
@@ -584,7 +605,7 @@ void nx_hw_init(void)
 	if (nx_gzip_gather_statistics()) {
  		rc = pthread_mutex_init(&zlib_stats_mutex, NULL);
 		if (rc != 0){
-			fprintf(stderr,"initializing phtread_mutex failed!\n");
+			prt_err("initializing phtread_mutex failed!\n");
 			return;
 		}
         }
@@ -645,6 +666,9 @@ void nx_hw_init(void)
 	if (chip_num_s != NULL) {
 		nx_gzip_chip_num = atoi(chip_num_s);
 		/* TODO check if that accelerator exists */
+		if ((nx_gzip_chip_num < -1) || (nx_gzip_chip_num > 2)) {
+			prt_err("Unsupported NX_GZIP_DEV_NUM %d!\n", nx_gzip_chip_num);
+		}
 	}
 
 	nx_init_done = 1;
@@ -677,23 +701,4 @@ static void _done(void)
 	nx_hw_done();
 	return;
 }
-
-	
-#ifdef _NX_ZLIB_TEST
-int main()
-{
-        Byte *compr, *uncompr;
-        uLong comprLen = 10000*sizeof(int); /* don't overflow on MSDOS */
-        uLong uncomprLen = comprLen;
-        compr = (Byte*)calloc((uInt)comprLen, 1);
-        uncompr = (Byte*)calloc((uInt)uncomprLen, 1);
-
-	volatile int ex;
-	nx_hw_init();
-	nx_init_exclusive((int *) &ex);	
-	nx_wait_exclusive((int *) &ex);
-	nx_exit_exclusive((int *) &ex);
-	if (__builtin_cpu_is("power8")) fprintf(stderr, "cpu is power8\n");
-}
-#endif
 

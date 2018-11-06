@@ -113,6 +113,7 @@ struct nx_dev_t {
 	int nx_errno;
 	int socket_id;  /* one NX-gzip per cpu socket */
 	int nx_id;      /* unique */
+	int open_cnt;
 	
 	/* https://github.com/sukadev/linux/blob/vas-kern-v8.1/tools/testing/selftests/powerpc/user-nx842/compress.c#L514 */
 	struct {

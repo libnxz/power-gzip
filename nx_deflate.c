@@ -750,7 +750,6 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	level = 6;
 
 	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
-	/* s = calloc(1, sizeof(*s)); */
 	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
 
@@ -769,19 +768,12 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	else if (wrap == 1) s->status = NX_ZLIB_STATE;
 	else if (wrap == 2) s->status = NX_GZIP_STATE;	
 	
-	/* TODO consider using caller supplied zalloc and zfree */
-
-	s->len_in = nx_config.deflate_fifo_in_len;
-	if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0)))
-		return Z_MEM_ERROR;
-
 	s->fifo_in = NULL;
 
 	s->len_out = nx_config.deflate_fifo_out_len;
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
 
-	// s->fifo_out = NULL;
 	s->used_in = s->used_out = 0;
 	s->cur_in  = s->cur_out = 0;
 	s->tebc = 0;

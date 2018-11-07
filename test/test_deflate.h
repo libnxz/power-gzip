@@ -26,4 +26,5 @@ extern int run_case32();
 extern int run_case33();
 extern int run_case33_1();
 extern int run_case34();
+extern int run_case41();
 

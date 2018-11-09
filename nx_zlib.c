@@ -49,6 +49,7 @@
 #include <sys/ioctl.h>
 #include <endian.h>
 #include <pthread.h>
+#include <signal.h>
 #include "zlib.h"
 #include "copy-paste.h"
 #include "nx-ftw.h"
@@ -74,6 +75,9 @@ pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
 pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */
 struct zlib_stats zlib_stats;	/* global statistics */
 
+struct sigaction act;
+void *nx_fault_storage_address;
+void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 /* **************************************************************** */
 
 /* 
@@ -671,6 +675,14 @@ void nx_hw_init(void)
 		}
 	}
 
+	/* add a signal action */
+	act.sa_handler = 0;
+	act.sa_sigaction = sigsegv_handler;
+	act.sa_flags = SA_SIGINFO;
+	act.sa_restorer = 0;
+	sigemptyset(&act.sa_mask);
+	sigaction(SIGSEGV, &act, NULL);
+
 	nx_init_done = 1;
 }
 
@@ -700,5 +712,13 @@ static void _done(void)
 
 	nx_hw_done();
 	return;
+}
+
+void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
+{
+	prt_err("%d: Got signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);
+
+	nx_fault_storage_address = info->si_addr;
+	/* exit(0); */
 }
 

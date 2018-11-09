@@ -114,18 +114,19 @@ void *nx_function_begin(int function, int pri)
 
 int nx_function_end(void *handle)
 {
-	struct nx_handle *nxhandle = handle;
-	int rc = 0;
-	void *addr;
-	addr = nxhandle->paste_addr - 0x400;
-	rc = munmap(addr, 4096);
-	if (rc < 0) {
-		fprintf(stderr, "munmap() failed, errno %d\n", errno);
-		return rc;
-	}
-	close(nxhandle->fd);
-	free(nxhandle);
-	return rc;
+        int rc = 0;
+        struct nx_handle *nxhandle = handle;
+        /* check erro here? if unmap successfully, page fault usually found? */
+        rc = munmap(nxhandle->paste_addr, 4096);
+
+        /* rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+        if (rc < 0) {
+                fprintf(stderr, "munmap() failed, errno %d\n", errno);
+                return rc;
+        }*/
+        close(nxhandle->fd);
+        free(nxhandle);
+        return rc;
 }
 
 static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )

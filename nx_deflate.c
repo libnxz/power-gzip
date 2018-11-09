@@ -1231,6 +1231,7 @@ restart:
 	   values, the accelerator will process only indirect DDEbc
 	   bytes, and no error has occurred. */
  	putp32(ddl_in, ddebc, bytes_in);  /* may adjust the input size on retries */
+	nx_touch_pages( (void *)nxcmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_in, 0, nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_out, bytes_out, nx_config.page_sz, 1);
 
@@ -1250,7 +1251,7 @@ restart:
 		/* touch 1 byte */
 		nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1);
 
-		prt_warn("     pgfault_retries %d bytes_in %d\n", --pgfault_retries, bytes_in);
+		prt_warn("     pgfault_retries %d bytes_in %d\n", pgfault_retries, bytes_in);
 		if (pgfault_retries == nx_pgfault_retries) {
 			/* try once with exact number of pages */
 			--pgfault_retries;

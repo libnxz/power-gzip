@@ -445,7 +445,7 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
 		sig, info->si_code, info->si_addr);
 
-	/* nx_fault_storage_address = info->si_addr; */
+	nx_fault_storage_address = info->si_addr; 
 }
 
 

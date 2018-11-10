@@ -934,7 +934,9 @@ restart_nx:
 		NX_CLK( (td.faultc += 1) );
 
 		/* Touch 1 byte, read-only  */
-		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);
+		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
+		/* get64 does the endian conversion */
+		nx_touch_pages( (void *)(get64(cmdp->crb.stamp.nx, fsa)), 1, nx_config.page_sz, 0); 
 
 		if (pgfault_retries == nx_config.retry_max) {
 			/* try once with exact number of pages */

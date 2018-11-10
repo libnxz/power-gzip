@@ -246,7 +246,10 @@ typedef struct {
 		};
 	    };
 	};
-	nx_qw_t  in_dht[DHTSZ];               /* qw[1:18]     */
+	union {
+	    nx_qw_t  in_dht[DHTSZ];           /* qw[1:18]     */
+	    char     in_dht_char[DHT_MAXSZ];  /* byte access  */
+	};
 	nx_qw_t  reserved[5];                 /* qw[19:23]    */
     };
 

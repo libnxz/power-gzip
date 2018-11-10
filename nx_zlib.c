@@ -268,6 +268,8 @@ int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 
 	ASSERT(!!ddep);
 	
+	nx_touch_pages((void *)ddep, sizeof(nx_dde_t), page_sz, 0);
+
 	indirect_count = getpnn(ddep, dde_count);
 
 	prt_trace("nx_touch_pages_dde dde_count %d request len 0x%lx\n", indirect_count, buf_sz); 
@@ -302,7 +304,9 @@ int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 		buf_len = get32(dde_list[i], ddebc);
 		buf_addr = get64(dde_list[i], ddead);
 		total += buf_len;
-
+		
+		nx_touch_pages((void *)&(dde_list[i]), sizeof(nx_dde_t), page_sz, 0);
+		
 		prt_trace("touch loop len 0x%x ddead %p total 0x%lx\n", buf_len, (void *)buf_addr, total); 
 
 		/* touching fewer pages than encoded in the ddebc */

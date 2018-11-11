@@ -1249,7 +1249,9 @@ restart:
 	case ERR_NX_TRANSLATION:
 
 		/* touch 1 byte */
-		nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1);
+		/* nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1); */
+		/* get64 does the endian conversion */
+		nx_touch_pages( (void *)(get64(nxcmdp->crb.stamp.nx, fsa)), 1, pgsz, 0); 
 
 		prt_warn("     pgfault_retries %d bytes_in %d\n", pgfault_retries, bytes_in);
 		if (pgfault_retries == nx_pgfault_retries) {

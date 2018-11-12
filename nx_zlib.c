@@ -195,8 +195,8 @@ int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 	uint32_t ddecnt;
 	uint32_t bytes;
 
-	if (addr == NULL && len == 0) {
-		clearp_dde(ddl);
+	if (addr == NULL || len == 0) {
+		// clearp_dde(ddl);
 		return 0;
 	}
 
@@ -663,7 +663,7 @@ void nx_hw_init(void)
 
 	/* revalue the fifo_in and fifo_out */	
 	nx_config.inflate_fifo_in_len = (nx_config.strm_inf_bufsz * 2);
-	nx_config.inflate_fifo_out_len = (nx_config.strm_inf_bufsz * 2 * 256);
+	nx_config.inflate_fifo_out_len = (nx_config.strm_inf_bufsz * 2);
 	// nx_config.deflate_fifo_in_len = (nx_config.strm_def_bufsz);
 	nx_config.deflate_fifo_in_len = (64*1024);
 	nx_config.deflate_fifo_out_len = (nx_config.strm_def_bufsz * 2);
@@ -723,6 +723,6 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	prt_err("%d: Got signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);
 
 	nx_fault_storage_address = info->si_addr;
-	/* exit(0); */
+	exit(0);
 }
 

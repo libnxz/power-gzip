@@ -207,22 +207,9 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	s->ddl_out = s->dde_out;
 
 	/* small input data will be buffered here */
-	s->len_in = nx_config.inflate_fifo_in_len;
-	if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
-		ret = Z_MEM_ERROR;
-		prt_err("nx_alloc_buffer\n");		
-		goto alloc_err;
-	}
-	
+	s->fifo_in = NULL;
+
 	/* overflow buffer */
-/*	
-	s->len_out = nx_config.inflate_fifo_out_len;
-	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
-		ret = Z_MEM_ERROR;
-		prt_err("nx_alloc_buffer\n");				
-		goto alloc_err;
-	}
-*/
 	s->fifo_out = NULL;
 	
 	strm->state = (void *) s;
@@ -740,7 +727,16 @@ small_next_in:
 	   the data amount waiting in the user buffer next_in */
 	// if (s->used_in < nx_config.soft_copy_threshold &&
 	//     s->avail_in < nx_config.soft_copy_threshold) {
-	if (s->avail_in > 0 && s->avail_out > 0) {
+	// if (s->avail_in > 0 && s->avail_out > 0) {
+	if (s->avail_in < nx_config.soft_copy_threshold && s->avail_out > 0) {
+		if (s->fifo_in == NULL) {
+			s->len_in = nx_config.inflate_fifo_in_len;
+			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
+				rc = Z_MEM_ERROR;
+				prt_err("nx_alloc_buffer\n");		
+				return rc;
+			}
+		}
 		/* reset fifo head to reduce unnecessary wrap arounds */
 		s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;	
 		fifo_in_len_check(s);
@@ -834,7 +830,7 @@ decomp_state:
 	 * NX source buffers
 	 */
 	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
-	// nx_append_dde(ddl_in, s->next_in, s->avail_in);
+	nx_append_dde(ddl_in, s->next_in, s->avail_in);
 		
 
 	/*
@@ -1122,9 +1118,16 @@ offsets_state:
 
 	/* Adjust the source and target buffer offsets and lengths  */
 	/* source_sz is the real used in size */
-	s->used_in -= source_sz;
-	s->cur_in += source_sz;
-	fifo_in_len_check(s);
+	if (source_sz > s->used_in) {
+		update_stream_in(s, source_sz - s->used_in);
+		update_stream_in(s->zstrm, source_sz - s->used_in);
+		s->used_in = 0;
+	}
+	else {
+		s->used_in -= source_sz;
+		s->cur_in += source_sz;
+		fifo_in_len_check(s);
+	}
 
 	int overflow_len = tpbc - len_next_out;
 	if (overflow_len <= 0) { // there is no overflow

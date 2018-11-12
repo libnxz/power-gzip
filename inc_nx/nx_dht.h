@@ -34,18 +34,46 @@
  *
  */
 
-#ifndef _DHT_H
-#define _DHT_H
+#ifndef _NX_DHT_H
+#define _NX_DHT_H
+
+#include <nxu.h>
+
+/* dht_lookup(cmd, NULL, NULL) will fill in the in_dht field for you */
+int dht_lookup(nx_gzip_crb_cpb_t *cmd, char *ifile, char *ofile);
+
+typedef dht_tab_t {
+	unsigned char *dht;
+	int dht_top[9];
+} dht_tab_t;
 
 /* 
-   First 16 bytes is P9 gzip specific. The least significant 12 bits
-   of the first 16 bytes is the length of the huffman table in bits.
-   0x214 is 533 bits in this example. Deflate bytes are little endian.
-   For example 533/8 = 66.625 bytes which means that the last 0.625
-   bytes 0.625*8=5 bits are on the right hand side of the last byte
-   0x04
-*/
+   LZCOUNT file format: 
 
+   On each line a single LZ symbol is followed by : followed by the
+   count, how many times the symbol occurred. Counts are sorted from
+   smallest value Literal Length symbol 0 to 285. Missing symbols are
+   treated as having a 0 count value. When the next symbol value is
+   less than the current symbol, it is assumed that the Distance
+   symbols have started.  For example
+
+   101 : 2222 
+   257 : 300 
+   0   : 5 
+
+   101, literal 'e' has occurred 2222 times, LZ length symbol 257
+   occurred 300 times and Distance symbol 0 occurred 5 times.
+
+   DHT FORMAT:
+
+   First 16 bytes is P9 gzip CPB specific. The least significant 12
+   bits of the first 16 bytes is the length of the huffman table in
+   bits.  0x02 0x14 is 0x214 is 533 bits in this example.  Deflate
+   dynamic huffman header bytes follow the first 16 bytes.  Deflate
+   bytes are little endian.  For example 533/8 = 66.625 bytes which
+   means that the last byte 0x04 contains 0.625*8=5 fractional bits
+   that are the right hand side of the byte
+*/
 unsigned char alice29_dht_hex[] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x15,
   0xbd, 0xbf, 0x00, 0xb4, 0xe5, 0xd6, 0x02, 0x36, 0x20, 0x5c, 0x02, 0xc1, 0x5d, 0xbf, 0xfb, 0x90,
@@ -54,6 +82,9 @@ unsigned char alice29_dht_hex[] = {
   0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0x4e, 0x3c, 0x59, 0x71,
   0x59, 0xf1, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-int alice29_dht_top_ll[] = { 32, 101, 116, 97 };
+/* most frequent symbols in descending order; distances 0-29 are
+   numbered from 286 to 315; terminate the list with a -1 */
+int alice29_dht_top[] = { 32, 101, 116, 97 };
 
-#endif _DHT_H
+
+#endif _NX_DHT_H

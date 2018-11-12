@@ -48,21 +48,35 @@
 #include <sys/ioctl.h>
 #include <endian.h>
 #include "nxu.h"
+#include "nx_dht.h"
 
 /* 
    Cmd supplies the LZ symbol statistics in cmd->cpb.out_lzcount[].
    An appropiate huffman table, computed or from cache, is returned in
-   cmd->cpb.in_dht[] and .in_dhtlen.  ofile != NULL outputs LZ
-   statistics and the dht if there is one.  ifile != NULL inputs and
-   caches the dht if supplies.  See nx_dht.h for formats.
+   cmd->cpb.in_dht[] and .in_dhtlen.  ofile != NULL, writes LZ
+   statistics and the dht if it was computed.  ifile != NULL, reads a
+   dht and caches it.  See nx_dht.h for formats.
+
    RETURN values:
    -1: error
    0:  default dht returned
    1:  found a dht in the cache
    2:  computed a new dht
 */
+
+
+dht_tab_t dht_table[DHT_NUM_MAX];
    
-int dht_lookup(nx_gzip_crb_cpb_t *cmd, char *ifile, char *ofile)
+int dht_begin(char *ifile, char *ofile)
+{
+	return 0;
+}
+int dht_end()
+{
+	return 0;
+}
+
+int dht_lookup(nx_gzip_crb_cpb_t *cmd)
 {
 	return 0;
 }

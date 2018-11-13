@@ -87,7 +87,7 @@ void dht_end(void *handle)
 	if (!!handle) free(handle);
 }
 
-#define IN_DHTLEN(X) (*((X)+16)) | (*((X)+15)<<8)
+#define IN_DHTLEN(X) (((int)*((X)+15)) | (((int)*((X)+14))<<8))
 
 int dht_lookup(nx_gzip_crb_cpb_t *cmdp, void *handle)
 {
@@ -100,7 +100,7 @@ int dht_lookup(nx_gzip_crb_cpb_t *cmdp, void *handle)
 	putnn(cmdp->cpb, in_dhtlen, dhtlen);   /* tell cpb the dhtlen */
 
 	dhtlen = (dhtlen + 7)/8;               /* bytes */
-	memcpy (cmdp->cpb.in_dht_char, table[0].pdht, dhtlen);
+	memcpy((void *)cmdp->cpb.in_dht_char, (void *)table[0].pdht, dhtlen);
 
 	return 0;
 }

@@ -53,17 +53,17 @@ extern int builtin_dht_topsym [][DHT_TOPSYM_MAX+1];
    An appropiate huffman table, computed or from cache, is returned in
    cmd->cpb.in_dht[] and .in_dhtlen.  ofile != NULL, writes LZ
    statistics and the dht if it was computed.  ifile != NULL, reads a
-   dht and caches it.  See nx_dht.h for formats.
+   dht from ifile and caches it.  See nx_dht.h for formats.
 
-   RETURN values:
+   request and return values:
    -1: error
-   0:  default dht returned
+   0:  default dht
    1:  found a dht in the cache
-   2:  computed a new dht
+   2:  compute a new dht
 */
 
 void *dht_begin(char *ifile, char *ofile);             /* deflateInit */
 void dht_end(void *handle);                            /* deflateEnd  */
-int dht_lookup(nx_gzip_crb_cpb_t *cmdp, void *handle); /* deflate     */
+int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle); /* deflate     */
 
 #endif /* _NX_DHT_H */

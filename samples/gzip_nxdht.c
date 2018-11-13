@@ -62,6 +62,7 @@
 #include <errno.h>
 #include <signal.h>
 #include "nxu.h"
+#include "nx_dht.h"
 #include "nx.h"
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
@@ -86,9 +87,13 @@ static int compress_dht_sample(char *src, uint32_t srclen, char *dst, uint32_t d
 
 	/* memset(&cmdp->crb, 0, sizeof(cmdp->crb)); */ /* cc=21 error; revisit clearing below */
 	put32(cmdp->crb, gzip_fc, 0);   /* clear */
-	fc = (with_count) ? GZIP_FC_COMPRESS_RESUME_DHT_COUNT : GZIP_FC_COMPRESS_RESUME_DHT;
+	if (with_count) 
+		fc = GZIP_FC_COMPRESS_RESUME_DHT_COUNT;
+	else 
+		fc = GZIP_FC_COMPRESS_RESUME_DHT;
+
 	putnn(cmdp->crb, gzip_fc, fc);
-	putnn(cmdp->cpb, in_histlen, 0); /* resuming with no history */
+	putnn(cmdp->cpb, in_histlen, 0); /* resuming with no history; not optimal but good enough for the sample */
 	memset((void *)&cmdp->crb.csb, 0, sizeof(cmdp->crb.csb));
     
 	/* Section 6.6 programming notes; spbc may be in two different places depending on FC */
@@ -112,6 +117,9 @@ static int compress_dht_sample(char *src, uint32_t srclen, char *dst, uint32_t d
 	putnn(cmdp->crb.target_dde, dde_count, 0);
 	put32(cmdp->crb.target_dde, ddebc, dstlen);
 	put64(cmdp->crb.target_dde, ddead, (uint64_t) dst);   
+
+	fprintf(stderr, "in_dhtlen %x\n", getnn(cmdp->cpb, in_dhtlen) );
+	fprintf(stderr, "in_dht %02x %02x\n", cmdp->cpb.in_dht_char[0],cmdp->cpb.in_dht_char[16]);
 
 	/* submit the crb */
 	nxu_run_job(cmdp, handle);
@@ -273,6 +281,7 @@ int compress_file(int argc, char **argv, void *handle)
 	nx_gzip_crb_cpb_t nxcmd, *cmdp;
 	uint32_t pagelen = 65536; /* should get this with syscall */
 	int fault_tries=50;
+	void *dhthandle;
     
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <fname>\n", argv[0]);
@@ -302,11 +311,20 @@ int compress_file(int argc, char **argv, void *handle)
 	srcbuf    = inbuf;
 	srctotlen = 0;
 
+	/* setup the builtin dht tables */
+	dhthandle = dht_begin(NULL, NULL);
+
 	/* prep the CRB */
 	cmdp = &nxcmd;
 	memset(&cmdp->crb, 0, sizeof(cmdp->crb));
+
 	/* prep the CPB */
 	put32(cmdp->cpb, in_crc, 0); /* initial gzip crc */
+
+	/* fill in with the default dht; we could also do fixed huffman for the sample */
+	/* and request an LZcount sample for the first run */
+	lzcounts = 1;
+	dht_lookup(cmdp, 0, dhthandle); 
 
 	fault_tries = 50;
 
@@ -432,6 +450,8 @@ int compress_file(int argc, char **argv, void *handle)
 	
 	if (NULL != inbuf) free(inbuf);
 	if (NULL != outbuf) free(outbuf);    
+
+	dht_end(dhthandle);
 
 	return 0;
 }

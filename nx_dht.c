@@ -72,6 +72,7 @@ void *dht_begin(char *ifile, char *ofile)
 		if (builtin_dht_topsym[i][0] < 0) break;
 		table[i].pdht = builtin_dht[i];
 		table[i].pdht_topsym = builtin_dht_topsym[i];
+		fprintf(stderr, "build dht %d\n", i);
 	}
 	/* no entries */
 	table[i].pdht = NULL;
@@ -89,7 +90,7 @@ void dht_end(void *handle)
 
 #define IN_DHTLEN(X) (((int)*((X)+15)) | (((int)*((X)+14))<<8))
 
-int dht_lookup(nx_gzip_crb_cpb_t *cmdp, void *handle)
+int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int dhtlen;
 	dht_tab_t *table = handle;
@@ -100,7 +101,9 @@ int dht_lookup(nx_gzip_crb_cpb_t *cmdp, void *handle)
 	putnn(cmdp->cpb, in_dhtlen, dhtlen);   /* tell cpb the dhtlen */
 
 	dhtlen = (dhtlen + 7)/8;               /* bytes */
-	memcpy((void *)cmdp->cpb.in_dht_char, (void *)table[0].pdht, dhtlen);
+
+	/* deflate recognized part starts at byte 16; bytes 0-15 belong to P9 */
+	memcpy((void *)(cmdp->cpb.in_dht_char), (void *)(table[0].pdht + 16), dhtlen);
 
 	return 0;
 }

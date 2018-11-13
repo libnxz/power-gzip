@@ -39,19 +39,9 @@
 
 #include <nxu.h>
 
-/* hint: dht_lookup(cmd, NULL, NULL) fills in the in_dht field */
-
-
-#define DHT_TOP_MAX  9
-#define DHT_NUM_MAX  100
-#define DHT_SZ_MAX   320
-
-typedef struct dht_tab_t {
-	unsigned char *dhtp;
-	int *dht_topp;
-	unsigned char dht[DHT_SZ_MAX];
-	int dht_top[DHT_TOP_MAX];
-} dht_tab_t;
+#define DHT_TOPSYM_MAX  8  /* number of most frequent symbols tracked */
+#define DHT_NUM_MAX  100   /* max number of dht table entries */
+#define DHT_SZ_MAX   320   /* number of dht bytes per entry */
 
 /* 
    LZCOUNT file format: 
@@ -85,8 +75,8 @@ typedef struct dht_tab_t {
    numbered from 286 to 315; terminate the list with a -1 
 */
 
-unsigned char builtin_dht[][DHT_SZ_MAX] = {
-	// alice29.txt
+unsigned char builtin_dht [][DHT_SZ_MAX] = {
+	/* alice29.txt; literals only */
 	{
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x15,
                 0xbd, 0xbf, 0x00, 0xb4, 0xe5, 0xd6, 0x02, 0x36, 0x20, 0x5c, 0x02, 0xc1, 0x5d, 0xbf, 0xfb, 0x90,
@@ -95,7 +85,7 @@ unsigned char builtin_dht[][DHT_SZ_MAX] = {
                 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0x4e, 0x3c, 0x59, 0x71,
                 0x59, 0xf1, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         },
-	// alice29.txt
+	/* alice29.txt; literals only */
 	{
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x15,
                 0xbd, 0xbf, 0x00, 0xb4, 0xe5, 0xd6, 0x02, 0x36, 0x20, 0x5c, 0x02, 0xc1, 0x5d, 0xbf, 0xfb, 0x90,
@@ -106,12 +96,34 @@ unsigned char builtin_dht[][DHT_SZ_MAX] = {
         },
 };
 
-int builtin_dht_top[][DHT_TOP_MAX] = {
-	// alice29.txt
+int builtin_dht_topsym [][DHT_TOPSYM_MAX+1] = {
+	/* alice29.txt; literals only */
 	{ 32, 101, 116, 97, -1 },
-	// alice29.txt
+	/* alice29.txt; literals only */
 	{ 32, 101, 116, 97, -1 },
+	/* last entry */
+	{ -1 }, 
 };
-			  
+
+
+/* 
+   dht_lookup(nx_gzip_crb_cpb_t *cmdp, void *handle);
+
+   cmdp supplies the LZ symbol statistics in cmd->cpb.out_lzcount[].
+   An appropiate huffman table, computed or from cache, is returned in
+   cmd->cpb.in_dht[] and .in_dhtlen.  ofile != NULL, writes LZ
+   statistics and the dht if it was computed.  ifile != NULL, reads a
+   dht and caches it.  See nx_dht.h for formats.
+
+   RETURN values:
+   -1: error
+   0:  default dht returned
+   1:  found a dht in the cache
+   2:  computed a new dht
+*/
+
+void *dht_begin(char *ifile, char *ofile); /* deflateInit */
+void dht_end(void *handle); /* deflateEnd */
+int dht_lookup(nx_gzip_crb_cpb_t *cmdp, void *handle); /* deflate */
 
 #endif /* _NX_DHT_H */

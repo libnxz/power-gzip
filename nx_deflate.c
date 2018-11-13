@@ -678,8 +678,6 @@ int nx_deflateEnd(z_streamp strm)
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
 
-	// nx_deflateReset(strm);
-	
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
 	nx_close(s->nxdevp);
@@ -1186,15 +1184,19 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	uint32_t bytes_in, bytes_out;	
 	nx_gzip_crb_cpb_t *nxcmdp;
 	int cc, inp_len, pgfault_retries;
-	nx_dde_t *ddl_in = s->ddl_in;
-	nx_dde_t *ddl_out = s->ddl_out;
-	long pgsz = s->page_sz;
+	nx_dde_t *ddl_in, *ddl_out;
+	long pgsz;
 	int histbytes;
 	int rc = LIBNX_OK;
+	void *fsa = NULL;
 		
 	if (s == NULL)
 		return LIBNX_ERR_ARG;
+
 	nxcmdp = s->nxcmdp;
+	ddl_in = s->ddl_in;
+	ddl_out = s->ddl_out;
+	pgsz = s->page_sz;
 
 	put32(nxcmdp->crb, gzip_fc, 0);   
 	putnn(nxcmdp->crb, gzip_fc, fc);
@@ -1251,9 +1253,9 @@ restart:
 		/* touch 1 byte */
 		/* nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1); */
 		/* get64 does the endian conversion */
-		nx_touch_pages( (void *)(get64(nxcmdp->crb.stamp.nx, fsa)), 1, pgsz, 0); 
+		if (NULL != (fsa = (void *)get64(nxcmdp->crb.stamp.nx, fsa))) nx_touch_pages(fsa, 1, pgsz, 0); 
 
-		prt_warn("     pgfault_retries %d bytes_in %d\n", pgfault_retries, bytes_in);
+		prt_err("     pgfault_retries %d bytes_in %d fsa %p\n", pgfault_retries, bytes_in, fsa);
 		if (pgfault_retries == nx_pgfault_retries) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
@@ -1270,7 +1272,7 @@ restart:
 			/* TODO what to do when page faults are too many;
 			   Kernel MM would kill the process. */
 			rc = LIBNX_ERR_PAGEFLT;
-			pr_err("cannot make progress; too many page fault retries\n");
+			prt_err("cannot make progress; too many page fault retries\n");
 			goto err_exit;
 		}
 
@@ -1587,7 +1589,6 @@ s1:
 		if (s->used_out == 0 && s->flush == Z_FINISH)
 			return Z_STREAM_END;
 
-		// goto s1; // FIXME: how to void dead cycle
 		return Z_OK;
 	}
 

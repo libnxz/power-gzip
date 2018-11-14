@@ -48,7 +48,7 @@ void *run(void *arg)
 		int chunk = 4;
 		time_t t;
 		srand((unsigned)time(&t));
-		char *pool = (char *)malloc(26);
+		char *pool = (char *)malloc(27);
 		strcpy(pool, "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 		size_t poolsize = strlen(pool);
 		int i = 0;
@@ -110,7 +110,7 @@ void *run(void *arg)
 	printf("thread id %d: compression ratio:%.3f\n", threadNum,
 	       (((float)uncompressed) / (float)compressed));
 	retval = p9close(handle);
-	if (!retval) {
+	if (retval < 0) {
 		printf("close() retval = %d\n", retval);
 	}
 }

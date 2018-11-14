@@ -117,7 +117,7 @@ int nx_function_end(void *handle)
 	struct nx_handle *nxhandle = handle;
 	int rc = 0;
 	void *addr;
-	addr = nxhandle->paste_addr - 0x400;
+	addr = (void *)((char *)nxhandle->paste_addr - 0x400);
 	rc = munmap(addr, 4096);
 	if (rc < 0) {
 		fprintf(stderr, "munmap() failed, errno %d\n", errno);

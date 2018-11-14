@@ -132,11 +132,6 @@ typedef int retnx_t;
 #define NX_BFINAL_STATE  0b10000  // 0x10 bfinal was set
 #define NX_TRAILER_STATE 0b100000 // 0x20 trailers appended
 
-/* using zlib definitions */
-#define WRAP_RAW   0
-#define WRAP_ZLIB  1
-#define WRAP_GZIP  2
-
 /* 
    Deflate block BFINAL bit.
 */
@@ -377,7 +372,7 @@ static int rewrite_spanning_flush(nx_streamp s, char *buf, uint32_t avail_out, i
 static inline int nx_compress_append_trailer(nx_streamp s)
 {
 	int k;
-	if (s->wrap == WRAP_GZIP) {
+	if (s->wrap == HEADER_GZIP) {
 		uint32_t isize = s->total_in & ((1ULL<<32)-1);
 		uint32_t cksum = s->crc32;
 		/* TODO hto32le */
@@ -394,7 +389,7 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 		}
 		return k;
 	}
-	else if (s->wrap == WRAP_ZLIB) {
+	else if (s->wrap == HEADER_ZLIB) {
 		uint32_t cksum = s->adler32;
 		/* TODO hto32le */
 		k=0;
@@ -721,14 +716,14 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	}
 	
 	if (windowBits < 0) { /* suppress zlib wrapper */
-		wrap = WRAP_RAW;
+		wrap = HEADER_RAW;
 		windowBits = -windowBits;
 	}
 	else if (windowBits > 15) {
-		wrap = WRAP_GZIP;       /* write gzip wrapper instead */
+		wrap = HEADER_GZIP;       /* write gzip wrapper instead */
 		windowBits -= 16;
 	}
-	else wrap = WRAP_ZLIB;
+	else wrap = HEADER_ZLIB;
 
 	prt_info(" windowBits %d wrap %d \n", windowBits, wrap);
 	if (method != Z_DEFLATED || (strategy != Z_FIXED && strategy != Z_DEFAULT_STRATEGY)) {
@@ -1556,6 +1551,11 @@ s3:
 	return Z_OK;
 }
 
+unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
+{
+	return (sourceLen*2);
+}
+
 #ifdef ZLIB_API
 int deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
 {
@@ -1577,6 +1577,11 @@ int deflateEnd(z_streamp strm)
 int deflate(z_streamp strm, int flush)
 {
 	return nx_deflate(strm, flush);
+}
+
+unsigned long deflateBound(z_streamp strm, unsigned long sourceLen)
+{
+	return nx_deflateBound(strm, sourceLen);
 }
 #endif
 

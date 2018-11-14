@@ -73,7 +73,7 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 	}
 	/* printf("Window paste addr @%p\n", addr); */
 	handle->fd = fd;
-	handle->paste_addr = addr + 0x400;
+	handle->paste_addr = (void *)((char *)addr + 0x400);
 
 	rc = 0;
 out:

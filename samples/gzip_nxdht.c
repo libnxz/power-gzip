@@ -285,14 +285,15 @@ static void save_lzcounts(nx_gzip_crb_cpb_t *cmdp, const char *fname)
 	char prtbuf[256];
 	long llsum, dsum;
 	llsum = dsum = 0;
+	const int nsym = 8;
 	struct tops {
 		int sym;
 		int count;
 		int bitlen; /* just an estimate */
-	} tops[3][4]; /* top 4 symbols for literals, lengths and distances */
+	} tops[3][nsym]; /* top 4 symbols for literals, lengths and distances */
 
 	for (i=0; i<3; i++) 
-		for (j=0; j<4; j++) {
+		for (j=0; j<nsym; j++) {
 			tops[i][j].sym = 0; tops[i][j].count = 0; tops[i][j].bitlen = 0; 
 		}
 	
@@ -325,9 +326,9 @@ static void save_lzcounts(nx_gzip_crb_cpb_t *cmdp, const char *fname)
 	for (i=0; i<256; i++) {
 		int k;
 		int count = get32(cmdp->cpb, out_lzcount[i]);
-		for (j=0; j<4; j++) {
+		for (j=0; j<nsym; j++) {
 			if (count > tops[0][j].count ) {
-				for (k=3; k>j; k--) {
+				for (k=nsym-1; k>j; k--) {
 					/* shift everything right */
 					tops[0][k] = tops[0][k-1];
 				}
@@ -339,15 +340,15 @@ static void save_lzcounts(nx_gzip_crb_cpb_t *cmdp, const char *fname)
 			}
 		}
 	}
-	/* NXPRT( for(i=0; i<4; i++) fprintf(stderr, "top lit %d %d %d\n", tops[0][i].sym, tops[0][i].count, tops[0][i].bitlen) ); */
+	/* NXPRT( for(i=0; i<nsym; i++) fprintf(stderr, "top lit %d %d %d\n", tops[0][i].sym, tops[0][i].count, tops[0][i].bitlen) ); */
 	
 	/* find most frequent lens */
 	for (i=257; i<LLSZ; i++) {
 		int k;
 		int count = get32(cmdp->cpb, out_lzcount[i]);
-		for (j=0; j<4; j++) {
+		for (j=0; j<nsym; j++) {
 			if (count > tops[1][j].count ) {
-				for (k=3; k>j; k--) {
+				for (k=nsym-1; k>j; k--) {
 					/* shift everything right */
 					tops[1][k] = tops[1][k-1];
 				}
@@ -359,15 +360,15 @@ static void save_lzcounts(nx_gzip_crb_cpb_t *cmdp, const char *fname)
 			}
 		}
 	}
-	/* NXPRT( for(i=0; i<4; i++) fprintf(stderr, "top len %d %d %d\n", tops[1][i].sym, tops[1][i].count, tops[1][i].bitlen) );  */
+	/* NXPRT( for(i=0; i<nsym; i++) fprintf(stderr, "top len %d %d %d\n", tops[1][i].sym, tops[1][i].count, tops[1][i].bitlen) );  */
 
 	/* find most frequent distance */
 	for (i=0; i<DSZ; i++) {
 		int k;
 		int count = get32(cmdp->cpb, out_lzcount[i+LLSZ]);
-		for (j=0; j<4; j++) {
+		for (j=0; j<nsym; j++) {
 			if (count > tops[2][j].count ) {
-				for (k=3; k>j; k--) {
+				for (k=nsym-1; k>j; k--) {
 					/* shift everything right */
 					tops[2][k] = tops[2][k-1];
 				}
@@ -380,8 +381,28 @@ static void save_lzcounts(nx_gzip_crb_cpb_t *cmdp, const char *fname)
 			}
 		}
 	}
-	/* NXPRT( for(i=0; i<4; i++) fprintf(stderr, "top dst %d %d %d\n", tops[2][i].sym, tops[2][i].count, tops[2][i].bitlen) ); */
-	
+	/* NXPRT( for(i=0; i<nsym; i++) fprintf(stderr, "top dst %d %d %d\n", tops[2][i].sym, tops[2][i].count, tops[2][i].bitlen) ); */
+
+	fputs("# { /* L,L,D */ ", fp);
+	for(i=0; i<3; i++)  {
+		for(j=0; j<nsym; j++) { 
+			sprintf(prtbuf, "%d, ", tops[i][j].sym); fputs(prtbuf, fp); 
+		}
+		fputs(" ", fp);
+	}
+	fputs(" }\n", fp);
+
+	fputs("# { /* L,L,D */ ", fp);
+	for(i=0; i<3; i++)  {
+		for(j=0; j<nsym; j++) { 
+			sprintf(prtbuf, "%d, ", tops[i][j].bitlen); fputs(prtbuf, fp); 
+		}
+		fputs(" ", fp);
+	}
+	fputs(" }\n", fp);
+
+
+#if 0
 	sprintf(prtbuf, "# { /* lit */ %d, %d, %d, %d,  /* len */ %d, %d, %d, %d,  /* dist */ %d, %d, %d, %d, }\n",
 		tops[0][0].sym,	tops[0][1].sym,	tops[0][2].sym,	tops[0][3].sym, 
 		tops[1][0].sym,	tops[1][1].sym,	tops[1][2].sym,	tops[1][3].sym, 
@@ -393,6 +414,7 @@ static void save_lzcounts(nx_gzip_crb_cpb_t *cmdp, const char *fname)
 		tops[1][0].bitlen, tops[1][1].bitlen, tops[1][2].bitlen, tops[1][3].bitlen, 
 		tops[2][0].bitlen, tops[2][1].bitlen, tops[2][2].bitlen, tops[2][3].bitlen );
 	fputs(prtbuf, fp);
+#endif
 
 	fclose(fp);
 }

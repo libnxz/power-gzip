@@ -72,7 +72,7 @@ void *dht_begin(char *ifile, char *ofile)
 		if (builtin_dht_topsym[i][0] < 0) break;
 		table[i].pdht = builtin_dht[i];
 		table[i].pdht_topsym = builtin_dht_topsym[i];
-		fprintf(stderr, "build dht %d\n", i);
+		/* fprintf(stderr, "build dht %d\n", i); */
 	}
 	/* no entries */
 	table[i].pdht = NULL;

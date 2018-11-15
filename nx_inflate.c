@@ -1109,7 +1109,7 @@ offsets_state:
 	}
 
 	int overflow_len = tpbc - len_next_out;
-	if (overflow_len <= 0) { // there is no overflow
+	if (overflow_len <= 0) { /* there is no overflow */
 		assert(s->used_out == 0);
 		int need_len = NX_MIN(INF_HIS_LEN, tpbc);
 		memcpy(s->fifo_out + s->cur_out, s->next_out + tpbc - need_len, need_len);

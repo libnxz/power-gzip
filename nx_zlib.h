@@ -178,6 +178,8 @@ typedef struct nx_stream_s {
 	int		history_len;
 	int		last_comp_ratio;
 	int		is_final;
+	int		invoke_cnt;  /* the times to invoke nx inflate or nx deflate */
+	void		*dhthandle;
 
         z_streamp       zstrm;          /* point to the parent  */
 
@@ -448,5 +450,10 @@ extern uLong nx_compressBound(uLong sourceLen);
 /* nx_uncompr.c */
 extern int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
 extern int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+
+/* nx_dht.c */
+extern void *dht_begin(char *ifile, char *ofile);
+extern void dht_end(void *handle);
+extern int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 
 #endif /* _NX_ZLIB_H */

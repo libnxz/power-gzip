@@ -9,5 +9,4 @@ extern int run_case7();
 extern int run_case8();
 extern int run_case9();
 extern int run_case9_1();
-extern int run_case90();
 

@@ -70,6 +70,7 @@ int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x0;		/* no trace by default */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
+int nx_deflate_method = 0;             /* 0 is fixed huffman, 1 is dynamic huffman */
 
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
 pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */
@@ -583,6 +584,7 @@ void nx_hw_init(void)
 	char *inf_bufsz  = getenv("NX_GZIP_INF_BUF_SIZE"); /* KiB MiB GiB suffix */	
 	char *logfile    = getenv("NX_GZIP_LOGFILE");
 	char *trace_s    = getenv("NX_GZIP_TRACE");
+	char *deflate_m  = getenv("NX_GZIP_DEFLATE");
 
 	/* Init nx_config a defalut value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
@@ -660,6 +662,14 @@ void nx_hw_init(void)
 			sz = nx_config.page_sz;
 		nx_config.strm_inf_bufsz = (uint32_t) sz;
 	}	
+
+	if (deflate_m != NULL) {
+		nx_deflate_method = str_to_num(deflate_m);
+		if (nx_deflate_method != 0 && nx_deflate_method != 1) {
+			prt_err("Invalid NX_GZIP_DEFLATE, use default value\n");
+			nx_deflate_method = 0;
+		}
+	}
 
 	/* revalue the fifo_in and fifo_out */	
 	nx_config.inflate_fifo_in_len = (nx_config.strm_inf_bufsz * 2);

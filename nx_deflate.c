@@ -106,6 +106,8 @@ typedef int retlibnx_t;
 typedef int retz_t;
 typedef int retnx_t;
 
+extern int nx_deflate_method;
+
 /* **************************************************************** */
 #define LIBNX_OK              0x00
 #define LIBNX_OK_SUSPEND      0x01
@@ -678,6 +680,8 @@ int nx_deflateEnd(z_streamp strm)
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
 
+	dht_end(s->dhthandle);
+
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
 	nx_close(s->nxdevp);
@@ -757,7 +761,8 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->level      = level;
 	s->method     = method;
 	s->strategy   = strategy;
-	s->strategy   = Z_FIXED; // Only support Z_FIXED
+	s->strategy   = Z_FIXED; /* only support Z_FIXED by default */
+	if (nx_deflate_method == 1) s->strategy = Z_DEFAULT_STRATEGY; /* dynamic huffman */
 	s->zstrm      = strm; /* pointer to parent */
 	s->page_sz    = nx_config.page_sz;
 	s->nxdevp     = h;
@@ -771,6 +776,9 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->len_out = nx_config.deflate_fifo_out_len;
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
+
+	if (nx_deflate_method == 1)
+		s->dhthandle = dht_begin(NULL, NULL);
 
 	s->used_in = s->used_out = 0;
 	s->cur_in  = s->cur_out = 0;
@@ -1664,7 +1672,17 @@ s3:
 			return Z_STREAM_ERROR;
 
 		nx_compress_update_checksum(s, !combine_cksum);
-	}
+
+	} else if (s->strategy == Z_DEFAULT_STRATEGY) { /* dynamic huffman */
+		if (s->invoke_cnt == 0) {
+			dht_lookup(cmdp, 0, s->dhthandle);
+			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 32*1024);
+		}
+		else {
+			dht_lookup(cmdp, 1, s->dhthandle);
+			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 0);
+		}
+        }
 
 	print_dbg_info(s, __LINE__);
 

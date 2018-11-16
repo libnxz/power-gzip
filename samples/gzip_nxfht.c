@@ -275,6 +275,15 @@ int compress_file(int argc, char **argv, void *handle)
 	nx_gzip_crb_cpb_t nxcmd, *cmdp;
 	uint32_t pagelen = 65536; /* should get this with syscall */
 	int fault_tries=50;
+
+#define TEST2
+#ifdef TEST2
+	cmdp = (void *)(uintptr_t)aligned_alloc(sizeof(nx_gzip_crb_t),sizeof(nx_gzip_crb_cpb_t));
+#else
+	cmdp = &nxcmd;
+#endif
+	fprintf(stderr, "crb %p\n", cmdp);
+	
     
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <fname>\n", argv[0]);
@@ -305,7 +314,7 @@ int compress_file(int argc, char **argv, void *handle)
 	srctotlen = 0;
 
 	/* prep the CRB */
-	cmdp = &nxcmd;
+	/* cmdp = &nxcmd; */
 	memset(&cmdp->crb, 0, sizeof(cmdp->crb));
 	put32(cmdp->cpb, in_crc, 0); /* initial gzip crc */
 
@@ -326,6 +335,7 @@ int compress_file(int argc, char **argv, void *handle)
 		   many pages but would try to estimate the
 		   compression ratio and adjust both the src and dst
 		   touch amounts */
+		nx_touch_pages (cmdp, sizeof(nx_gzip_crb_cpb_t), pagelen, 1);
 		nx_touch_pages (srcbuf, srclen, pagelen, 0);
 		nx_touch_pages (dstbuf, dstlen, pagelen, 1);	    
 

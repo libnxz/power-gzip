@@ -488,8 +488,9 @@ int compress_file(int argc, char **argv, void *handle)
 	first_pass_done:
 		/* will submit a chunk size source per job */
 		srclen = NX_MIN(chunk, inlen);
-		/* supply large target in case data expands */				
-		dstlen = NX_MIN(2*srclen, outlen); 
+		/* supply large target in case data expands; 288
+		   is for very small src plus the dht room */				
+		dstlen = NX_MIN(2*srclen+288, outlen); 
 
 		if (first_pass == 1) {
 			/* If requested a first pass to collect

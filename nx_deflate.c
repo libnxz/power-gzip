@@ -1348,6 +1348,7 @@ do_append_flush:
 		
 do_no_update:
 err_exit:
+	s->invoke_cnt++;
 	return rc;
 }
 
@@ -1561,7 +1562,6 @@ int nx_deflate(z_streamp strm, int flush)
 	}
 
 s1:
-	prt_info("goto here s1\n");
 	/* when fifo_out has data copy it to output stream first */
 	if (s->used_out > 0) {
 		nx_copy_fifo_out_to_nxstrm_out(s);

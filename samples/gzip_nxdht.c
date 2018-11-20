@@ -65,6 +65,8 @@
 #include "nx_dht.h"
 #include "nx.h"
 
+/* #define SAVE_LZCOUNTS  define only when needing an lzcount file */
+
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
 
@@ -273,6 +275,151 @@ static void set_bfinal(void *buf, int bfinal)
 		*b = *b & (unsigned char) 0xfe;
 }
 
+#ifdef SAVE_LZCOUNTS
+#include <math.h>
+/* developer utility; not for run time */
+static void save_lzcounts(nx_gzip_crb_cpb_t *cmdp, const char *fname)
+{
+	int i,j;
+	FILE *fp;
+	char prtbuf[256];
+	long llsum, dsum;
+	llsum = dsum = 0;
+	const int nsym = 8;
+	struct tops {
+		int sym;
+		int count;
+		int bitlen; /* just an estimate */
+	} tops[3][nsym]; /* top 4 symbols for literals, lengths and distances */
+
+	for (i=0; i<3; i++) 
+		for (j=0; j<nsym; j++) {
+			tops[i][j].sym = 0; tops[i][j].count = 0; tops[i][j].bitlen = 0; 
+		}
+	
+	if (NULL == (fp = fopen(fname, "w"))) {
+		perror(fname);
+		return;
+	}
+
+	for (i=0; i<LLSZ; i++) {
+		int count = get32(cmdp->cpb, out_lzcount[i]);
+		if (count > 0) {
+			sprintf(prtbuf, "%d : %d\n", i, count );
+			/* NXPRT( fprintf(stderr, "%s", prtbuf) ); */
+			fputs(prtbuf, fp);
+			llsum += count;
+		}
+	}
+
+	for (i=0; i<DSZ; i++) {
+		int count = get32(cmdp->cpb, out_lzcount[i+LLSZ]);
+		if (count > 0) {
+			sprintf(prtbuf, "%d : %d\n", i, count );
+			/* NXPRT( fprintf(stderr, "%s", prtbuf) ); */
+			fputs(prtbuf, fp);
+			dsum += count;
+		}
+	}
+
+	/* find most frequent literals */
+	for (i=0; i<256; i++) {
+		int k;
+		int count = get32(cmdp->cpb, out_lzcount[i]);
+		for (j=0; j<nsym; j++) {
+			if (count > tops[0][j].count ) {
+				for (k=nsym-1; k>j; k--) {
+					/* shift everything right */
+					tops[0][k] = tops[0][k-1];
+				}
+				/* replace the current symbol */
+				tops[0][j].sym = i;
+				tops[0][j].count = count;
+				tops[0][j].bitlen = (int)( -log2((double)count/(double)llsum) + 0.5 );
+				break;
+			}
+		}
+	}
+	/* NXPRT( for(i=0; i<nsym; i++) fprintf(stderr, "top lit %d %d %d\n", tops[0][i].sym, tops[0][i].count, tops[0][i].bitlen) ); */
+	
+	/* find most frequent lens */
+	for (i=257; i<LLSZ; i++) {
+		int k;
+		int count = get32(cmdp->cpb, out_lzcount[i]);
+		for (j=0; j<nsym; j++) {
+			if (count > tops[1][j].count ) {
+				for (k=nsym-1; k>j; k--) {
+					/* shift everything right */
+					tops[1][k] = tops[1][k-1];
+				}
+				/* replace the current symbol */
+				tops[1][j].sym = i;
+				tops[1][j].count = count;
+				tops[1][j].bitlen = (int)( -log2((double)count/(double)llsum) + 0.5 );
+				break;
+			}
+		}
+	}
+	/* NXPRT( for(i=0; i<nsym; i++) fprintf(stderr, "top len %d %d %d\n", tops[1][i].sym, tops[1][i].count, tops[1][i].bitlen) );  */
+
+	/* find most frequent distance */
+	for (i=0; i<DSZ; i++) {
+		int k;
+		int count = get32(cmdp->cpb, out_lzcount[i+LLSZ]);
+		for (j=0; j<nsym; j++) {
+			if (count > tops[2][j].count ) {
+				for (k=nsym-1; k>j; k--) {
+					/* shift everything right */
+					tops[2][k] = tops[2][k-1];
+				}
+				/* replace the current symbol */
+				tops[2][j].sym = i;
+				tops[2][j].count = count;
+				tops[2][j].bitlen = -log2((double)count/(double)dsum);
+				tops[2][j].bitlen = (int)( -log2((double)count/(double)dsum) + 0.5 );
+				break;
+			}
+		}
+	}
+	/* NXPRT( for(i=0; i<nsym; i++) fprintf(stderr, "top dst %d %d %d\n", tops[2][i].sym, tops[2][i].count, tops[2][i].bitlen) ); */
+
+	fputs("# { /* L,L,D */ ", fp);
+	for(i=0; i<3; i++)  {
+		for(j=0; j<nsym; j++) { 
+			sprintf(prtbuf, "%d, ", tops[i][j].sym); fputs(prtbuf, fp); 
+		}
+		fputs(" ", fp);
+	}
+	fputs(" }\n", fp);
+
+	fputs("# { /* L,L,D */ ", fp);
+	for(i=0; i<3; i++)  {
+		for(j=0; j<nsym; j++) { 
+			sprintf(prtbuf, "%d, ", tops[i][j].bitlen); fputs(prtbuf, fp); 
+		}
+		fputs(" ", fp);
+	}
+	fputs(" }\n", fp);
+
+
+#if 0
+	sprintf(prtbuf, "# { /* lit */ %d, %d, %d, %d,  /* len */ %d, %d, %d, %d,  /* dist */ %d, %d, %d, %d, }\n",
+		tops[0][0].sym,	tops[0][1].sym,	tops[0][2].sym,	tops[0][3].sym, 
+		tops[1][0].sym,	tops[1][1].sym,	tops[1][2].sym,	tops[1][3].sym, 
+		tops[2][0].sym,	tops[2][1].sym,	tops[2][2].sym,	tops[2][3].sym );
+	fputs(prtbuf, fp);
+
+	sprintf(prtbuf, "# { /* lit */ %d, %d, %d, %d,  /* len */ %d, %d, %d, %d,  /* dist */ %d, %d, %d, %d, }\n",
+		tops[0][0].bitlen, tops[0][1].bitlen, tops[0][2].bitlen, tops[0][3].bitlen, 
+		tops[1][0].bitlen, tops[1][1].bitlen, tops[1][2].bitlen, tops[1][3].bitlen, 
+		tops[2][0].bitlen, tops[2][1].bitlen, tops[2][2].bitlen, tops[2][3].bitlen );
+	fputs(prtbuf, fp);
+#endif
+
+	fclose(fp);
+}
+#endif
+
 int compress_file(int argc, char **argv, void *handle)
 {
 	char *inbuf, *outbuf, *srcbuf, *dstbuf;
@@ -326,6 +473,7 @@ int compress_file(int argc, char **argv, void *handle)
 	memset(&cmdp->crb, 0, sizeof(cmdp->crb));
 
 	/* prep the CPB */
+	/* memset(&cmdp->cpb.out_lzcount, 0, sizeof(uint32_t) * (LLSZ+DSZ) ); */
 	put32(cmdp->cpb, in_crc, 0); /* initial gzip crc */
 
 	/* Fill in with the default dht here; we could also do fixed huffman for
@@ -353,11 +501,11 @@ int compress_file(int argc, char **argv, void *handle)
 			srclen = NX_MIN( NX_MAX((srclen * 5)/100, 32768), srclen);
 		}
 		else {
-			/* here I will use the lzcounts collected from
-			   the previous second pass; I don't need to
-			   sample the data anymore; previous runs
-			   lzcounts should be good enough as a
-			   sample */
+			/* Here I will use the lzcounts collected from
+			   the previous second pass to lookup a cached
+			   or computed DHT; I don't need to sample the
+			   data anymore; previous run's lzcount
+			   is a good enough as an lzcount of this run */
 			dht_lookup(cmdp, 1, dhthandle); 
 		}
 
@@ -412,6 +560,10 @@ int compress_file(int argc, char **argv, void *handle)
 			/* we got our lzcount sample from the 1st pass */
 			NXPRT( fprintf(stderr, "first pass done\n") );
 			first_pass = 0;
+#ifdef SAVE_LZCOUNTS
+			/* save lzcounts to use with the makedht tool */
+			save_lzcounts(cmdp, "1.lzcount");
+#endif
 			goto first_pass_done;
 		}
 	    

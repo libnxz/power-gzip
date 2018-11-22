@@ -217,7 +217,7 @@ int append_sync_flush(char *buf, int tebc, int final)
 		*buf = *buf & (unsigned char)((1<<tebc)-1);
 	}
 	else *buf = 0;
-	flush = (0x1ULL & final) << shift;
+	flush = ((0x1ULL & final) << shift) | *buf;
 	shift = shift + 3; /* BFINAL and BTYPE written */
 	shift = (shift <= 8) ? 8 : 16;
 	flush |= (0xFFFF0000ULL) << shift; /* Zero length block */
@@ -488,8 +488,9 @@ int compress_file(int argc, char **argv, void *handle)
 	first_pass_done:
 		/* will submit a chunk size source per job */
 		srclen = NX_MIN(chunk, inlen);
-		/* supply large target in case data expands */				
-		dstlen = NX_MIN(2*srclen, outlen); 
+		/* supply large target in case data expands; 288
+		   is for very small src plus the dht room */				
+		dstlen = NX_MIN(2*srclen+288, outlen); 
 
 		if (first_pass == 1) {
 			/* If requested a first pass to collect

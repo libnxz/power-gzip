@@ -163,11 +163,11 @@ static inline int append_btype00_header(char *buf, int tebc, int final, int bloc
 	else *buf = 0;
 	blen = (uint64_t) block_len; /* TODO check bi-endian support */
 	blen = 0xffffffffULL & ((~blen << 16) | blen); /* NLEN,LEN */
-	flush = (0x1ULL & final) << shift;
+	flush = ((0x1ULL & final) << shift) | *buf;
 	shift = shift + 3; /* BFINAL and BTYPE written */
 	shift = (shift <= 8) ? 8 : 16;
 	/* flush |= (0xFFFF0000ULL) << shift; /* Zero length block */
-	flush |= blen << shift; /* Zero length block */	
+	flush |= blen << shift; /* blen length block */
 	shift = shift + 32;
 	while (shift > 0) {
 		*buf++ = (unsigned char)(flush & 0xffULL);
@@ -192,12 +192,30 @@ static inline int append_btype00_header(char *buf, int tebc, int final, int bloc
 */
 static int inline append_sync_flush(char *buf, int tebc, int final)
 {
-	return append_btype00_header(buf, tebc, final, 0);
+	uint64_t flush;
+	int shift = (tebc & 0x7);
+	if (tebc > 0) {
+		/* last byte is partially full */	
+		buf = buf - 1; 
+		*buf = *buf & (unsigned char)((1<<tebc)-1);
+	}
+	else *buf = 0;
+	flush = ((0x1ULL & final) << shift) | *buf;
+	shift = shift + 3; /* BFINAL and BTYPE written */
+	shift = (shift <= 8) ? 8 : 16;
+	flush |= (0xFFFF0000ULL) << shift; /* Zero length block */
+	shift = shift + 32;
+	while (shift > 0) {
+		*buf++ = (unsigned char)(flush & 0xffULL);
+		flush = flush >> 8;
+		shift = shift - 8;
+	}
+	return(((tebc > 5) || (tebc == 0)) ? 5 : 4);
 }
 
 static int inline append_full_flush(char *buf, int tebc, int final)
 {
-	return append_btype00_header(buf, tebc, final, 0);
+	return append_sync_flush(buf, tebc, final);
 }
 
 /* 

@@ -217,7 +217,7 @@ int append_sync_flush(char *buf, int tebc, int final)
 		*buf = *buf & (unsigned char)((1<<tebc)-1);
 	}
 	else *buf = 0;
-	flush = (0x1ULL & final) << shift;
+	flush = ((0x1ULL & final) << shift) | *buf;
 	shift = shift + 3; /* BFINAL and BTYPE written */
 	shift = (shift <= 8) ? 8 : 16;
 	flush |= (0xFFFF0000ULL) << shift; /* Zero length block */

@@ -376,15 +376,16 @@ int p9deflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 	int comp = get32(cmdp->crb.csb, tpbc);
 
 	/*add gzip/zlib trailers*/
+	int checksum;
 	if (flag == GZIP_WRAPPER) {
 		/*gzip trailer, crc32 and compressed data size*/
-		int crc32 = cmdp->cpb.out_crc;
-		intcopy(crc32, dstp + header + comp);
+		checksum = cmdp->cpb.out_crc;
+		intcopy(checksum, dstp + header + comp);
 		intcopy(srclen, dstp + header + comp + 4);
 	} else if (flag == ZLIB_WRAPPER) {
 		/*zlib trailer, adler32 only*/
-		int adler32 = cmdp->cpb.out_adler;
-		intcopy(adler32, dstp + header + comp);
+		checksum = cmdp->cpb.out_adler;
+		intcopy(checksum, dstp + header + comp);
 	}
 	return comp + header + trailer;
 };
@@ -456,28 +457,28 @@ int p9inflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 
 	int uncompressed = get32(cmdp->crb.csb, tpbc);
 
-#ifdef P9DBG
+	int checksum;
+	int tail_checksum;
 	if (flag == GZIP_WRAPPER) {
-		/*gzip trailer, crc32 and compressed data size*/
-		int crc32 = cmdp->cpb.out_crc;
-		int s_crc32 = *(int *)(srcp + srclen - trailer);
-		int size = *(int *)(srcp + srclen - trailer + 4);
-		fprintf(stdout,
-			"crc computed from src trailer=%d - cbp.out_crc computed=%d\n",
-			crc32, s_crc32);
-		fprintf(stdout,
-			"size read from src trailer=%d - tbpc computed:=%d\n",
-			size, uncompressed);
+		checksum = cmdp->cpb.out_crc;
+  		tail_checksum = *(int *)(srcp + srclen - trailer);
+		int tail_size = *(int *)(srcp + srclen - trailer + 4);
+		if (checksum != tail_checksum || uncompressed != tail_size) {
+			fprintf(stderr,
+				"GZIP crc32 or size mismatch! [tail crc32 =%d computed=%d] [tail size =%d computed=%d]\n",
+				tail_checksum, checksum, tail_size,
+				uncompressed);
+			return -1;
+		}
 	} else if (flag == ZLIB_WRAPPER) {
-		/*zlib trailer, adler32 only*/
-		int adler32 = cmdp->cpb.out_adler;
-		int s_adler32 = (int)srcp[srclen - trailer];
-		fprintf(stdout,
-			"adler computed on inflate=%d adler read from header=%d\n",
-			adler32, s_adler32);
+		checksum = cmdp->cpb.out_adler;
+		if (checksum != tail_checksum) {
+			fprintf(stderr,
+				"ZLIB adler32 or size mismatch! [tail adler32 =%d computed=%d]\n",
+				tail_checksum, checksum);
+			return -1;
+		}
 	}
-#endif
-
 	return uncompressed;
 };
 

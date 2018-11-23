@@ -48,6 +48,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <endian.h>
+#include <pthread.h>
 #include "zlib.h"
 #include "nx_dbg.h"
 #include "copy-paste.h"
@@ -91,12 +92,9 @@ do { put_byte(s, (Byte)(b >> 8)); put_byte(s, (Byte)(b & 0xff)); } while(0)
 #define unlikely(x)  __builtin_expect(!!(x), 0)
 
 /* config variables */
-static long nx_page_sz = (1<<16);
 static const int nx_stored_block_len = 32768;
 static uint32_t nx_max_byte_count_low = (1UL<<30);
 static uint32_t nx_max_byte_count_high = (1UL<<30);
-// static uint32_t nx_max_byte_count_current = (1UL<<30);
-static uint32_t nx_max_byte_count_current = (1UL<<20);
 static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_per_job_len = (512 * 1024);     /* less than suspend limit */
@@ -107,6 +105,8 @@ static int      nx_pgfault_retries = 50;
 typedef int retlibnx_t;
 typedef int retz_t;
 typedef int retnx_t;
+
+extern int nx_deflate_method;
 
 /* **************************************************************** */
 #define LIBNX_OK              0x00
@@ -163,11 +163,11 @@ static inline int append_btype00_header(char *buf, int tebc, int final, int bloc
 	else *buf = 0;
 	blen = (uint64_t) block_len; /* TODO check bi-endian support */
 	blen = 0xffffffffULL & ((~blen << 16) | blen); /* NLEN,LEN */
-	flush = (0x1ULL & final) << shift;
+	flush = ((0x1ULL & final) << shift) | *buf;
 	shift = shift + 3; /* BFINAL and BTYPE written */
 	shift = (shift <= 8) ? 8 : 16;
 	/* flush |= (0xFFFF0000ULL) << shift; /* Zero length block */
-	flush |= blen << shift; /* Zero length block */	
+	flush |= blen << shift; /* blen length block */
 	shift = shift + 32;
 	while (shift > 0) {
 		*buf++ = (unsigned char)(flush & 0xffULL);
@@ -192,12 +192,30 @@ static inline int append_btype00_header(char *buf, int tebc, int final, int bloc
 */
 static int inline append_sync_flush(char *buf, int tebc, int final)
 {
-	return append_btype00_header(buf, tebc, final, 0);
+	uint64_t flush;
+	int shift = (tebc & 0x7);
+	if (tebc > 0) {
+		/* last byte is partially full */	
+		buf = buf - 1; 
+		*buf = *buf & (unsigned char)((1<<tebc)-1);
+	}
+	else *buf = 0;
+	flush = ((0x1ULL & final) << shift) | *buf;
+	shift = shift + 3; /* BFINAL and BTYPE written */
+	shift = (shift <= 8) ? 8 : 16;
+	flush |= (0xFFFF0000ULL) << shift; /* Zero length block */
+	shift = shift + 32;
+	while (shift > 0) {
+		*buf++ = (unsigned char)(flush & 0xffULL);
+		flush = flush >> 8;
+		shift = shift - 8;
+	}
+	return(((tebc > 5) || (tebc == 0)) ? 5 : 4);
 }
 
 static int inline append_full_flush(char *buf, int tebc, int final)
 {
-	return append_btype00_header(buf, tebc, final, 0);
+	return append_sync_flush(buf, tebc, final);
 }
 
 /* 
@@ -373,6 +391,7 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 {
 	int k;
 	if (s->wrap == HEADER_GZIP) {
+		prt_info("s->total_out %d\n", s->total_out);
 		uint32_t isize = s->total_in & ((1ULL<<32)-1);
 		uint32_t cksum = s->crc32;
 		/* TODO hto32le */
@@ -380,13 +399,17 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 		   if not crossing page boundary */
 		k=0;
 		while (k++ < 4) {
-			nx_put_byte(s, cksum & 0xFF);
-			cksum = cksum >> 8;
+			nx_put_byte(s, (cksum & 0xFF000000) >> 24);
+			cksum = cksum << 8;
 		}
-		while (k++ < 8) {
+		prt_info("s->total_out %d k %d\n", s->total_out, k);
+		k=0;
+		while (k++ < 4) {
+			prt_info("%02x\n", isize & 0xFF);
 			nx_put_byte(s, isize & 0xFF);
 			isize = isize >> 8;
 		}
+		prt_info("s->total_out %d\n", s->total_out);
 		return k;
 	}
 	else if (s->wrap == HEADER_ZLIB) {
@@ -668,12 +691,15 @@ int nx_deflateEnd(z_streamp strm)
 	if (s == NULL)
 		return Z_STREAM_ERROR;
 
+	/* statistic*/
+	zlib_stats_inc(&zlib_stats.deflateEnd);
+
 	status = s->status;
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
 
-	// nx_deflateReset(strm);
-	
+	dht_end(s->dhthandle);
+
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
 	nx_close(s->nxdevp);
@@ -700,6 +726,9 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	nx_hw_init();
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
+
+	/* statistic */
+	zlib_stats_inc(&zlib_stats.deflateInit); 
 
 	strm->msg = Z_NULL;
 	
@@ -740,9 +769,9 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	/* only support level 6 here */
 	level = 6;
 
-	s = nx_alloc_buffer(sizeof(*s), nx_page_sz, 0);
-	/* s = calloc(1, sizeof(*s)); */
+	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
 	if (s == NULL) return Z_MEM_ERROR;
+	memset(s, 0, sizeof(*s));
 
 	s->nxcmdp     = &s->nxcmd0;
 	s->wrap       = wrap;
@@ -750,24 +779,24 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->level      = level;
 	s->method     = method;
 	s->strategy   = strategy;
-	s->strategy   = Z_FIXED; // Only support Z_FIXED
+	s->strategy   = Z_FIXED; /* only support Z_FIXED by default */
+	if (nx_deflate_method == 1) s->strategy = Z_DEFAULT_STRATEGY; /* dynamic huffman */
 	s->zstrm      = strm; /* pointer to parent */
-	s->page_sz    = nx_page_sz;
+	s->page_sz    = nx_config.page_sz;
 	s->nxdevp     = h;
 	s->gzhead     = NULL;
 	if (wrap == 0)      s->status = NX_RAW_STATE;
 	else if (wrap == 1) s->status = NX_ZLIB_STATE;
 	else if (wrap == 2) s->status = NX_GZIP_STATE;	
 	
-	/* TODO consider using caller supplied zalloc and zfree */
-
-	s->len_in = nx_config.deflate_fifo_in_len;
-	if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_page_sz, 0)))
-		return Z_MEM_ERROR;
+	s->fifo_in = NULL;
 
 	s->len_out = nx_config.deflate_fifo_out_len;
-	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_page_sz, 0)))
+	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
+
+	if (nx_deflate_method == 1)
+		s->dhthandle = dht_begin(NULL, NULL);
 
 	s->used_in = s->used_out = 0;
 	s->cur_in  = s->cur_out = 0;
@@ -942,7 +971,7 @@ static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, uint32_t history)
 	/* TODO may need a way to limit the input size from top level
 	   to prevent CC=13 */
 	
-	avail_in = NX_MIN(s->avail_in, nx_max_byte_count_current);	
+	avail_in = NX_MIN(s->avail_in, nx_config.strm_def_bufsz);	
 	clearp_dde(s->ddl_in);
 	/* TODO add history */
 	total = nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in, s->used_in);
@@ -979,7 +1008,7 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 	// s->cur_out = s->used_out = 0; /* reset fifo_out head */
 
 	/* restrict NX per dde size to 1GB */
-	avail_out = NX_MIN(s->avail_out, nx_max_byte_count_current);	
+	avail_out = NX_MIN(s->avail_out, nx_config.strm_def_bufsz);	
 	
 	clearp_dde(s->ddl_out);
 
@@ -1061,7 +1090,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	/* output first written to next_out then the overflow amount
 	   goes to fifo_out */
 
-	copy_bytes = NX_MIN(NX_MIN(tpbc, s->avail_out), nx_max_byte_count_current);
+	copy_bytes = NX_MIN(NX_MIN(tpbc, s->avail_out), nx_config.strm_def_bufsz);
 
 	int bfinal;
 	int bfinal_offset;
@@ -1181,15 +1210,19 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	uint32_t bytes_in, bytes_out;	
 	nx_gzip_crb_cpb_t *nxcmdp;
 	int cc, inp_len, pgfault_retries;
-	nx_dde_t *ddl_in = s->ddl_in;
-	nx_dde_t *ddl_out = s->ddl_out;
-	long pgsz = s->page_sz;
+	nx_dde_t *ddl_in, *ddl_out;
+	long pgsz;
 	int histbytes;
 	int rc = LIBNX_OK;
+	void *fsa = NULL;
 		
 	if (s == NULL)
 		return LIBNX_ERR_ARG;
+
 	nxcmdp = s->nxcmdp;
+	ddl_in = s->ddl_in;
+	ddl_out = s->ddl_out;
+	pgsz = s->page_sz;
 
 	put32(nxcmdp->crb, gzip_fc, 0);   
 	putnn(nxcmdp->crb, gzip_fc, fc);
@@ -1226,7 +1259,8 @@ restart:
 	   values, the accelerator will process only indirect DDEbc
 	   bytes, and no error has occurred. */
  	putp32(ddl_in, ddebc, bytes_in);  /* may adjust the input size on retries */
-	nx_touch_pages_dde(ddl_in, 0, nx_config.page_sz, 0);
+	nx_touch_pages( (void *)nxcmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
+	nx_touch_pages_dde(ddl_in, bytes_in, nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_out, bytes_out, nx_config.page_sz, 1);
 
 	cc = nx_submit_job(ddl_in, ddl_out, nxcmdp, s->nxdevp);
@@ -1243,9 +1277,11 @@ restart:
 	case ERR_NX_TRANSLATION:
 
 		/* touch 1 byte */
-		nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1);
+		/* nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1); */
+		/* get64 does the endian conversion */
+		if (NULL != (fsa = (void *)get64(nxcmdp->crb.stamp.nx, fsa))) nx_touch_pages(fsa, 1, pgsz, 0); 
 
-		prt_info("     pgfault_retries %d bytes_in %d\n", --pgfault_retries, bytes_in);
+		prt_err("     pgfault_retries %d bytes_in %d fsa %p\n", pgfault_retries, bytes_in, fsa);
 		if (pgfault_retries == nx_pgfault_retries) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
@@ -1262,7 +1298,7 @@ restart:
 			/* TODO what to do when page faults are too many;
 			   Kernel MM would kill the process. */
 			rc = LIBNX_ERR_PAGEFLT;
-			pr_err("cannot make progress; too many page fault retries\n");
+			prt_err("cannot make progress; too many page fault retries\n");
 			goto err_exit;
 		}
 
@@ -1329,7 +1365,8 @@ do_append_flush:
 	nx_compress_block_append_flush_block(s);
 		
 do_no_update:
-err_exit:		
+err_exit:
+	s->invoke_cnt++;
 	return rc;
 }
 
@@ -1357,8 +1394,92 @@ static int nx_deflate_add_header(nx_streamp s)
 		
 		s->adler = s->adler32 = INIT_ADLER;
 		s->status = NX_INIT_STATE;
-	} else {
-		/* TODO */
+	} else if (s->status == NX_GZIP_STATE) {
+                /* gzip header */
+
+                if (s->gzhead == NULL) {
+                        /* blank header */
+                        char tmp[12];
+                        int k, len;
+                        len = gzip_header_blank(tmp);
+                        k = 0;
+                        while (k < len) {
+                                nx_put_byte(s, tmp[k]);
+                                ++k;
+                        }
+                }
+                else { /* caller supplied header */
+
+                        int k;
+                        uint8_t flg;
+
+                        s->adler = s->crc32 = INIT_CRC;
+                        /* k = 0; */
+                        nx_put_byte(s, 0x1f); /* ID1 */
+                        nx_put_byte(s, 0x8b); /* ID2 */
+                        nx_put_byte(s, 0x08); /* CM */
+
+                        /* flg */
+                        flg = ((s->gzhead->text) ? 1 : 0) +
+                                (s->gzhead->hcrc ? 0 : 0) + /* TODO no hcrc */
+                                (s->gzhead->extra == NULL ? 0 : 4) +
+                                (s->gzhead->name == NULL ? 0 : 8) +
+                                (s->gzhead->comment == NULL ? 0 : 16);
+                        nx_put_byte(s, flg);
+
+                        /* mtime */
+                        nx_put_byte(s, (uint8_t)(s->gzhead->time & 0xff));
+                        nx_put_byte(s, (uint8_t)((s->gzhead->time >> 8) & 0xff));
+                        nx_put_byte(s, (uint8_t)((s->gzhead->time >> 16) & 0xff));
+                        nx_put_byte(s, (uint8_t)((s->gzhead->time >> 24) & 0xff));
+
+                        /* xfl=4 fastest */
+                        nx_put_byte(s, 4);
+                     	/* os type */
+                        nx_put_byte(s, (uint8_t)(s->gzhead->os & 0xff));
+
+                        /* fextra, xlen */
+                        if (s->gzhead->extra != NULL) {
+                                nx_put_byte(s, (uint8_t)(s->gzhead->extra_len & 0xff));
+                                nx_put_byte(s, (uint8_t)((s->gzhead->extra_len >> 8) & 0xff));
+
+                                int val;
+                                int j = 0;
+                                int xlen = s->gzhead->extra_len;
+                                while (j++ < xlen) {
+                                        val = s->gzhead->extra[j];
+                                        nx_put_byte(s, (uint8_t)val);
+                                }
+                        }
+
+                        /* fname */
+                        if (s->gzhead->name != NULL) {
+                                int val;
+                                int j=0;
+                                do {
+                                        val = s->gzhead->name[j++];
+                                        nx_put_byte(s, (uint8_t)val);
+                                } while (val != 0);
+                        }
+
+                        /* fcomment */
+                        if (s->gzhead->comment != NULL) {
+                                int val;
+                                int j=0;
+                                do {
+                                        val = s->gzhead->comment[j++];
+                                        nx_put_byte(s, (uint8_t)val);
+                                } while (val != 0);
+                        }
+
+                        /* fhcrc */
+                        if (s->gzhead->hcrc) {
+                                /* TODO */
+                        }
+			
+			s->adler = s->adler32 = INIT_ADLER;
+			s->status = NX_INIT_STATE;
+                }
 	}
 
 	return Z_OK;
@@ -1388,6 +1509,7 @@ int nx_deflate(z_streamp strm, int flush)
 	retlibnx_t rc;
 	nx_streamp s;
 	const int combine_cksum = 1;
+	unsigned int avail_in_slot, avail_out_slot;
 
 	/* check flush */
 	if (flush > Z_BLOCK || flush < 0) return Z_STREAM_ERROR;
@@ -1396,6 +1518,23 @@ int nx_deflate(z_streamp strm, int flush)
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	if (NULL == (s = (nx_streamp) strm->state)) return Z_STREAM_ERROR;
 
+	/* statistic*/
+	if (nx_gzip_gather_statistics()) {
+		pthread_mutex_lock(&zlib_stats_mutex);
+		avail_in_slot = strm->avail_in / 4096;
+		if (avail_in_slot >= ZLIB_SIZE_SLOTS)
+			avail_in_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats.deflate_avail_in[avail_in_slot]++;
+		
+		avail_out_slot = strm->avail_out / 4096;
+		if (avail_out_slot >= ZLIB_SIZE_SLOTS)
+			avail_out_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats.deflate_avail_out[avail_out_slot]++;
+		zlib_stats.deflate++;
+		pthread_mutex_unlock(&zlib_stats_mutex);
+	}
+
+
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 
 	/* sync nx_stream with z_stream */
@@ -1403,7 +1542,15 @@ int nx_deflate(z_streamp strm, int flush)
         s->next_out = s->zstrm->next_out;
         s->avail_in = s->zstrm->avail_in;
         s->avail_out = s->zstrm->avail_out;	
-
+/*
+        if (s->fifo_out == NULL) {
+                s->len_out = NX_MAX( nx_config.page_sz * 2, ((s->zstrm->avail_in * 20)/100)*2);
+                if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
+                        prt_err("nx_alloc_buffer\n");
+                        return Z_MEM_ERROR;
+                }
+        }
+*/
 	/* update flush status here */
 	s->flush = flush;
 
@@ -1437,8 +1584,13 @@ s1:
 	if (s->used_out > 0) {
 		nx_copy_fifo_out_to_nxstrm_out(s);
 		print_dbg_info(s, __LINE__);
-		if (s->avail_out == 0 && !(s->status & (NX_BFINAL_STATE | NX_TRAILER_STATE))) {
-			return Z_OK; /* need more output space */
+		/* TODO:
+		 * The logic is a little confused here. Like some patches to pass the test.
+		 * Maybe need a new design and recombination.
+		 * */
+		if (!(s->status & (NX_BFINAL_STATE | NX_TRAILER_STATE))) {
+			if (s->avail_out == 0) return Z_OK; /* need more output space */
+			if ((s->used_out == 0) && (s->avail_in == 0)) return Z_OK; /* no input here */
 		}
 	}
 
@@ -1456,14 +1608,14 @@ s1:
 		}
 
 		print_dbg_info(s, __LINE__);
-		prt_info("s->zstrm->total_out %d\n", s->zstrm->total_out);
+		prt_info("s->zstrm->total_out %d s->status %d\n", s->zstrm->total_out, s->status);
 		if (s->used_out == 0 && s->status == NX_TRAILER_STATE)
 			return Z_STREAM_END;
 		
 		if (s->used_out == 0 && s->flush == Z_FINISH)
 			return Z_STREAM_END;
 
-		goto s1; // FIXME: how to void dead cycle
+		return Z_OK;
 	}
 
 s2:
@@ -1483,6 +1635,11 @@ s2:
 		goto s3; /* compress */
 	}
 	else {
+		if (s->fifo_in == NULL) {
+			s->len_in = nx_config.deflate_fifo_in_len;
+			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0)))
+				return Z_MEM_ERROR;
+		}
 		/* small input and no request made for flush or finish */
 		small_copy_nxstrm_in_to_fifo_in(s);
 		return Z_OK;
@@ -1533,7 +1690,18 @@ s3:
 			return Z_STREAM_ERROR;
 
 		nx_compress_update_checksum(s, !combine_cksum);
-	}
+
+	} else if (s->strategy == Z_DEFAULT_STRATEGY) { /* dynamic huffman */
+		if (s->invoke_cnt == 0) {
+			dht_lookup(cmdp, 0, s->dhthandle);
+			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 32*1024);
+		}
+		else {
+			dht_lookup(cmdp, 1, s->dhthandle);
+			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 0);
+		}
+		nx_compress_update_checksum(s, !combine_cksum);
+        }
 
 	print_dbg_info(s, __LINE__);
 
@@ -1553,7 +1721,25 @@ s3:
 
 unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 {
-	return (sourceLen*2);
+	zlib_stats_inc(&zlib_stats.deflateBound);
+	// return (sourceLen + sourceLen*10/100 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 ));
+	return (sourceLen*2 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 ));
+}
+
+int nx_deflateSetHeader(z_streamp strm, gz_headerp head)
+{
+	nx_streamp s;
+
+	if (strm == NULL) return Z_STREAM_ERROR;
+
+	s = (nx_streamp) strm->state;
+
+	if (s->wrap != 2)
+		return Z_STREAM_ERROR;
+
+	s->gzhead = head;
+
+	return Z_OK;
 }
 
 #ifdef ZLIB_API
@@ -1582,6 +1768,11 @@ int deflate(z_streamp strm, int flush)
 unsigned long deflateBound(z_streamp strm, unsigned long sourceLen)
 {
 	return nx_deflateBound(strm, sourceLen);
+}
+
+int deflateSetHeader(z_streamp strm, gz_headerp head)
+{
+	return nx_deflateSetHeader(strm, head);
 }
 #endif
 

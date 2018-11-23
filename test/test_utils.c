@@ -46,6 +46,21 @@ int generate_random_data(int len)
 	}
 }
 
+char* generate_allocated_random_data(unsigned int len)
+{
+	assert(len > 0);
+
+	char *data = malloc(len);
+	if (data == NULL) return NULL;
+
+	srand(time(NULL));
+
+	for (int i = 0; i < len; i++) {
+		data[i] = dict[rand() % sizeof(dict)];
+	}
+	return data;
+}
+
 int compare_data(char* src, char* dest, int len)
 {
 	for (int i = 0; i < len; i++) {

@@ -30,6 +30,7 @@ int main()
 	check ( run_case8() );
 	check ( run_case8_1() );
 	check ( run_case8_2() );
+	check ( run_case8_3() );
 	check ( run_case9() );
 	check ( run_case10() );
 	check ( run_case11() );
@@ -39,5 +40,12 @@ int main()
 	check ( run_case14() );
 	check ( run_case15() );
 	check ( run_case21() );
+	check ( run_case30() );
+	check ( run_case31() );
+	check ( run_case32() );
+	check ( run_case33() );
+	check ( run_case33_1() );
+	check ( run_case34() );
+	check ( run_case41() );
 }
 

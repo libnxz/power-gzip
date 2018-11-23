@@ -48,6 +48,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <endian.h>
+#include <pthread.h>
 #include "nxu.h"
 #include "nx_dbg.h"
 
@@ -90,7 +91,8 @@ struct nx_config_t {
 	uint32_t max_source_dde_count;
 	uint32_t max_target_dde_count;
 	uint32_t per_job_len;          /* less than suspend limit */
-	uint32_t strm_bufsz;
+	uint32_t strm_def_bufsz;
+	uint32_t strm_inf_bufsz;
 	uint32_t soft_copy_threshold;  /* choose memcpy or hwcopy */
 	uint32_t compress_threshold;   /* collect as much input */
 	int 	 inflate_fifo_in_len;
@@ -111,6 +113,7 @@ struct nx_dev_t {
 	int nx_errno;
 	int socket_id;  /* one NX-gzip per cpu socket */
 	int nx_id;      /* unique */
+	int open_cnt;
 	
 	/* https://github.com/sukadev/linux/blob/vas-kern-v8.1/tools/testing/selftests/powerpc/user-nx842/compress.c#L514 */
 	struct {
@@ -175,6 +178,8 @@ typedef struct nx_stream_s {
 	int		history_len;
 	int		last_comp_ratio;
 	int		is_final;
+	int		invoke_cnt;  /* the times to invoke nx inflate or nx deflate */
+	void		*dhthandle;
 
         z_streamp       zstrm;          /* point to the parent  */
 
@@ -308,11 +313,13 @@ do { prt_info(\
 "== %d s->avail_in %d s->total_in %d \
 s->used_in %d s->cur_in %d \
 s->avail_out %d s->total_out %d \
-s->used_out %d s->cur_out %d\n", line, \
+s->used_out %d s->cur_out %d \
+s->len_in %d s->len_out %d\n", line, \
 (s)->avail_in, (s)->total_in, \
 (s)->used_in, (s)->cur_in, \
 (s)->avail_out, (s)->total_out, \
-(s)->used_out, (s)->cur_out);\
+(s)->used_out, (s)->cur_out, \
+(s)->len_in, (s)->len_out);\
 } while (0)
 
 
@@ -342,6 +349,60 @@ typedef enum {
 	inf_state_stream_error,			
 } inf_state_t;
 
+#define ZLIB_SIZE_SLOTS 256	/* Each slot represents 4KiB, the last
+				   slot is represending everything
+				   which larger or equal 1024KiB */
+
+struct zlib_stats {
+	unsigned long deflateInit;
+	unsigned long deflate;
+	unsigned long deflate_avail_in[ZLIB_SIZE_SLOTS];
+	unsigned long deflate_avail_out[ZLIB_SIZE_SLOTS];
+	unsigned long deflateReset;
+	unsigned long deflate_total_in[ZLIB_SIZE_SLOTS];
+	unsigned long deflate_total_out[ZLIB_SIZE_SLOTS];
+	unsigned long deflateSetDictionary;
+	unsigned long deflateSetHeader;
+	unsigned long deflateParams;
+	unsigned long deflateBound;
+	unsigned long deflatePrime;
+	unsigned long deflateCopy;
+	unsigned long deflateEnd;
+
+	unsigned long inflateInit;
+	unsigned long inflate;
+	unsigned long inflate_avail_in[ZLIB_SIZE_SLOTS];
+	unsigned long inflate_avail_out[ZLIB_SIZE_SLOTS];
+	unsigned long inflateReset;
+	unsigned long inflateReset2;
+	unsigned long inflate_total_in[ZLIB_SIZE_SLOTS];
+	unsigned long inflate_total_out[ZLIB_SIZE_SLOTS];
+	unsigned long inflateSetDictionary;
+	unsigned long inflateGetDictionary;
+	unsigned long inflateGetHeader;
+	unsigned long inflateSync;
+	unsigned long inflatePrime;
+	unsigned long inflateCopy;
+	unsigned long inflateEnd;
+
+};
+
+extern pthread_mutex_t zlib_stats_mutex; 
+extern struct zlib_stats zlib_stats; 
+inline void zlib_stats_inc(unsigned long *count)
+{
+        if (!nx_gzip_gather_statistics())
+                return;
+
+        pthread_mutex_lock(&zlib_stats_mutex);
+        *count = *count + 1;
+        pthread_mutex_unlock(&zlib_stats_mutex);
+}
+
+#ifndef ARRAY_SIZE
+#  define ARRAY_SIZE(a)	 (sizeof((a)) / sizeof((a)[0]))
+#endif
+
 /* gzip_vas.c */
 extern void *nx_fault_storage_address;
 extern void *nx_function_begin(int function, int pri);
@@ -363,6 +424,7 @@ extern int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len);
 extern int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr);
 extern int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp);
 extern void nx_hw_init(void);
+extern void nx_hw_done(void);
 
 /* nx_deflate.c */
 extern int nx_deflateInit_(z_streamp strm, int level, const char *version, int stream_size);
@@ -388,5 +450,10 @@ extern uLong nx_compressBound(uLong sourceLen);
 /* nx_uncompr.c */
 extern int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
 extern int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+
+/* nx_dht.c */
+extern void *dht_begin(char *ifile, char *ofile);
+extern void dht_end(void *handle);
+extern int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 
 #endif /* _NX_ZLIB_H */

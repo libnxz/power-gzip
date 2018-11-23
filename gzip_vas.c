@@ -55,7 +55,7 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 
 	memset(&txattr, 0, sizeof(txattr));
 	txattr.version = 1;
-	txattr.vas_id = -1;
+	txattr.vas_id = pri;
 	txattr.tc_mode  = 0;
 	txattr.rsvd_txbuf = 0;
 	rc = ioctl(fd, VAS_GZIP_TX_WIN_OPEN, (unsigned long)&txattr);
@@ -102,7 +102,7 @@ void *nx_function_begin(int function, int pri)
 	}
 
 	nxhandle->function = function;
-	rc = open_device_nodes(devname, 1, nxhandle);
+	rc = open_device_nodes(devname, pri, nxhandle);
 	if (rc < 0) {
 		errno = -rc;
 		fprintf(stderr, " open_device_nodes failed\n");
@@ -114,18 +114,19 @@ void *nx_function_begin(int function, int pri)
 
 int nx_function_end(void *handle)
 {
-	struct nx_handle *nxhandle = handle;
-	int rc = 0;
-	void *addr;
-	addr = (void *)((char *)nxhandle->paste_addr - 0x400);
-	rc = munmap(addr, 4096);
-	if (rc < 0) {
-		fprintf(stderr, "munmap() failed, errno %d\n", errno);
-		return rc;
-	}
-	close(nxhandle->fd);
-	free(nxhandle);
-	return rc;
+        int rc = 0;
+        struct nx_handle *nxhandle = handle;
+        /* check erro here? if unmap successfully, page fault usually found? */
+        rc = munmap(nxhandle->paste_addr, 4096);
+
+        /* rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+        if (rc < 0) {
+                fprintf(stderr, "munmap() failed, errno %d\n", errno);
+                return rc;
+        }*/
+        close(nxhandle->fd);
+        free(nxhandle);
+        return rc;
 }
 
 static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )

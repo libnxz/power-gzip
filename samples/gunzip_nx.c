@@ -984,7 +984,7 @@ restart_nx:
 
 	case ERR_NX_DATA_LENGTH:
 
-		NXPRT( fprintf(stderr, "ERR_NX_DATA_LENGTH\n") );
+		NXPRT( fprintf(stderr, "ERR_NX_DATA_LENGTH; not an error usually; stream may have trailing data\n") );
 		NX_CLK( (td.datalenc += 1) );
 		
 		/* Not an error in the most common case; it just says 

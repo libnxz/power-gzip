@@ -1700,6 +1700,7 @@ s3:
 			dht_lookup(cmdp, 1, s->dhthandle);
 			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 0);
 		}
+		nx_compress_update_checksum(s, !combine_cksum);
         }
 
 	print_dbg_info(s, __LINE__);

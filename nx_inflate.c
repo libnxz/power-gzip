@@ -201,7 +201,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	s->nxcmdp  = &s->nxcmd0;
 	s->page_sz = nx_config.page_sz;
 	s->nxdevp  = h;
-	s->gzhead  = NULL;
+	// s->gzhead  = NULL;
+	s->gzhead  = nx_alloc_buffer(sizeof(gz_header), nx_config.page_sz, 0);
 	s->ddl_in  = s->dde_in;
 	s->ddl_out = s->dde_out;
 
@@ -257,6 +258,8 @@ int nx_inflateEnd(z_streamp strm)
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
 	nx_close(s->nxdevp);
+	
+	if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
 
 	nx_free_buffer(s, sizeof(*s), 0);
 
@@ -351,7 +354,6 @@ inf_forever:
 		break;
 		
 	case inf_state_gzip_id1:		
-
 		nx_inflate_get_byte(s, c);
 		if (c != 0x1f) {
 			strm->msg = (char *)"incorrect gzip header";			
@@ -417,8 +419,7 @@ inf_forever:
 			}
 			s->gzhead->time = le32toh(s->gzhead->time);
 			s->inf_held = 0;
-
-			assert( (s->gzhead->time & (1<<31) == 0) );
+			assert( ((s->gzhead->time & (1<<31)) == 0) );
 			/* assertion is a reminder for endian check; either
 			   fires right away or in the year 2038 if we're still
 			   alive */
@@ -451,20 +452,19 @@ inf_forever:
 		if (s->gzflags & 0x04) { /* fextra was set */
 			while( s->inf_held < 2 ) {
 				nx_inflate_get_byte(s, c);
-				s->length = s->length << 8 | c;
+				s->length = s->length | (c << (s->inf_held * 8));
 				++ s->inf_held;
 			}
+
 			s->length = le32toh(s->length);
 			if (s->gzhead != NULL) 
 				s->gzhead->extra_len = s->length;
 		}
 		else if (s->gzhead != NULL)
 			s->gzhead->extra = NULL;
-
 		s->inf_held = 0;
 		s->inf_state = inf_state_gzip_extra;
 		/* fall thru */
-
 	case inf_state_gzip_extra:
 
 		if (s->gzflags & 0x04) { /* fextra was set */

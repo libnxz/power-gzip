@@ -7,6 +7,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+
+pthread_barrier_t compress;
+pthread_barrier_t decompress;
 int options = 0;
 char *_bufferSize;
 char *_threads;
@@ -63,6 +66,7 @@ void *run(void *arg)
 	outBuffer2 = malloc(bufferSizeinBytes + 20);
 	memset(outBuffer, 0, bufferSizeinBytes + 20);
 	memset(outBuffer2, 0, bufferSizeinBytes + 20);
+	pthread_barrier_wait(&compress);
 
 	/*open the compressor*/
 	handle = p9open();
@@ -90,6 +94,7 @@ void *run(void *arg)
 		exit(-1);
 	}
 
+        pthread_barrier_wait(&decompress);
 	int compressed = retval;
 	gettimeofday(&start, NULL);
 	retval = p9inflate(handle, outBuffer, outBuffer2, compressed,
@@ -144,6 +149,8 @@ int main(int argc, char **argv)
 	pthread_t *thread;
 	int retval = 0;
 	thread = (pthread_t *)malloc(threads * sizeof(pthread_t));
+	pthread_barrier_init(&compress, NULL, threads);
+	pthread_barrier_init(&decompress, NULL, threads);
 	int i, j = 0;
 	for (i = 1; i <= threads; i++) {
 		pthread_attr_t attr;

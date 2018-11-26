@@ -282,8 +282,8 @@ int nx_inflate(z_streamp strm, int flush)
 	}
 
 	if (s->fifo_out == NULL) {
-		/* overflow buffer is about 20% of s->avail_in, min is page_sz */
-		s->len_out = NX_MAX( nx_config.page_sz * 2, (32*1024 + (s->zstrm->avail_in * 20)/100)*2);
+		/* overflow buffer is about 40% of s->avail_in */
+		s->len_out = (32*1024*2 + (s->zstrm->avail_in * 40)/100);
 		if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
 			rc = Z_MEM_ERROR;
 			prt_err("nx_alloc_buffer\n");
@@ -658,8 +658,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
 	int read_sz, n;
-	int write_sz, free_space, copy_sz, source_sz;
-	int source_sz_estimate, target_sz_estimate, target_max;
+	int write_sz, free_space, copy_sz, source_sz, target_sz;
 	uint64_t last_comp_ratio; /* 1000 max */
 	uint64_t total_out;
 	int is_final = 0, is_eof;
@@ -685,9 +684,8 @@ static int nx_inflate_(nx_streamp s, int flush)
 		return Z_STREAM_END;
 
 copy_fifo_out_to_next_out:
-	/* if fifo_out is not empty, first copy contents to
-	   next_out. Remember to keep up to last 32KB as the history
-	   in fifo_out */
+	/* if fifo_out is not empty, first copy contents to next_out.
+	 * Remember to keep up to last 32KB as the history in fifo_out. */
 	if (s->used_out > 0) {
 		write_sz = NX_MIN(s->used_out, s->avail_out);
 		if (write_sz > 0) {
@@ -717,12 +715,12 @@ small_next_in:
 	/* if the total input size is below some threshold, avoid
 	   accelerator overhead and memcpy next_in to fifo_in */
 
-	/* TODO use config variable instead of 1024 */
 	/* used_in is the data amount waiting in fifo_in; avail_in is
 	   the data amount waiting in the user buffer next_in */
 	if (s->avail_in < nx_config.soft_copy_threshold && s->avail_out > 0) {
 		if (s->fifo_in == NULL) {
-			s->len_in = nx_config.inflate_fifo_in_len;
+			// s->len_in = nx_config.inflate_fifo_in_len;
+			s->len_in = nx_config.soft_copy_threshold * 2;
 			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
 				rc = Z_MEM_ERROR;
 				prt_err("nx_alloc_buffer\n");		
@@ -732,7 +730,7 @@ small_next_in:
 		/* reset fifo head to reduce unnecessary wrap arounds */
 		s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;	
 		fifo_in_len_check(s);
-		free_space = s->len_in/2 - s->used_in;
+		free_space = s->len_in - s->cur_in - s->used_in;
 
 		read_sz = NX_MIN(free_space, s->avail_in);
 		if (read_sz <= 0) return -1;
@@ -743,11 +741,6 @@ small_next_in:
 			update_stream_in(s->zstrm, read_sz);
 			s->used_in = s->used_in + read_sz;
 		}
-		else {
-			/* check if Z_FINISH is set 
-			   is_eof = 1;
-			   goto write_state; */
-		}
 	}
 	else {
 		/* if avai_in > nx_config.soft_copy_threshold, do nothing */
@@ -757,8 +750,6 @@ small_next_in:
 decomp_state:
 
 	/* NX decompresses input data */
-	
-	// FIXME if (is_final) goto finish_state;
 	
 	/* address/len lists */
 	clearp_dde(ddl_in);
@@ -821,59 +812,20 @@ decomp_state:
 	 */
 	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
 	nx_append_dde(ddl_in, s->next_in, s->avail_in); /* limitation here? */
+	source_sz = getp32(ddl_in, ddebc);
+	ASSERT( source_sz > s->history_len );
 
 	/*
 	 * NX target buffers
 	 */
+	assert(s->used_out == 0);
 	int len_next_out = s->avail_out; /* should we have a limitation here? */
 	nx_append_dde(ddl_out, s->next_out, len_next_out);
-
-	assert(s->used_out == 0);
 	nx_append_dde(ddl_out, s->fifo_out + s->cur_out + s->used_out, s->len_out - s->cur_out - s->used_out);
+	target_sz = len_next_out + s->len_out - s->cur_out - s->used_out;
 
-	/* Target buffer size is used to limit the source data size
-	   based on previous measurements of compression ratio. */
-
-	/* source_sz includes history */
-	source_sz = getp32(ddl_in, ddebc);
 	prt_info("len_next_out %d len_out %d cur_out %d used_out %d source_sz %d history_len %d\n",
 		len_next_out, s->len_out, s->cur_out, s->used_out, source_sz, s->history_len);
-	ASSERT( source_sz > s->history_len );
-	source_sz = source_sz - s->history_len;
-
-	/* Estimating how much source is needed to 3/4 fill a
-	   target_max size target buffer. If we overshoot, then NX
-	   must repeat the job with smaller input and we waste
-	   bandwidth. If we undershoot then we use more NX calls than
-	   necessary. */
-
-	/* 
-
-	   FIXME Need to fill in next_out then 32KB more in fifo_out.
-	   The last 32KB of output serves as a history. On the next inflate
-	   call fifo_out will also be copied to next_out.  
-
-	   We will estimate the source size so that next_out plus 32KB
-	   will equal the target size.  
-
-	   If next_out did not fill, copy the last fill part up to
-	   32KB to the history tail in fifo_out (suboptimal).  
-
-	   If next_out filled but fifo_out has less than 32KB,
-	   (history overlapping two buffers) copy the the remainder
-	   from next_out to the history tail in fifo_out.
-	   
-	   If next_out filled but fifo_out has more than 32KB (history
-	   entirely in fifo_out), no history copy is required
-
-	*/
-	target_max = s->avail_out + s->len_out - s->cur_out - s->used_out;
-	source_sz_estimate = ((uint64_t)target_max * s->last_comp_ratio * 3UL)/4000;
-	target_sz_estimate = target_max;
-
-	/* FIXME: need an estimate here? */
-
-	source_sz = source_sz + s->history_len;
 
 	/* Some NX condition codes require submitting the NX job
 	  again.  Kernel doesn't fault-in NX page faults. Expects user
@@ -881,14 +833,14 @@ decomp_state:
 	pgfault_retries = nx_config.retry_max;
 	nx_space_retries = 0;
 
-	prt_info("     source_sz %d target_sz_estimate %d target_max %d\n", source_sz, target_sz_estimate, target_max);
 restart_nx:
 
  	putp32(ddl_in, ddebc, source_sz);  
 
 	/* fault in pages */
+	nx_touch_pages( (void *)cmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_in, source_sz, nx_config.page_sz, 0);
-	nx_touch_pages_dde(ddl_out, target_sz_estimate, nx_config.page_sz, 1);
+	nx_touch_pages_dde(ddl_out, target_sz, nx_config.page_sz, 1);
 
 	/* 
 	 * send job to NX 
@@ -911,7 +863,8 @@ restart_nx:
 		if (NULL != (fsa = (void *)(get64(cmdp->crb.stamp.nx, fsa))))
 			nx_touch_pages(fsa, 1, nx_config.page_sz, 0);
 
-		prt_err(" crb.csb.fsaddr %p source_sz %d fsa %p\n", (void *)cmdp->crb.csb.fsaddr, source_sz, fsa);
+		prt_err(" crb.csb.fsaddr %p source_sz %d target_sz %d fsa %p\n",
+			(void *)cmdp->crb.csb.fsaddr, source_sz, target_sz, fsa);
 
 		if (pgfault_retries == nx_config.retry_max) {
 			/* try once with exact number of pages */
@@ -954,7 +907,7 @@ restart_nx:
 			subc = getnn(cmdp->cpb, out_subc); /* Table 6-4 */
 			spbc = get32(cmdp->cpb, out_spbc_decomp);
 			tpbc = get32(cmdp->crb.csb, tpbc);
-			ASSERT(target_max >= tpbc);
+			ASSERT(target_sz >= tpbc);
 			goto ok_cc3; /* not an error */
 		}
 		else {
@@ -983,7 +936,7 @@ restart_nx:
 		prt_info("ERR_NX_OK\n");
 		spbc = get32(cmdp->cpb, out_spbc_decomp);
 		tpbc = get32(cmdp->crb.csb, tpbc);
-		ASSERT(target_max >= tpbc);			
+		ASSERT(target_sz >= tpbc);			
 		ASSERT(spbc >= s->history_len);
 		source_sz = spbc - s->history_len;		
 		goto offsets_state;
@@ -1136,7 +1089,7 @@ offsets_state:
 		update_stream_out(s, len_next_out);
 		update_stream_out(s->zstrm, len_next_out);
 	}
-	else {// overflow_len > 1<<15)
+	else {/* overflow_len > 1<<15 */
 		s->used_out += overflow_len;
 		update_stream_out(s, len_next_out);
 		update_stream_out(s->zstrm, len_next_out);

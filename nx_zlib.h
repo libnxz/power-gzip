@@ -49,6 +49,7 @@
 #include <sys/ioctl.h>
 #include <endian.h>
 #include <pthread.h>
+#include <sys/platform/ppc.h>
 #include "nxu.h"
 #include "nx_dbg.h"
 
@@ -382,6 +383,12 @@ struct zlib_stats {
 	unsigned long inflatePrime;
 	unsigned long inflateCopy;
 	unsigned long inflateEnd;
+	
+	uint64_t deflate_len;
+	uint64_t deflate_time;
+
+	uint64_t inflate_len;
+	uint64_t inflate_time;
 
 };
 
@@ -395,6 +402,29 @@ inline void zlib_stats_inc(unsigned long *count)
         pthread_mutex_lock(&zlib_stats_mutex);
         *count = *count + 1;
         pthread_mutex_unlock(&zlib_stats_mutex);
+}
+
+static inline uint64_t get_nxtime_now(void)
+{
+	return __ppc_get_timebase();
+}
+
+static inline uint64_t get_nxtime_diff(uint64_t t1, uint64_t t2)
+{
+	if (t2 > t1) {
+		return t2-t1;
+	}else{
+		return (0xFFFFFFFFFFFFFFF-t1) + t2;
+	}
+}
+
+static inline double nxtime_to_us(uint64_t nxtime)
+{
+	uint64_t freq;
+
+	freq = __ppc_get_timebase_freq();
+	
+	return (double)(nxtime * 1000000 / freq) ;
 }
 
 #ifndef ARRAY_SIZE

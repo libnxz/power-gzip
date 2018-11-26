@@ -268,7 +268,8 @@ int nx_inflate(z_streamp strm, int flush)
 	int rc = Z_OK;
 	nx_streamp s;
 	unsigned int avail_in_slot, avail_out_slot;
-	
+	uint64_t t1, t2;	
+
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
 	if (s == NULL) return Z_STREAM_ERROR;
@@ -290,19 +291,22 @@ int nx_inflate(z_streamp strm, int flush)
 
 	/* statistic */ 
 	if (nx_gzip_gather_statistics()) {
-                pthread_mutex_lock(&zlib_stats_mutex);
-                avail_in_slot = strm->avail_in / 4096;
-                if (avail_in_slot >= ZLIB_SIZE_SLOTS)
-                        avail_in_slot = ZLIB_SIZE_SLOTS - 1;
-                zlib_stats.inflate_avail_in[avail_in_slot]++;
+		pthread_mutex_lock(&zlib_stats_mutex);
+		avail_in_slot = strm->avail_in / 4096;
+		if (avail_in_slot >= ZLIB_SIZE_SLOTS)
+			avail_in_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats.inflate_avail_in[avail_in_slot]++;
 
-                avail_out_slot = strm->avail_out / 4096;
-                if (avail_out_slot >= ZLIB_SIZE_SLOTS)
-                        avail_out_slot = ZLIB_SIZE_SLOTS - 1;
-                zlib_stats.inflate_avail_out[avail_out_slot]++;
-                zlib_stats.inflate++;
-                pthread_mutex_unlock(&zlib_stats_mutex);
-        }
+		avail_out_slot = strm->avail_out / 4096;
+		if (avail_out_slot >= ZLIB_SIZE_SLOTS)
+			avail_out_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats.inflate_avail_out[avail_out_slot]++;
+		zlib_stats.inflate++;
+
+		zlib_stats.inflate_len += strm->avail_in;
+		t1 = get_nxtime_now();
+		pthread_mutex_unlock(&zlib_stats_mutex);
+	}
 
 	s->next_in = s->zstrm->next_in;
 	s->avail_in = s->zstrm->avail_in;
@@ -651,6 +655,14 @@ inf_forever:
 	goto inf_forever;
 	
 inf_return:
+
+	/* statistic */
+	if (nx_gzip_gather_statistics()) {
+		pthread_mutex_lock(&zlib_stats_mutex);
+		t2 = get_nxtime_now();
+		zlib_stats.inflate_time += get_nxtime_diff(t1,t2);
+		pthread_mutex_unlock(&zlib_stats_mutex);	
+	}
 	return rc;
 }	
 

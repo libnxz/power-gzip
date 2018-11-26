@@ -193,14 +193,20 @@ int run_case8()
 	return run(1024*1024*8, 4096, __func__);
 }
 
-/* A large buffer > fifo_in len and and avail_in == total */
+/* A large buffer > fifo_in len and and avail_in > 10K */
 int run_case8_1()
+{
+	return run(1024*1024*8, 1024*128, __func__);
+}
+
+/* A large buffer > fifo_in len and and avail_in == total */
+int run_case8_2()
 {
 	return run(1024*1024*8, 1024*1024*8, __func__);
 }
 
 /* A large buffer > fifo_in len and and avail_in == total */
-int run_case8_2()
+int run_case8_3()
 {
 	return run(1024*1024*20, 1024*1024*20, __func__);
 }

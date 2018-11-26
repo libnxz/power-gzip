@@ -20,7 +20,7 @@ int opt = 0;
 
 void *run(void *arg)
 {
-	gzip_dev *handle = NULL;
+	void *handle = NULL;
 	long bufferSizeinBytes;
 	char *inBuffer;
 	char *outBuffer;

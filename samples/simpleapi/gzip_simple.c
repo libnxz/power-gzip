@@ -1,8 +1,84 @@
 #include "gzip_simple.h"
 
+__attribute__((constructor)) void nx_init(void)
+{
+	nx_overflow_buffer = malloc(OVERFLOW_BUFFER_SIZE);
+	memset(nx_overflow_buffer, 0, OVERFLOW_BUFFER_SIZE);
+
+	int ctr = 0;
+	for (ctr = 0; ctr < NX_MAX_DEVICES; ctr++) {
+		nx_devices[ctr] = malloc(sizeof(p9_simple_handle_t));
+		nx_devices[ctr]->vas_handle = NULL;
+		nx_devices[ctr]->open_count = 0;
+		nx_devices[ctr]->chipId = ctr;
+		int retval =
+			pthread_mutex_init(&(nx_devices[ctr]->nx_dev), NULL);
+		assert(retval == 0);
+	}
+
+	/* add a signal action */
+	sigact.sa_handler = 0;
+	sigact.sa_sigaction = sigsegv_handler;
+	sigact.sa_flags = SA_SIGINFO;
+	sigact.sa_restorer = 0;
+	sigemptyset(&sigact.sa_mask);
+	sigaction(SIGSEGV, &sigact, NULL);
+}
+
+__attribute__((destructor)) void nx_deinit(void)
+{
+	int ctr = 0;
+
+	for (ctr = 0; ctr < NX_MAX_DEVICES; ctr++) {
+		free(nx_devices[ctr]);
+	}
+
+	free(nx_overflow_buffer);
+}
+
+void *nx_acquireHandle(p9_simple_handle_t *nx_device)
+{
+	pthread_mutex_lock(&(nx_device->nx_dev));
+	if (nx_device->open_count == 0) {
+		nx_device->vas_handle =
+			nx_function_begin(NX_FUNC_COMP_GZIP, nx_device->chipId);
+	}
+
+	if (nx_device->vas_handle != NULL) {
+		nx_device->open_count++;
+	}
+	pthread_mutex_unlock(&(nx_device->nx_dev));
+	return nx_device->vas_handle;
+}
+
+int releaseHandle(p9_simple_handle_t *nx_device)
+{
+	int retval = 0;
+	pthread_mutex_lock(&(nx_device->nx_dev));
+	if (nx_device->open_count == 1) {
+		retval = nx_function_end(nx_device->vas_handle);
+	}
+	if (retval >= 0) {
+		nx_device->open_count--;
+	}
+	pthread_mutex_unlock(&(nx_device->nx_dev));
+	return retval;
+}
+
+
 /******************/
-/*Utility functions*/
+/*utility functions*/
 /******************/
+int findChip(int cpuId)
+{
+	if (cpuId < 80) {
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
+
 static void intcopy(int value, char *buffer)
 {
 	buffer[3] = (value >> 24) & 0xFF;
@@ -278,29 +354,17 @@ void nx_init_csb(nx_gzip_crb_cpb_t *cmdp, void *src, void *dst, int srclen,
 /******************/
 /*Library functions*/
 /******************/
-
 /*open device*/
 p9_simple_handle_t *p9open()
 {
-	p9_simple_handle_t *myhandle =
-		malloc(sizeof(p9_simple_handle_t) + OVERFLOW_BUFFER_SIZE);
-	myhandle->dev_handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0);
-
-	myhandle->overflow_buffer = myhandle + sizeof(gzip_dev *);
-	if (myhandle->dev_handle == NULL) {
-		free(myhandle);
+	int cpu_id = 0;
+	syscall(SYS_getcpu, &cpu_id, NULL, NULL);
+	p9_simple_handle_t *nx_device = nx_devices[findChip(cpu_id)];
+	void *vas_handle = nx_acquireHandle(nx_device);
+	if (vas_handle == NULL) {
 		return NULL;
 	}
-
-	/* add a signal action */
-	sigact.sa_handler = 0;
-	sigact.sa_sigaction = sigsegv_handler;
-	sigact.sa_flags = SA_SIGINFO;
-	sigact.sa_restorer = 0;
-	sigemptyset(&sigact.sa_mask);
-	sigaction(SIGSEGV, &sigact, NULL);
-
-	return myhandle;
+	return nx_device;
 };
 
 /*compress*/
@@ -355,7 +419,7 @@ int p9deflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 	nx_touch_pages(dstp, dstlen, pagesize, 1);
 
 	/*run the job */
-	cc = nxu_run_job(cmdp, handle->dev_handle);
+	cc = nxu_run_job(cmdp, handle->vas_handle);
 
 	if (!cc) {
 		cc = getnn(cmdp->crb.csb, csb_cc);
@@ -429,22 +493,20 @@ int p9inflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 
 	/*allocate a ddl on stack for a dummy buffer*/
 	nx_dde_t ddl[3];
-
+	
 	/*set source/destination and sizes*/
 	nx_init_csb(cmdp, src + header, dst, srclen - header - trailer, dstlen,
-		    ddl, handle->overflow_buffer);
+		    ddl, nx_overflow_buffer);
 
 #ifdef P9DBG
 	/*print dde*/
 	nx_print_dde(ddl, "inflate test");
 #endif
-
 	/*touch all pages before submitting job*/
 	nx_touch_pages(src, srclen, pagesize, 0);
 	nx_touch_pages(dst, dstlen, pagesize, 1);
-
 	/*run the job*/
-	cc = nxu_run_job(cmdp, handle->dev_handle);
+	cc = nxu_run_job(cmdp, handle->vas_handle);
 
 	if (!cc) {
 		cc = getnn(cmdp->crb.csb, csb_cc);
@@ -461,7 +523,7 @@ int p9inflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 	int tail_checksum;
 	if (flag == GZIP_WRAPPER) {
 		checksum = cmdp->cpb.out_crc;
-  		tail_checksum = *(int *)(srcp + srclen - trailer);
+		tail_checksum = *(int *)(srcp + srclen - trailer);
 		int tail_size = *(int *)(srcp + srclen - trailer + 4);
 		if (checksum != tail_checksum || uncompressed != tail_size) {
 			fprintf(stderr,
@@ -486,15 +548,6 @@ int p9inflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 int p9close(p9_simple_handle_t *handle)
 {
 	int retval = 0;
-	if (handle != NULL && handle->dev_handle != NULL) {
-		retval = nx_function_end(handle->dev_handle);
-	}
-
-	if (retval < 0) {
-		return retval;
-	}
-
-	free(handle);
-	handle = NULL;
+	retval = releaseHandle(handle);
 	return retval;
 };

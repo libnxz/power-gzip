@@ -465,7 +465,9 @@ int compress_file(int argc, char **argv, void *handle)
 	srcbuf    = inbuf;
 	srctotlen = 0;
 
-	/* setup the builtin dht tables */
+	/* One time init of the dht tables; consider saving this
+	   handle in the nx_stream data structure for the nx_zlib
+	   implementation */
 	dhthandle = dht_begin(NULL, NULL);
 
 	/* prep the CRB */
@@ -476,8 +478,9 @@ int compress_file(int argc, char **argv, void *handle)
 	/* memset(&cmdp->cpb.out_lzcount, 0, sizeof(uint32_t) * (LLSZ+DSZ) ); */
 	put32(cmdp->cpb, in_crc, 0); /* initial gzip crc */
 
-	/* Fill in with the default dht here; we could also do fixed huffman for
-	   sampling the LZcounts; fixed huffman doesn't need a dht_lookup */
+	/* Fill in with the default dht here; instead we could also do
+	   fixed huffman with counts for sampling the LZcounts; fixed
+	   huffman doesn't need a dht_lookup */
 	dht_lookup(cmdp, 0, dhthandle); 
 	first_pass = 1;
 
@@ -489,7 +492,7 @@ int compress_file(int argc, char **argv, void *handle)
 		/* will submit a chunk size source per job */
 		srclen = NX_MIN(chunk, inlen);
 		/* supply large target in case data expands; 288
-		   is for very small src plus the dht room */				
+		   is for very small src plus the dht headroom */				
 		dstlen = NX_MIN(2*srclen+288, outlen); 
 
 		if (first_pass == 1) {

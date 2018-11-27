@@ -335,6 +335,7 @@ static void save_lzcounts(nx_gzip_crb_cpb_t *cmdp, const char *fname)
 				/* replace the current symbol */
 				tops[0][j].sym = i;
 				tops[0][j].count = count;
+				/* an estimator of the code length */
 				tops[0][j].bitlen = (int)( -log2((double)count/(double)llsum) + 0.5 );
 				break;
 			}
@@ -493,7 +494,7 @@ int compress_file(int argc, char **argv, void *handle)
 		srclen = NX_MIN(chunk, inlen);
 		/* supply large target in case data expands; 288
 		   is for very small src plus the dht headroom */				
-		dstlen = NX_MIN(2*srclen+288, outlen); 
+		dstlen = NX_MIN(2 * srclen + 288, outlen); 
 
 		if (first_pass == 1) {
 			/* If requested a first pass to collect

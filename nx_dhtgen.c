@@ -8,11 +8,11 @@
 
    Notes:
    unit test
-     gcc dhtgen.c -o dhtgen -D_UNIT_TEST
+     gcc dhtgen.c -o dhtgen -D_DHTGEN_TEST
    library
      gcc -c dhtgen.c 
    regression
-     gcc dhtgen.c mtree.c -o dhtgen -D_UNIT_TEST -D_RANDOM_TEST
+     gcc dhtgen.c mtree.c -o dhtgen -D_DHTGEN_TEST -D_RANDOM_TEST
      and run it as ./dhtgen <seed>; see test2.sh as a regression example
 
    The phrase "Length" is overloaded.  In this file and in few places
@@ -62,7 +62,7 @@ int  dhtgen (
 
 #define outf       stdout
 
-#ifdef _UNIT_TEST
+#ifdef _DHTGEN_TEST
 #define _DHTGEN_DEBUG
 #endif
 
@@ -1012,7 +1012,7 @@ int dhtgen (
 }
 
 
-#ifdef _UNIT_TEST
+#ifdef _DHTGEN_TEST
 
 /* ***************************************************************** 
  * Unit test utilities  */
@@ -1330,6 +1330,6 @@ int main(int argc, char **argv)
 #endif /* _RANDOM_TEST */
 
 
-#endif /* _UNIT_TEST */
+#endif /* _DHTGEN_TEST */
 
 

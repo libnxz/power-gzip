@@ -47,7 +47,7 @@ extern unsigned char builtin_dht [][DHT_SZ_MAX];
 extern int builtin_dht_topsym [][DHT_TOPSYM_MAX+1];
 
 /* 
-   dht_lookup(nx_gzip_crb_cpb_t *cmdp, void *handle);
+   dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 
    cmdp supplies the LZ symbol statistics in cmd->cpb.out_lzcount[].
    An appropiate huffman table, computed or from cache, is returned in
@@ -65,5 +65,18 @@ extern int builtin_dht_topsym [][DHT_TOPSYM_MAX+1];
 void *dht_begin(char *ifile, char *ofile);             /* deflateInit */
 void dht_end(void *handle);                            /* deflateEnd  */
 int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle); /* deflate     */
+
+int dhtgen(uint32_t  *lhist,        /* supply the P9 LZ counts here */
+	   int num_lhist,
+	   uint32_t *dhist,
+	   int num_dhist,
+	   char *dht,               /* dht returned here; caller is responsible for alloc/free of min 300 bytes */    
+	   int  *dht_num_bytes,     /* number of valid bytes in *dht */
+	   int  *dht_num_valid_bits,/* valid bits in the LAST byte; note the value of 0 is encoded as 8 bits */    
+	   int  cpb_header          /* set nonzero if prepending the 16 byte P9 compliant cpbin header with the bit length of dht */
+	); 
+
+void fill_zero_lzcounts(uint32_t *llhist, uint32_t *dhist, uint32_t val);
+void fill_zero_len_dist(uint32_t *llhist, uint32_t *dhist, uint32_t val);
 
 #endif /* _NX_DHT_H */

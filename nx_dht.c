@@ -50,7 +50,6 @@
 #include "nxu.h"
 #include "nx_dht.h"
 
-
 typedef struct dht_tab_t {
 	unsigned char *pdht;
 	int *pdht_topsym;
@@ -58,7 +57,7 @@ typedef struct dht_tab_t {
 	int dht_topsym[DHT_TOPSYM_MAX+1];
 } dht_tab_t;
 
-/* returns a handle */
+/* One time setup of the tables. Returns a handle */
 void *dht_begin(char *ifile, char *ofile)
 {
 	int i;
@@ -90,7 +89,7 @@ void dht_end(void *handle)
 
 #define IN_DHTLEN(X) (((int)*((X)+15)) | (((int)*((X)+14))<<8))
 
-int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
+int dht_lookup1(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int dhtlen;
 	dht_tab_t *table = handle;
@@ -106,5 +105,37 @@ int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 	memcpy((void *)(cmdp->cpb.in_dht_char), (void *)(table[0].pdht + 16), dhtlen);
 
 	return 0;
+}
+
+int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
+{
+	int dht_num_bytes, dht_num_valid_bits, dhtlen;
+	dht_tab_t *table = handle;
+
+	/* make a universal dht */
+	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount, 
+			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, 
+			   1);
+
+	/* 286 LitLen counts followed by 30 Dist counts */
+	dhtgen( (uint32_t *)cmdp->cpb.out_lzcount,
+		LLSZ,
+	        (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, 
+		DSZ,
+		(char *)(cmdp->cpb.in_dht_char),
+		&dht_num_bytes, 
+		&dht_num_valid_bits, /* last byte bits, 0 is encoded as 8 bits */    
+		0
+		); 
+
+	dhtlen = 8 * dht_num_bytes - ((dht_num_valid_bits) ? 8 - dht_num_valid_bits : 0 );
+	putnn(cmdp->cpb, in_dhtlen, dhtlen);   /* tell cpb the dhtlen */
+
+	return 0;
+}
+
+int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
+{
+	return dht_lookup1(cmdp, request, handle);
 }
 

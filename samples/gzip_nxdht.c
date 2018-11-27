@@ -70,6 +70,10 @@
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
 
+/* maximum of 5% of input and the nbyte value is used to sample symbols towards dht statistics */
+#define NX_LZ_SAMPLE_PERCENT  5 
+#define NX_LZ_SAMPLE_NBYTE    32768 
+
 #ifdef NXTIMER
 struct _nx_time_dbg {
 	uint64_t freq;
@@ -503,7 +507,7 @@ int compress_file(int argc, char **argv, void *handle)
 			/* If srclen is very large, use 5% of it. If
 			   srclen is smaller than 32KB, then use
 			   srclen itself as the sample */
-			srclen = NX_MIN( NX_MAX((srclen * 5)/100, 32768), srclen);
+			srclen = NX_MIN( NX_MAX((srclen * NX_LZ_SAMPLE_PERCENT)/100, NX_LZ_SAMPLE_NBYTE), srclen);
 		}
 		else {
 			/* Here I will use the lzcounts collected from

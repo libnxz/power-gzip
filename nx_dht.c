@@ -109,13 +109,16 @@ int dht_lookup1(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 
 int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
-	int dht_num_bytes, dht_num_valid_bits, dhtlen;
+	int i, dht_num_bytes, dht_num_valid_bits, dhtlen;
 	dht_tab_t *table = handle;
+
+	/* endian reversal needed unfortunately on little endian machines */
+	for(i = 0; i < LLSZ+DSZ; i++)
+		((uint32_t *)cmdp->cpb.out_lzcount)[i] = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
 
 	/* make a universal dht */
 	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount, 
-			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, 
-			   1);
+			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, 1);
 
 	/* 286 LitLen counts followed by 30 Dist counts */
 	dhtgen( (uint32_t *)cmdp->cpb.out_lzcount,
@@ -128,6 +131,8 @@ int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 		0
 		); 
 
+	fprintf(stderr, "dht bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits);
+
 	dhtlen = 8 * dht_num_bytes - ((dht_num_valid_bits) ? 8 - dht_num_valid_bits : 0 );
 	putnn(cmdp->cpb, in_dhtlen, dhtlen);   /* tell cpb the dhtlen */
 
@@ -136,6 +141,6 @@ int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 
 int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
-	return dht_lookup1(cmdp, request, handle);
+	return dht_lookup2(cmdp, request, handle);
 }
 

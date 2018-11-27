@@ -42,6 +42,41 @@
 #define DHT_TOPSYM_MAX  8     /* number of most frequent symbols tracked */
 #define DHT_NUM_MAX     100   /* max number of dht table entries */
 #define DHT_SZ_MAX      320   /* number of dht bytes per entry */
+#define DHT_MAGIC       {'N','X','D','H'}
+
+typedef struct cached_dht_t {
+	/* detect endianness */
+	union {
+		char magic[4];      
+		uint32_t resv1;
+	};
+	/* 32bit XOR of the entire struct, inclusive of cksum, must
+	   equal 0. May use the cksum if this struct is read/write
+	   to a file; note that XOR is endian agnostic */
+	uint32_t cksum;       
+	union {
+		/* first 16 bytes is P9 specific */
+		char cpb_hdr[16]; 
+		union {
+			uint32_t resv2[3];
+			/* last 32b contains the 12 bit length; use
+			   the getnn/putnn macros to access
+			   endian-safe */
+			uint32_t in_dhtlen; 
+		};
+	};
+	/* actual dht here */
+	char in_dht_char[DHT_MAXSZ];
+	/* most freq symbols and their code lengths; use them to
+	   lookup the dht cache; these are not endian safe if
+	   transporting them across LE and BE */
+	int lit[DHT_TOPSYM_MAX];  
+	int len[DHT_TOPSYM_MAX];
+	int dis[DHT_TOPSYM_MAX];
+	int lit_bits[DHT_TOPSYM_MAX];
+	int len_bits[DHT_TOPSYM_MAX];
+	int dis_bits[DHT_TOPSYM_MAX];
+} cached_dht_t;
 
 extern unsigned char builtin_dht [][DHT_SZ_MAX];
 extern int builtin_dht_topsym [][DHT_TOPSYM_MAX+1];
@@ -70,7 +105,7 @@ int dhtgen(uint32_t  *lhist,        /* supply the P9 LZ counts here */
 	   int num_lhist,
 	   uint32_t *dhist,
 	   int num_dhist,
-	   char *dht,               /* dht returned here; caller is responsible for alloc/free of min 300 bytes */    
+	   char *dht,               /* dht returned here; caller is responsible for alloc/free of min 320 bytes */    
 	   int  *dht_num_bytes,     /* number of valid bytes in *dht */
 	   int  *dht_num_valid_bits,/* valid bits in the LAST byte; note the value of 0 is encoded as 8 bits */    
 	   int  cpb_header          /* set nonzero if prepending the 16 byte P9 compliant cpbin header with the bit length of dht */

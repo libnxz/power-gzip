@@ -20,7 +20,6 @@
 
 static long pagesize = 65536;
 typedef struct p9_simple_handle_t {
-	pthread_mutex_t nx_dev;
 	void *vas_handle; // device handle
 	int chipId;
 	int open_count;

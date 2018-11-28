@@ -1,5 +1,5 @@
 #include "gzip_simple.h"
-pthread_mutex_t nx_dev;
+
 __attribute__((constructor)) void nx_init(void)
 {
 	nx_overflow_buffer = malloc(OVERFLOW_BUFFER_SIZE);
@@ -8,14 +8,15 @@ __attribute__((constructor)) void nx_init(void)
 	int ctr = 0;
 	for (ctr = 0; ctr < NX_MAX_DEVICES; ctr++) {
 		nx_devices[ctr] = malloc(sizeof(p9_simple_handle_t));
-		//nx_devices[ctr]->vas_handle = NULL;
-                nx_devices[ctr]->vas_handle =
-		  nx_function_begin(NX_FUNC_COMP_GZIP, ctr);
+		nx_devices[ctr]->vas_handle =
+			nx_function_begin(NX_FUNC_COMP_GZIP, ctr);
+		if (nx_devices[ctr]->vas_handle == NULL) {
+			fprintf(stderr, "device handle open error chip id %d\n",
+				ctr);
+			exit(-1);
+		}
 		nx_devices[ctr]->open_count = 0;
 		nx_devices[ctr]->chipId = ctr;
-		int retval =
-			pthread_mutex_init(&(nx_devices[ctr]->nx_dev), NULL);
-		assert(retval == 0);
 	}
 
 	/* add a signal action */
@@ -30,48 +31,25 @@ __attribute__((constructor)) void nx_init(void)
 __attribute__((destructor)) void nx_deinit(void)
 {
 	int ctr = 0;
-
+	int retval = 0;
 	for (ctr = 0; ctr < NX_MAX_DEVICES; ctr++) {
+		retval = nx_function_end(nx_devices[ctr]->vas_handle);
+		if (retval < 0) {
+			fprintf(stderr,
+				"device handle close error chip id %d\n", ctr);
+			exit(-1);
+		}
+		if (nx_devices[ctr]->open_count != 0) {
+
+			fprintf(stderr,
+				" device handles are not properly closed chip id=%d open count=%d \n",
+				ctr, nx_devices[ctr]->open_count);
+		}
 		free(nx_devices[ctr]);
 	}
 
+
 	free(nx_overflow_buffer);
-}
-
-void *nx_acquireHandle(p9_simple_handle_t *nx_device)
-{
-        //pthread_mutex_lock(&(nx_device->nx_dev));
-        pthread_mutex_lock(&nx_dev);
-	if (nx_device->open_count == 0) {
-		nx_device->vas_handle =
-			nx_function_begin(NX_FUNC_COMP_GZIP, nx_device->chipId);
-	}
-
-	if (nx_device->vas_handle != NULL) {
-		nx_device->open_count++;
-	}
-	//pthread_mutex_unlock(&(nx_device->nx_dev));
-	pthread_mutex_unlock(&(nx_dev));
-	return nx_device->vas_handle;
-}
-
-int releaseHandle(p9_simple_handle_t *nx_device)
-{
-	int retval = 0;
-	//pthread_mutex_lock(&(nx_device->nx_dev));
-	pthread_mutex_lock(&nx_dev);
-	if (nx_device->open_count == 1) {
-		retval = nx_function_end(nx_device->vas_handle);
-	}
-	if (retval >= 0) {  
-		nx_device->open_count--;
-                if(nx_device->open_count == 0) {
-		  nx_device->vas_handle = NULL;
-                }
-	}
-	pthread_mutex_unlock(&nx_dev);
-	//pthread_mutex_unlock(&(nx_device->nx_dev));
-	return retval;
 }
 
 
@@ -281,7 +259,7 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
 		sig, info->si_code, info->si_addr);
 	nx_fault_storage_address = info->si_addr;
-	//exit(0);
+	// exit(0);
 }
 
 static void nx_print_dde(nx_dde_t *ddep, const char *msg)
@@ -368,11 +346,9 @@ p9_simple_handle_t *p9open()
 {
 	int cpu_id = 0;
 	syscall(SYS_getcpu, &cpu_id, NULL, NULL);
-	p9_simple_handle_t *nx_device = nx_devices[findChip(cpu_id)];
-	//void *vas_handle = nx_acquireHandle(nx_device);
-	//if (vas_handle == NULL) {
-	//	return NULL;
-	//}
+	int chipId = findChip(cpu_id);
+	p9_simple_handle_t *nx_device = nx_devices[chipId];
+	__sync_fetch_and_add(&(nx_devices[chipId]->open_count), 1);
 	return nx_device;
 };
 
@@ -502,7 +478,7 @@ int p9inflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 
 	/*allocate a ddl on stack for a dummy buffer*/
 	nx_dde_t ddl[3];
-	
+
 	/*set source/destination and sizes*/
 	nx_init_csb(cmdp, src + header, dst, srclen - header - trailer, dstlen,
 		    ddl, nx_overflow_buffer);
@@ -556,13 +532,6 @@ int p9inflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 /*close the compressor*/
 int p9close(p9_simple_handle_t *handle)
 {
-   
-	int retval = 0;
-	//     if(handle!=NULL && handle->vas_handle!=NULL){
-	// retval = releaseHandle(handle);
-	// }else{
-	//  printf("NULL handle\n");
-          
-	// }
-	return retval;
+	__sync_fetch_and_add(&(handle->open_count), -1);
+	return 0;
 };

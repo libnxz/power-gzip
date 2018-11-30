@@ -474,3 +474,15 @@ uLong ZEXPORT nx_crc32_combine64(crc1, crc2, len2)
 {
     return crc32_combine_(crc1, crc2, len2);
 }
+
+#ifdef ZLIB_API
+unsigned long crc32(crc, buf, len)
+	unsigned long crc;
+	const unsigned char FAR *buf;
+	uint64_t len;
+{
+	return nx_crc32(crc, buf, len);
+}
+
+#endif
+

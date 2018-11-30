@@ -106,6 +106,8 @@ typedef int retlibnx_t;
 typedef int retz_t;
 typedef int retnx_t;
 
+extern int nx_deflate_method;
+
 /* **************************************************************** */
 #define LIBNX_OK              0x00
 #define LIBNX_OK_SUSPEND      0x01
@@ -161,11 +163,11 @@ static inline int append_btype00_header(char *buf, int tebc, int final, int bloc
 	else *buf = 0;
 	blen = (uint64_t) block_len; /* TODO check bi-endian support */
 	blen = 0xffffffffULL & ((~blen << 16) | blen); /* NLEN,LEN */
-	flush = (0x1ULL & final) << shift;
+	flush = ((0x1ULL & final) << shift) | *buf;
 	shift = shift + 3; /* BFINAL and BTYPE written */
 	shift = (shift <= 8) ? 8 : 16;
 	/* flush |= (0xFFFF0000ULL) << shift; /* Zero length block */
-	flush |= blen << shift; /* Zero length block */	
+	flush |= blen << shift; /* blen length block */
 	shift = shift + 32;
 	while (shift > 0) {
 		*buf++ = (unsigned char)(flush & 0xffULL);
@@ -190,12 +192,30 @@ static inline int append_btype00_header(char *buf, int tebc, int final, int bloc
 */
 static int inline append_sync_flush(char *buf, int tebc, int final)
 {
-	return append_btype00_header(buf, tebc, final, 0);
+	uint64_t flush;
+	int shift = (tebc & 0x7);
+	if (tebc > 0) {
+		/* last byte is partially full */	
+		buf = buf - 1; 
+		*buf = *buf & (unsigned char)((1<<tebc)-1);
+	}
+	else *buf = 0;
+	flush = ((0x1ULL & final) << shift) | *buf;
+	shift = shift + 3; /* BFINAL and BTYPE written */
+	shift = (shift <= 8) ? 8 : 16;
+	flush |= (0xFFFF0000ULL) << shift; /* Zero length block */
+	shift = shift + 32;
+	while (shift > 0) {
+		*buf++ = (unsigned char)(flush & 0xffULL);
+		flush = flush >> 8;
+		shift = shift - 8;
+	}
+	return(((tebc > 5) || (tebc == 0)) ? 5 : 4);
 }
 
 static int inline append_full_flush(char *buf, int tebc, int final)
 {
-	return append_btype00_header(buf, tebc, final, 0);
+	return append_sync_flush(buf, tebc, final);
 }
 
 /* 
@@ -678,6 +698,8 @@ int nx_deflateEnd(z_streamp strm)
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
 
+	dht_end(s->dhthandle);
+
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
 	nx_close(s->nxdevp);
@@ -757,7 +779,8 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->level      = level;
 	s->method     = method;
 	s->strategy   = strategy;
-	s->strategy   = Z_FIXED; // Only support Z_FIXED
+	s->strategy   = Z_FIXED; /* only support Z_FIXED by default */
+	if (nx_deflate_method == 1) s->strategy = Z_DEFAULT_STRATEGY; /* dynamic huffman */
 	s->zstrm      = strm; /* pointer to parent */
 	s->page_sz    = nx_config.page_sz;
 	s->nxdevp     = h;
@@ -771,6 +794,9 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->len_out = nx_config.deflate_fifo_out_len;
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
+
+	if (nx_deflate_method == 1)
+		s->dhthandle = dht_begin(NULL, NULL);
 
 	s->used_in = s->used_out = 0;
 	s->cur_in  = s->cur_out = 0;
@@ -1340,6 +1366,7 @@ do_append_flush:
 		
 do_no_update:
 err_exit:
+	s->invoke_cnt++;
 	return rc;
 }
 
@@ -1553,7 +1580,6 @@ int nx_deflate(z_streamp strm, int flush)
 	}
 
 s1:
-	prt_info("goto here s1\n");
 	/* when fifo_out has data copy it to output stream first */
 	if (s->used_out > 0) {
 		nx_copy_fifo_out_to_nxstrm_out(s);
@@ -1664,7 +1690,18 @@ s3:
 			return Z_STREAM_ERROR;
 
 		nx_compress_update_checksum(s, !combine_cksum);
-	}
+
+	} else if (s->strategy == Z_DEFAULT_STRATEGY) { /* dynamic huffman */
+		if (s->invoke_cnt == 0) {
+			dht_lookup(cmdp, 0, s->dhthandle);
+			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 32*1024);
+		}
+		else {
+			dht_lookup(cmdp, 1, s->dhthandle);
+			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 0);
+		}
+		nx_compress_update_checksum(s, !combine_cksum);
+        }
 
 	print_dbg_info(s, __LINE__);
 

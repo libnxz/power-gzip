@@ -1,4 +1,4 @@
-CFLAGS = -O3
+#CFLAGS = -O3
 SRC =
 INC = ../../inc_nx
 TESTS = gzip_simple_test

@@ -64,7 +64,7 @@ static struct nx_dev_t nx_devices[NX_DEVICES_MAX];
 static int nx_dev_count = 0;
 static int nx_init_done = 0;
 
-int nx_dbg = 0;
+int nx_dbg = 1;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
 int nx_gzip_chip_num = -1;		
 

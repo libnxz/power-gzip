@@ -1281,7 +1281,7 @@ restart:
 		/* get64 does the endian conversion */
 		if (NULL != (fsa = (void *)get64(nxcmdp->crb.stamp.nx, fsa))) nx_touch_pages(fsa, 1, pgsz, 0); 
 
-		prt_err("     pgfault_retries %d bytes_in %d fsa %p\n", pgfault_retries, bytes_in, fsa);
+		prt_warn("     pgfault_retries %d bytes_in %d fsa %p\n", pgfault_retries, bytes_in, fsa);
 		if (pgfault_retries == nx_pgfault_retries) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
@@ -1326,6 +1326,7 @@ restart:
 
 		/* target buffer not large enough retry fewer pages  */		
 		bytes_in = NX_MAX( bytes_in/2, pgsz);
+		prt_warn("ERR_NX_TARGET_SPACE, retry with bytes_in %d\n", bytes_in);
 		goto restart;
 
 	case ERR_NX_TPBC_GT_SPBC:  
@@ -1344,6 +1345,7 @@ restart:
 
 		// s->need_stored_block = bytes_in - histbytes;
 		rc = LIBNX_OK_BIG_TARGET;
+		prt_warn("ERR_NX_TPBC_GT_SPBC\n");
 		// FIXME: treat as ERR_NX_OK currently
 		// goto do_no_update; 
 		
@@ -1353,7 +1355,7 @@ restart:
 		goto do_update_offsets;
 
 	default:
-		pr_err("error: cc= %d\n", cc);
+		pr_err("error: cc = %u cc = 0x%x\n", cc, cc);
 		rc = LIBNX_ERROR;
 		goto err_exit;
 	}
@@ -1510,6 +1512,7 @@ int nx_deflate(z_streamp strm, int flush)
 	nx_streamp s;
 	const int combine_cksum = 1;
 	unsigned int avail_in_slot, avail_out_slot;
+	long loop_cnt = 0, loop_max = 0xffff;
 
 	/* check flush */
 	if (flush > Z_BLOCK || flush < 0) return Z_STREAM_ERROR;
@@ -1580,6 +1583,11 @@ int nx_deflate(z_streamp strm, int flush)
 	}
 
 s1:
+	if (++loop_cnt == loop_max) {
+		prt_err("can not make progress, loop_cnt = %d\n", loop_cnt);
+		return Z_STREAM_ERROR;
+	}
+
 	/* when fifo_out has data copy it to output stream first */
 	if (s->used_out > 0) {
 		nx_copy_fifo_out_to_nxstrm_out(s);
@@ -1646,6 +1654,11 @@ s2:
 	}
 
 s3:
+	if (++loop_cnt == loop_max) {
+		prt_err("can not make progress on s3, loop_cnt = %d\n", loop_cnt);
+		return Z_STREAM_ERROR;
+	}
+
 	/* level=0 is when zlib copies input to output uncompressed */
 	if ((s->level == 0 && s->avail_out > 0) || (s->need_stored_block > 0)) {
 		/* reminder of where the block starts */
@@ -1692,6 +1705,7 @@ s3:
 		nx_compress_update_checksum(s, !combine_cksum);
 
 	} else if (s->strategy == Z_DEFAULT_STRATEGY) { /* dynamic huffman */
+		print_dbg_info(s, __LINE__);
 		if (s->invoke_cnt == 0) {
 			dht_lookup(cmdp, 0, s->dhthandle);
 			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 32*1024);

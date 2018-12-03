@@ -71,18 +71,6 @@ do { if ((s)->cur_in > (s)->len_in/2) { \
 
 static int nx_inflate_(nx_streamp s, int flush);
 
-voidpf zcalloc(voidpf opaque, unsigned items, unsigned size)
-{
-	(void)opaque;
-	return sizeof(uInt) > 2 ? (voidpf)malloc(items * size):(voidpf)calloc(items, size);
-}
-
-void zcfree(voidpf opaque, voidpf ptr)
-{
-	(void)opaque;
-	free(ptr);
-}
-
 int nx_inflateResetKeep(z_streamp strm)
 {
 	nx_streamp s;
@@ -126,7 +114,7 @@ int nx_inflateReset(z_streamp strm)
 	return nx_inflateResetKeep(strm);
 }
 
-int nx_inflateReset2(z_streamp strm, int windowBits)
+static int nx_inflateReset2(z_streamp strm, int windowBits)
 {
 	int wrap;
 	nx_streamp s;
@@ -174,15 +162,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 
 	strm->msg = Z_NULL; /* in case we return an error */
 
-	if (strm->zalloc == (alloc_func)0) {
-		strm->zalloc = zcalloc;
-		strm->opaque = (voidpf)0;
-	}
-	if (strm->zfree == (free_func)0) {
-		strm->zfree = zcfree;
-	}
-
-	h = nx_open(-1); /* TODO allow picking specific NX device */
+	h = nx_open(-1); /* if want to pick specific NX device, set env NX_GZIP_DEV_NUM */
 	if (!h) {
 		prt_err("cannot open NX device\n");
 		return Z_STREAM_ERROR;
@@ -192,9 +172,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	memset(s, 0, sizeof(*s));
 
 	if (s == NULL) {
-		ret = Z_MEM_ERROR;
 		prt_err("nx_alloc_buffer\n");		
-		return ret;
+		return Z_MEM_ERROR;
 	}
 
 	s->zstrm   = strm;
@@ -224,10 +203,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 
 reset_err:	
 alloc_err:
-	if (s->fifo_in)
-		nx_free_buffer(s->fifo_in, 0, 0);
-	if (s->fifo_out)
-		nx_free_buffer(s->fifo_out, 0, 0);	
+	if (s->gzhead)
+		nx_free_buffer(s->gzhead, 0, 0);
 	if (s)
 		nx_free_buffer(s, 0, 0);
 	strm->state = Z_NULL;
@@ -236,7 +213,7 @@ alloc_err:
 
 int nx_inflateInit_(z_streamp strm, const char *version, int stream_size)
 {
-	return nx_inflateInit2_(strm, 15, version, stream_size);
+	return nx_inflateInit2_(strm, DEF_WBITS, version, stream_size);
 }
 
 int nx_inflateEnd(z_streamp strm)
@@ -279,16 +256,16 @@ int nx_inflate(z_streamp strm, int flush)
 
 	if (flush == Z_BLOCK || flush == Z_TREES) {
 		strm->msg = (char *)"Z_BLOCK or Z_TREES not implemented";
+		prt_err("Z_BLOCK or Z_TREES not implemented!\n");
 		return Z_STREAM_ERROR;
 	}
 
 	if (s->fifo_out == NULL) {
 		/* overflow buffer is about 40% of s->avail_in */
-		s->len_out = (32*1024*2 + (s->zstrm->avail_in * 40)/100);
+		s->len_out = (INF_HIS_LEN*2 + (s->zstrm->avail_in * 40)/100);
 		if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
-			rc = Z_MEM_ERROR;
-			prt_err("nx_alloc_buffer\n");
-			return rc;
+			prt_err("nx_alloc_buffer for inflate fifo_out\n");
+			return Z_MEM_ERROR;
 		}
 	}
 
@@ -676,6 +653,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 	int is_final = 0, is_eof;
 	int cnt = 0;
 	void* fsa;
+	long loop_cnt = 0, loop_max = 0xffff;
 	
 	/* nx hardware */
 	int sfbt, subc, spbc, tpbc, nx_ce, fc, resuming = 0;
@@ -696,6 +674,11 @@ static int nx_inflate_(nx_streamp s, int flush)
 		return Z_STREAM_END;
 
 copy_fifo_out_to_next_out:
+	if (++loop_cnt == loop_max) {
+		prt_err("cannot make progress; too many loops loop_cnt = %d\n", loop_cnt);
+		return Z_STREAM_END;
+	}
+
 	/* if fifo_out is not empty, first copy contents to next_out.
 	 * Remember to keep up to last 32KB as the history in fifo_out. */
 	if (s->used_out > 0) {
@@ -724,9 +707,6 @@ copy_fifo_out_to_next_out:
 	/* we should flush all data to next_out here, s->used_out should be 0 */
 
 small_next_in:
-	/* if the total input size is below some threshold, avoid
-	   accelerator overhead and memcpy next_in to fifo_in */
-
 	/* used_in is the data amount waiting in fifo_in; avail_in is
 	   the data amount waiting in the user buffer next_in */
 	if (s->avail_in < nx_config.soft_copy_threshold && s->avail_out > 0) {
@@ -734,9 +714,8 @@ small_next_in:
 			// s->len_in = nx_config.inflate_fifo_in_len;
 			s->len_in = nx_config.soft_copy_threshold * 2;
 			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
-				rc = Z_MEM_ERROR;
-				prt_err("nx_alloc_buffer\n");		
-				return rc;
+				prt_err("nx_alloc_buffer for inflate fifo_in\n");		
+				return Z_MEM_ERROR;
 			}
 		}
 		/* reset fifo head to reduce unnecessary wrap arounds */
@@ -745,13 +724,17 @@ small_next_in:
 		free_space = s->len_in - s->cur_in - s->used_in;
 
 		read_sz = NX_MIN(free_space, s->avail_in);
-		if (read_sz <= 0) return -1;
 		if (read_sz > 0) {
 			/* copy from next_in to the offset cur_in + used_in */
 			memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, read_sz);
 			update_stream_in(s, read_sz);
 			update_stream_in(s->zstrm, read_sz);
 			s->used_in = s->used_in + read_sz;
+		}
+		else {
+			/* should never come here */
+			prt_err("unexpected error\n");
+			return Z_STREAM_END;
 		}
 	}
 	else {
@@ -875,8 +858,8 @@ restart_nx:
 		if (NULL != (fsa = (void *)(get64(cmdp->crb.stamp.nx, fsa))))
 			nx_touch_pages(fsa, 1, nx_config.page_sz, 0);
 
-		prt_err(" crb.csb.fsaddr %p source_sz %d target_sz %d fsa %p\n",
-			(void *)cmdp->crb.csb.fsaddr, source_sz, target_sz, fsa);
+		prt_warn(" pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d fsa %p\n",
+			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz, fsa);
 
 		if (pgfault_retries == nx_config.retry_max) {
 			/* try once with exact number of pages */
@@ -900,10 +883,6 @@ restart_nx:
 		}
 
 	case ERR_NX_DATA_LENGTH:
-
-		prt_warn("ERR_NX_DATA_LENGTH\n");
-		NX_CLK( (td.datalenc += 1) );
-		
 		/* Not an error in the most common case; it just says
 		   there is trailing data that we must examine */
 
@@ -931,13 +910,11 @@ restart_nx:
 		}
 		
 	case ERR_NX_TARGET_SPACE:
-
-		NX_CLK( (td.targetlenc += 1) );		
 		/* Target buffer not large enough; retry smaller input
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > s->history_len );
 		source_sz = ((source_sz - s->history_len + 2) / 2) + s->history_len;
-		prt_err("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len);
+		prt_warn("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len);
 		nx_space_retries++;
 		goto restart_nx;
 
@@ -954,7 +931,10 @@ restart_nx:
 		goto offsets_state;
 
 	default:
-		prt_err("error: cc= %d\n", cc);
+		prt_err("error: cc = %u, cc = 0x%x\n", cc, cc);
+		char* csb = (char*) (&cmdp->crb.csb);
+		for(int i = 0; i < 4; i++) /* dump first 32 bits of csb */
+			prt_err("CSB: 0x %02x %02x %02x %02x\n", csb[0], csb[1], csb[2], csb[3]);
 		rc = Z_ERRNO;
 		goto err5; 
 	}

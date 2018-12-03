@@ -79,6 +79,14 @@
 #define HEADER_ZLIB  1
 #define HEADER_GZIP  2
 
+#ifndef MAX_WBITS
+#  define MAX_WBITS 15
+#endif
+#ifndef DEF_WBITS
+#  define DEF_WBITS MAX_WBITS
+#endif
+
+
 extern FILE *nx_gzip_log;
 
 /* common config variables for all streams */

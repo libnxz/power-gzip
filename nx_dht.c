@@ -89,7 +89,7 @@ void dht_end(void *handle)
 
 #define IN_DHTLEN(X) (((int)*((X)+15)) | (((int)*((X)+14))<<8))
 
-int dht_lookup1(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
+static int dht_lookup1(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int dhtlen;
 	dht_tab_t *table = handle;
@@ -107,18 +107,66 @@ int dht_lookup1(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 	return 0;
 }
 
-int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
+static int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int i, dht_num_bytes, dht_num_valid_bits, dhtlen;
 	dht_tab_t *table = handle;
+	const int lit=0;
+	const int len=1;
+	const int dis=2;
+	struct { struct { uint32_t max; int sym; } s[2]; } count[3]  __attribute__ ((aligned (16)));
 
-	/* endian reversal needed unfortunately on little endian machines */
-	for(i = 0; i < LLSZ+DSZ; i++)
-		((uint32_t *)cmdp->cpb.out_lzcount)[i] = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
+	count[lit].s[0].max = 0;
+	count[lit].s[0].sym = -1;
+	count[lit].s[1] = count[lit].s[0];
+	count[len] = count[dis] = count[lit];
+
+	/* find the top 2 symbols in each of the 3 ranges */
+	for (i = 0; i < 256; i++) { /* Lits */
+		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
+		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
+		if (c > count[lit].s[0].max ) {
+			count[lit].s[1] = count[lit].s[0]; /* shift previous top by one */
+			count[lit].s[0].max = c;           /* save the new top count */
+			count[lit].s[0].sym = i;
+		} else if (c > count[lit].s[1].max) {
+			count[lit].s[1].max = c;
+			count[lit].s[1].sym = i;
+		}
+	}
+	for (i = 256; i < LLSZ; i++) { /* Lens */
+		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
+		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
+		if (c > count[len].s[0].max ) {
+			count[len].s[1] = count[len].s[0]; /* shift previous top by one */
+			count[len].s[0].max = c;           /* save the new top count */
+			count[len].s[0].sym = i;
+		} else if (c > count[len].s[1].max) {
+			count[len].s[1].max = c;
+			count[len].s[1].sym = i;
+		}
+	}
+	for (i = LLSZ; i < LLSZ+DSZ; i++) { /* Distances */
+		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
+		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
+		if (c > count[dis].s[0].max ) {
+			count[dis].s[1] = count[dis].s[0]; /* shift previous top by one */
+			count[dis].s[0].max = c;           /* save the new top count */
+			count[dis].s[0].sym = i;
+		} else if (c > count[dis].s[1].max) {
+			count[dis].s[1].max = c;
+			count[dis].s[1].sym = i;
+		}
+	}
+
+
+	/* search the dht cache */
+
 
 	/* make a universal dht */
-	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount, 
-			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, 1);
+	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount,        /* LitLen */
+			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, /* Dist */
+			   1);
 
 	/* 286 LitLen counts followed by 30 Dist counts */
 	dhtgen( (uint32_t *)cmdp->cpb.out_lzcount,

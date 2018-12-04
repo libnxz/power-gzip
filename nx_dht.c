@@ -111,57 +111,79 @@ static int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int i, dht_num_bytes, dht_num_valid_bits, dhtlen;
 	dht_tab_t *table = handle;
-	const int lit=0;
-	const int len=1;
-	const int dis=2;
-	struct { struct { uint32_t max; int sym; } s[2]; } count[3]  __attribute__ ((aligned (16)));
+	const int litrng = 0;
+	const int lenrng = 1;
+	const int disrng = 2;
+	struct { struct { uint32_t cnt; int sym; } sorted[2]; } top[3]  __attribute__ ((aligned (16)));
 
-	count[lit].s[0].max = 0;
-	count[lit].s[0].sym = -1;
-	count[lit].s[1] = count[lit].s[0];
-	count[len] = count[dis] = count[lit];
+	/* init */
+	top[litrng].sorted[0].cnt = 0;
+	top[litrng].sorted[0].sym = -1;
+	top[litrng].sorted[1] = top[litrng].sorted[0];
+	top[lenrng] = top[disrng] = top[litrng];
 
 	/* find the top 2 symbols in each of the 3 ranges */
-	for (i = 0; i < 256; i++) { /* Lits */
+	for (i = 0; i < 256; i++) { /* Literals */
 		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
 		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
-		if (c > count[lit].s[0].max ) {
-			count[lit].s[1] = count[lit].s[0]; /* shift previous top by one */
-			count[lit].s[0].max = c;           /* save the new top count */
-			count[lit].s[0].sym = i;
-		} else if (c > count[lit].s[1].max) {
-			count[lit].s[1].max = c;
-			count[lit].s[1].sym = i;
+		if (c > top[litrng].sorted[0].cnt ) {
+			/* count greater than the top count */
+			top[litrng].sorted[1] = top[litrng].sorted[0]; /* shift previous top by one */
+			top[litrng].sorted[0].cnt = c;           /* save the new top count */
+			top[litrng].sorted[0].sym = i;
+		} else if (c > top[litrng].sorted[1].cnt) {
+			/* count greater than the second most count */
+			top[litrng].sorted[1].cnt = c;
+			top[litrng].sorted[1].sym = i;
 		}
 	}
-	for (i = 256; i < LLSZ; i++) { /* Lens */
+	for (i = 256; i < LLSZ; i++) { /* Lengths */
 		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
 		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
-		if (c > count[len].s[0].max ) {
-			count[len].s[1] = count[len].s[0]; /* shift previous top by one */
-			count[len].s[0].max = c;           /* save the new top count */
-			count[len].s[0].sym = i;
-		} else if (c > count[len].s[1].max) {
-			count[len].s[1].max = c;
-			count[len].s[1].sym = i;
+		if (c > top[lenrng].sorted[0].cnt ) {
+			/* count greater than the top count */
+			top[lenrng].sorted[1] = top[lenrng].sorted[0]; /* shift previous top by one */
+			top[lenrng].sorted[0].cnt = c;           /* save the new top count */
+			top[lenrng].sorted[0].sym = i;
+		} else if (c > top[lenrng].sorted[1].cnt) {
+			/* count greater than the second most count */
+			top[lenrng].sorted[1].cnt = c;
+			top[lenrng].sorted[1].sym = i;
 		}
 	}
 	for (i = LLSZ; i < LLSZ+DSZ; i++) { /* Distances */
 		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
 		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
-		if (c > count[dis].s[0].max ) {
-			count[dis].s[1] = count[dis].s[0]; /* shift previous top by one */
-			count[dis].s[0].max = c;           /* save the new top count */
-			count[dis].s[0].sym = i;
-		} else if (c > count[dis].s[1].max) {
-			count[dis].s[1].max = c;
-			count[dis].s[1].sym = i;
+		if (c > top[disrng].sorted[0].cnt ) {
+			/* count greater than the top count */
+			top[disrng].sorted[1] = top[disrng].sorted[0]; /* shift previous top by one */
+			top[disrng].sorted[0].cnt = c;           /* save the new top count */
+			top[disrng].sorted[0].sym = i;
+		} else if (c > top[disrng].sorted[1].cnt) {
+			/* count greater than the second most count */
+			top[disrng].sorted[1].cnt = c;
+			top[disrng].sorted[1].sym = i;
 		}
 	}
 
-
 	/* search the dht cache */
+	cached_dht_t *dht_cache = (cached_dht_t *) handle;
 
+	for (i = 0; i < DHT_NUM_MAX; i++) {
+		if (dht_cache[i].use_count == 0) /* found an unused entry */
+			break; 
+		if (dht_cache[i].lit[0] == top[litrng].sorted[0].sym &&
+		    dht_cache[i].len[0] == top[lenrng].sorted[0].sym &&
+		    dht_cache[i].lit[1] == top[litrng].sorted[1].sym &&
+		    dht_cache[i].len[1] == top[lenrng].sorted[1].sym ) {
+			/* top two literals and top two lengths are matched in the cache */
+			/* increment the count 
+			   return here the cached dht
+			   if a count has reached some arbitrary maximum divide all counts by 2
+			   to prevent count overflow
+			*/
+		}
+	}
 
 	/* make a universal dht */
 	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount,        /* LitLen */

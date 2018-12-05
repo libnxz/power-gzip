@@ -58,7 +58,7 @@ typedef struct dht_tab_t {
 } dht_tab_t;
 
 /* One time setup of the tables. Returns a handle */
-void *dht_begin(char *ifile, char *ofile)
+void *dht_begin1(char *ifile, char *ofile)
 {
 	int i;
 	dht_tab_t *table;
@@ -82,10 +82,39 @@ void *dht_begin(char *ifile, char *ofile)
 	return (void *)table;
 }
 
+
+/* One time setup of the tables. Returns a handle */
+void *dht_begin3(char *ifile, char *ofile)
+{
+	int i;
+	cached_dht_t *cache;
+
+	if (NULL == (cache = malloc(sizeof(cached_dht_t) * (DHT_NUM_MAX+1))))
+		return NULL;
+
+	for (i=0; i<DHT_NUM_MAX; i++) {
+		/* set all invalid */
+		cache[i].use_count = 0;
+	}
+
+	/* add the built-in entries here */
+
+	return (void *)cache;
+}
+
+
+
 void dht_end(void *handle)
 {
 	if (!!handle) free(handle);
 }
+
+/* One time setup of the tables. Returns a handle */
+void *dht_begin(char *ifile, char *ofile)
+{
+	return dht_begin3(ifile, ofile);
+}
+
 
 #define IN_DHTLEN(X) (((int)*((X)+15)) | (((int)*((X)+14))<<8))
 
@@ -107,16 +136,17 @@ static int dht_lookup1(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 	return 0;
 }
 
-static int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
+static int dht_lookup3(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int i, j, k, dht_num_bytes, dht_num_valid_bits, dhtlen;
 	int least_used_idx;
 	int64_t least_used_count;
-	dht_tab_t *table = handle;
 	const int litrng = 0;
 	const int lenrng = 1;
 	const int disrng = 2;
 	struct { struct { uint32_t cnt; int sym; } sorted[2]; } top[3]  __attribute__ ((aligned (16)));
+
+	cached_dht_t *dht_cache = (cached_dht_t *) handle;
 
 	/* init */
 	top[litrng].sorted[0].cnt = 0;
@@ -168,56 +198,71 @@ static int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 		}
 	}
 
-	cached_dht_t *dht_cache = (cached_dht_t *) handle;
-
-	/* speed up the search by biasing the starting index */
+	/* speed up the search by biasing the start index j */
 	j = top[litrng].sorted[0].sym;
 	j = (j < 0) ? 0 : j;
 	j = j % DHT_NUM_MAX;
+
+	/* identify the least candidate in case needs replacement */
 	least_used_idx = 0;
 	least_used_count = 1UL<<30;
 
 	/* search the dht cache */
 	for (i = 0; i < DHT_NUM_MAX; i++, j = (j+1) % DHT_NUM_MAX) {
+		int64_t used_count = dht_cache[j].use_count;
+
+		if (used_count == 0) {
+			/* identify then skip the invalid entry */
+			least_used_count = used_count;
+			least_used_idx = j;
+			continue;
+		}
+		if (used_count < least_used_count && used_count > 0) {
+			/* identify the least used non-builtin cache item */
+			/* note that used_count == -1 is a built-in item */
+			least_used_count = used_count;
+			least_used_idx = j;
+		}
+
+		/* look for a match */
+		if (dht_cache[j].lit[0] == top[litrng].sorted[0].sym &&  /* top lit */
+		    dht_cache[j].len[0] == top[lenrng].sorted[0].sym &&  /* top len */
+		    dht_cache[j].lit[1] == top[litrng].sorted[1].sym &&  /* second top lit */
+		    dht_cache[j].len[1] == top[lenrng].sorted[1].sym ) { /* second top len */
 		
-		if (dht_cache[j].lit[0] == top[litrng].sorted[0].sym &&
-		    dht_cache[j].len[0] == top[lenrng].sorted[0].sym &&
-		    dht_cache[j].lit[1] == top[litrng].sorted[1].sym &&
-		    dht_cache[j].len[1] == top[lenrng].sorted[1].sym ) {
 			/* top two literals and top two lengths are matched in the cache */
 
-			/* copy the dht back to cpb */
+			/* copy the matched dht back to cpb */
 			dhtlen = dht_cache[j].in_dhtlen;
 			dht_num_bytes = (dhtlen + 7)/8; /* bits to bytes */
 			putnn(cmdp->cpb, in_dhtlen, (uint32_t)dhtlen);
 			memcpy(cmdp->cpb.in_dht_char, dht_cache[j].in_dht_char, dht_num_bytes);
 
 			/* manage the cache usage counts */
-			++ dht_cache[j].use_count;
+			if (used_count >= 0) {
+				/* do not mess with builtin entry use counts */
+				++ dht_cache[j].use_count;
+			}
+
 			if (dht_cache[j].use_count > (1UL<<30)) {
-				/* prevent overflow; least frequently
-				 * used should eventually go to
-				 * zero */
-				for (k = 0; k < DHT_NUM_MAX; k++) 
-					dht_cache[k].use_count /= 2;
+				/* prevent overflow; 
+				   +1 ensures that count=0 remains 0 and
+				   non-zero count remains non-zero */
+				for (k = 0; k < DHT_NUM_MAX; k++)
+					dht_cache[k].use_count = (dht_cache[k].use_count + 1) / 2;
 			}
 
 			return 0;
 		}
 
-		/* identify the least used cache item */
-		if (dht_cache[j].use_count < least_used_count) {
-			least_used_count = dht_cache[j].use_count;
-			least_used_idx = j;
-		}
 	}
 
-	/* make a universal dht */
+	/* search did not find anything; make a universal dht with no missing codes */
 	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount,        /* LitLen */
 			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, /* Dist */
 			   1);
 
-	/* write it directly to cpb; 286 LitLen counts followed by 30 Dist counts */
+	/* dhtgen writes directly to cpb; 286 LitLen counts followed by 30 Dist counts */
 	dhtgen( (uint32_t *)cmdp->cpb.out_lzcount,
 		LLSZ,
 	        (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, 
@@ -243,6 +288,45 @@ static int dht_lookup2(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 
 int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
-	return dht_lookup2(cmdp, request, handle);
+	return dht_lookup3(cmdp, request, handle);
+}
+
+
+/* use this to make builtin dht data structures */
+int dht_print(void *handle)
+{
+	int i, j, k, dht_num_bytes, dhtlen;
+	const int litrng = 0;
+	const int lenrng = 1;
+	const int disrng = 2;
+	char buf[sizeof(cached_dht_t)*8];
+
+	cached_dht_t *dht_cache = (cached_dht_t *) handle;
+
+	/* search the dht cache */
+	for (j = 0; j < DHT_NUM_MAX; j++) {
+		int64_t used_count = dht_cache[j].use_count;
+
+		if (used_count == 0)
+			continue;
+
+		dhtlen = dht_cache[j].in_dhtlen;
+		dht_num_bytes = (dhtlen + 7)/8;
+		dht_cache[j].in_dht_char;
+
+		fprintf(stderr, "{\n");
+		fprintf(stderr, "\t%d, /* count */\n", dht_cache[j].use_count);
+		fprintf(stderr, "\t%d, /* cksum */\n", dht_cache[j].cksum);
+		fprintf(stderr, "\t{%d, %d, %d,}, /* cpb_reserved[3] */\n", 
+			dht_cache[j].cpb_reserved[0],		
+			dht_cache[j].cpb_reserved[1],		
+			dht_cache[j].cpb_reserved[2]);		
+		fprintf(stderr, "\t%d, /* in_dhtlen */\n", dht_cache[j].in_dhtlen);
+		fprintf(stderr, "\t{\n\t\t");
+		/* for (i=0; i<dht_num_bytes; i++) {
+		   fprintf(stderr, "0x%02x, ",  */
+	}
+
+	return 0;
 }
 

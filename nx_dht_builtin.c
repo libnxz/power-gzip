@@ -145,7 +145,6 @@ int builtin_dht_topsym [][DHT_TOPSYM_MAX+1] = {
 cached_dht_t builtin1[2] = {
 {
 	/* count */ -1, 
-	/* magic */ DHT_MAGIC, 
 	/* cksum */ 0, 
 	/* cpb_reserved[3] */ { 0, 0, 0, }, 
 	/* in_dhtlen */ 0,
@@ -165,7 +164,6 @@ cached_dht_t builtin1[2] = {
 
 {
 	/* count */ -1, 
-	/* magic */ DHT_MAGIC, 
 	/* cksum */ 0, 
 	/* cpb_reserved[3] */ { 0, 0, 0, }, 
 	/* in_dhtlen */ 0,

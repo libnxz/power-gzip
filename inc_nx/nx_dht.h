@@ -41,18 +41,19 @@
 
 #define DHT_TOPSYM_MAX  8     /* number of most frequent symbols tracked */
 #define DHT_NUM_MAX     100   /* max number of dht table entries */
-#define DHT_SZ_MAX      320   /* number of dht bytes per entry */
+#define DHT_SZ_MAX      (DHT_MAXSZ+16)   /* number of dht bytes per entry */
 #define DHT_MAGIC       0x4e584448
 
 typedef struct cached_dht_t {
-	/* usage count for cache replacement */
+	/* usage count for cache replacement 
+	    0: invalid entry; 
+	   -1: builtin entry not to be replaced; 
+	   >0: computed entry */
 	int64_t use_count;
-	/* detect endianness */
-	uint32_t magic;
 	/* 32bit XOR of the entire struct, inclusive of cksum, must
 	   equal 0. May use the cksum if this struct is read/write to
 	   a file; note that XOR is endian agnostic */
-	uint32_t cksum;       
+	uint32_t cksum;
 	/* for alignment */
 	uint32_t cpb_reserved[3];
 	/* last 32b contains the 12 bit length; use

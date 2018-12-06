@@ -1279,9 +1279,9 @@ restart:
 		/* touch 1 byte */
 		/* nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1); */
 		/* get64 does the endian conversion */
-		if (NULL != (fsa = (void *)get64(nxcmdp->crb.stamp.nx, fsa))) nx_touch_pages(fsa, 1, pgsz, 0); 
 
-		prt_warn("     pgfault_retries %d bytes_in %d fsa %p\n", pgfault_retries, bytes_in, fsa);
+		prt_warn(" pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n", 
+			pgfault_retries, bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
 		if (pgfault_retries == nx_pgfault_retries) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
@@ -1557,7 +1557,6 @@ int nx_deflate(z_streamp strm, int flush)
 	/* update flush status here */
 	s->flush = flush;
 
-	prt_info("\n");
 	print_dbg_info(s, __LINE__);
 	prt_info("     s->flush %d s->status %d \n", s->flush, s->status);
 

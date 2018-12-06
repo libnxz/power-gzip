@@ -855,11 +855,9 @@ restart_nx:
 		/* Touch 1 byte, read-only  */
 		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
 		/* get64 does the endian conversion */
-		if (NULL != (fsa = (void *)(get64(cmdp->crb.stamp.nx, fsa))))
-			nx_touch_pages(fsa, 1, nx_config.page_sz, 0);
 
-		prt_warn(" pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d fsa %p\n",
-			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz, fsa);
+		prt_warn(" pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
+			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz);
 
 		if (pgfault_retries == nx_config.retry_max) {
 			/* try once with exact number of pages */

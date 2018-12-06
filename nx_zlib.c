@@ -584,6 +584,8 @@ void nx_hw_init(void)
 
 	/* only init one time for the program */
 	if (nx_init_done == 1) return;
+	pthread_mutex_init (&mutex_log, NULL);
+	pthread_mutex_init (&nx_devices_mutex, NULL);
 
 	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */

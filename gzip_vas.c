@@ -26,6 +26,7 @@
 #include "nx-helpers.h"
 #include "copy-paste.h"
 #include "nxu.h"
+#include "nx_dbg.h"
 #include <sys/platform/ppc.h>
 
 #define barrier()
@@ -117,13 +118,13 @@ int nx_function_end(void *handle)
         int rc = 0;
         struct nx_handle *nxhandle = handle;
         /* check erro here? if unmap successfully, page fault usually found? */
-        rc = munmap(nxhandle->paste_addr, 4096);
+        // rc = munmap(nxhandle->paste_addr, 4096);
 
-        /* rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+        rc = munmap(nxhandle->paste_addr - 0x400, 4096);
         if (rc < 0) {
                 fprintf(stderr, "munmap() failed, errno %d\n", errno);
                 return rc;
-        }*/
+        }
         close(nxhandle->fd);
         free(nxhandle);
         return rc;
@@ -169,6 +170,7 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	/* check CSB flags */
 	if( getnn( cmdp->crb.csb, csb_v ) == 0 ) {
 		fprintf( stderr, "CSB still not valid after %d polls, giving up", (int) poll );
+		prt_err("CSB still not valid after %d polls, giving up.\n", (int) poll);
 		return -ETIMEDOUT;
 	}
 
@@ -249,6 +251,4 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 out:
 	return ret;
 }
-
-
 

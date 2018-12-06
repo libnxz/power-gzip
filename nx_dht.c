@@ -102,8 +102,6 @@ void *dht_begin3(char *ifile, char *ofile)
 	return (void *)cache;
 }
 
-
-
 void dht_end(void *handle)
 {
 	if (!!handle) free(handle);
@@ -138,18 +136,16 @@ static int dht_lookup1(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 
 static int dht_lookup3(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
-	int i, j, k, dht_num_bytes, dht_num_valid_bits, dhtlen;
-	int least_used_idx;
-	int64_t least_used_count;
+	int i, j, k;
 	const int litrng = 0;
 	const int lenrng = 1;
 	const int disrng = 2;
-	struct { struct { uint32_t cnt; int sym; } sorted[2]; } top[3]  __attribute__ ((aligned (16)));
+	struct { struct { uint32_t lzcnt; int sym; } sorted[2]; } top[3]  __attribute__ ((aligned (16)));
 
 	cached_dht_t *dht_cache = (cached_dht_t *) handle;
 
 	/* init */
-	top[litrng].sorted[0].cnt = 0;
+	top[litrng].sorted[0].lzcnt = 0;
 	top[litrng].sorted[0].sym = -1;
 	top[litrng].sorted[1] = top[litrng].sorted[0];
 	top[lenrng] = top[disrng] = top[litrng];
@@ -158,52 +154,56 @@ static int dht_lookup3(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 	for (i = 0; i < 256; i++) { /* Literals */
 		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
 		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
-		if (c > top[litrng].sorted[0].cnt ) {
+		if (c > top[litrng].sorted[0].lzcnt ) {
 			/* count greater than the top count */
 			top[litrng].sorted[1] = top[litrng].sorted[0]; /* shift previous top by one */
-			top[litrng].sorted[0].cnt = c;           /* save the new top count and symbol */
+			top[litrng].sorted[0].lzcnt = c;           /* save the new top count and symbol */
 			top[litrng].sorted[0].sym = i;
-		} else if (c > top[litrng].sorted[1].cnt) {
+		} else if (c > top[litrng].sorted[1].lzcnt) {
 			/* count greater than the second most count */
-			top[litrng].sorted[1].cnt = c;
+			top[litrng].sorted[1].lzcnt = c;
 			top[litrng].sorted[1].sym = i;
 		}
 	}
 	for (i = 256; i < LLSZ; i++) { /* Lengths */
 		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
 		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
-		if (c > top[lenrng].sorted[0].cnt ) {
+		if (c > top[lenrng].sorted[0].lzcnt ) {
 			/* count greater than the top count */
 			top[lenrng].sorted[1] = top[lenrng].sorted[0];
-			top[lenrng].sorted[0].cnt = c;          
+			top[lenrng].sorted[0].lzcnt = c;          
 			top[lenrng].sorted[0].sym = i;
-		} else if (c > top[lenrng].sorted[1].cnt) {
+		} else if (c > top[lenrng].sorted[1].lzcnt) {
 			/* count greater than the second most count */
-			top[lenrng].sorted[1].cnt = c;
+			top[lenrng].sorted[1].lzcnt = c;
 			top[lenrng].sorted[1].sym = i;
 		}
 	}
 	for (i = LLSZ; i < LLSZ+DSZ; i++) { /* Distances */
 		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
 		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
-		if (c > top[disrng].sorted[0].cnt ) {
+		if (c > top[disrng].sorted[0].lzcnt ) {
 			/* count greater than the top count */
 			top[disrng].sorted[1] = top[disrng].sorted[0];
-			top[disrng].sorted[0].cnt = c;          
+			top[disrng].sorted[0].lzcnt = c;          
 			top[disrng].sorted[0].sym = i;
-		} else if (c > top[disrng].sorted[1].cnt) {
+		} else if (c > top[disrng].sorted[1].lzcnt) {
 			/* count greater than the second most count */
-			top[disrng].sorted[1].cnt = c;
+			top[disrng].sorted[1].lzcnt = c;
 			top[disrng].sorted[1].sym = i;
 		}
 	}
+
+	int dht_num_bytes, dht_num_valid_bits, dhtlen;
+	int least_used_idx;
+	int64_t least_used_count;
 
 	/* speed up the search by biasing the start index j */
 	j = top[litrng].sorted[0].sym;
 	j = (j < 0) ? 0 : j;
 	j = j % DHT_NUM_MAX;
 
-	/* identify the least candidate in case needs replacement */
+	/* identify the least used entry in case needs replacement */
 	least_used_idx = 0;
 	least_used_count = 1UL<<30;
 
@@ -212,14 +212,15 @@ static int dht_lookup3(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 		int64_t used_count = dht_cache[j].use_count;
 
 		if (used_count == 0) {
-			/* identify then skip the invalid entry */
+			/* identify then skip the unused entry */
 			least_used_count = used_count;
 			least_used_idx = j;
 			continue;
 		}
+
 		if (used_count < least_used_count && used_count > 0) {
-			/* identify the least used non-builtin cache item */
-			/* note that used_count == -1 is a built-in item */
+			/* identify the least used and non-builtin entry;
+			   note that used_count == -1 is a built-in item */
 			least_used_count = used_count;
 			least_used_idx = j;
 		}
@@ -230,7 +231,8 @@ static int dht_lookup3(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 		    dht_cache[j].lit[1] == top[litrng].sorted[1].sym &&  /* second top lit */
 		    dht_cache[j].len[1] == top[lenrng].sorted[1].sym ) { /* second top len */
 		
-			/* top two literals and top two lengths are matched in the cache */
+			/* top two literals and top two lengths are matched in the cache;
+			   assuming that this is a good dht match */
 
 			/* copy the matched dht back to cpb */
 			dhtlen = dht_cache[j].in_dhtlen;
@@ -240,7 +242,7 @@ static int dht_lookup3(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 
 			/* manage the cache usage counts */
 			if (used_count >= 0) {
-				/* do not mess with builtin entry use counts */
+				/* do not mess with builtin entry counts */
 				++ dht_cache[j].use_count;
 			}
 
@@ -299,8 +301,6 @@ int dht_print(void *handle)
 	const int litrng = 0;
 	const int lenrng = 1;
 	const int disrng = 2;
-	char buf[sizeof(cached_dht_t)*8];
-
 	cached_dht_t *dht_cache = (cached_dht_t *) handle;
 
 	/* search the dht cache */
@@ -315,16 +315,35 @@ int dht_print(void *handle)
 		dht_cache[j].in_dht_char;
 
 		fprintf(stderr, "{\n");
+
 		fprintf(stderr, "\t%d, /* count */\n", dht_cache[j].use_count);
+
+		/* unused at the moment */
+		dht_cache[j].cksum = 0;
 		fprintf(stderr, "\t%d, /* cksum */\n", dht_cache[j].cksum);
-		fprintf(stderr, "\t{%d, %d, %d,}, /* cpb_reserved[3] */\n", 
-			dht_cache[j].cpb_reserved[0],		
-			dht_cache[j].cpb_reserved[1],		
-			dht_cache[j].cpb_reserved[2]);		
+
+		fprintf(stderr, "\t{0, 0, 0,}, /* cpb_reserved[3] unused */\n");
+
 		fprintf(stderr, "\t%d, /* in_dhtlen */\n", dht_cache[j].in_dhtlen);
-		fprintf(stderr, "\t{\n\t\t");
-		/* for (i=0; i<dht_num_bytes; i++) {
-		   fprintf(stderr, "0x%02x, ",  */
+
+		fprintf(stderr, "\t{ /* dht bytes follow */\n");
+		for (i=0; i<dht_num_bytes; i++) {
+			if (i % 16 == 0)
+				fprintf(stderr, "\n\t\t");
+			fprintf(stderr, "0x%02x, ", dht_cache[j].in_dht_char);
+		}
+		fprintf(stderr, "\n\t}, /* dht bytes end */");
+
+		fprintf(stderr, "\t{%d, %d,}, /* top lit */\n", dht_cache[j].lit[0], dht_cache[j].lit[1] );
+		fprintf(stderr, "\t{%d, %d,}, /* top len */\n", dht_cache[j].len[0], dht_cache[j].len[1] );
+		fprintf(stderr, "\t{%d, %d,}, /* top dis */\n", dht_cache[j].dis[0], dht_cache[j].dis[1] );
+
+		/* these are unused at the moment */
+		fprintf(stderr, "\t{%d, }, /* top lit bits */\n", dht_cache[j].lit_bits[0] );
+		fprintf(stderr, "\t{%d, }, /* top len bits */\n", dht_cache[j].len_bits[0] );
+		fprintf(stderr, "\t{%d, }, /* top dis bits */\n", dht_cache[j].dis_bits[0] );
+
+		fprintf(stderr, "},\n\n");
 	}
 
 	return 0;

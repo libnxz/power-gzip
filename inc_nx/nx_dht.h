@@ -39,10 +39,16 @@
 
 #include <nxu.h>
 
-#define DHT_TOPSYM_MAX  8     /* number of most frequent symbols tracked */
-#define DHT_NUM_MAX     100   /* max number of dht table entries */
-#define DHT_SZ_MAX      (DHT_MAXSZ+16)   /* number of dht bytes per entry */
-#define DHT_MAGIC       0x4e584448
+#define DHT_TOPSYM_MAX   8     /* number of most frequent symbols tracked */
+#define DHT_NUM_MAX      100   /* max number of dht table entries */
+#define DHT_SZ_MAX       (DHT_MAXSZ+16)   /* number of dht bytes per entry */
+#define DHT_MAGIC        0x4e584448
+#define DHT_NUM_BUILTIN  2     /* number of built-in entries */
+
+#define dht_default_req    0  /* use this if no lzcounts available */
+#define dht_search_req     1  /* search the cache and generate if not found */
+#define dht_gen_req        2  /* unconditionally generate; do not cache */
+#define dht_invalidate_req 3  /* erase cache contents except builtin ones */
 
 typedef struct cached_dht_t {
 	/* usage count for cache replacement 
@@ -93,7 +99,7 @@ extern int builtin_dht_topsym [][DHT_TOPSYM_MAX+1];
 
 void *dht_begin(char *ifile, char *ofile);             /* deflateInit */
 void dht_end(void *handle);                            /* deflateEnd  */
-int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle); /* deflate     */
+int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle); /* deflate */
 
 int dhtgen(uint32_t  *lhist,        /* supply the P9 LZ counts here */
 	   int num_lhist,

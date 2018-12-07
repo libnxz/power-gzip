@@ -82,14 +82,14 @@ void *dht_begin1(char *ifile, char *ofile)
 	return (void *)table;
 }
 
-extern cached_dht_t *builtin1;
+extern cached_dht_t builtin1[DHT_NUM_BUILTIN];
 /* One time setup of the tables. Returns a handle */
 void *dht_begin3(char *ifile, char *ofile)
 {
 	int i;
 	cached_dht_t *cache;
 
-	if (NULL == (cache = malloc(sizeof(cached_dht_t) * (DHT_NUM_MAX+1))))
+	if (NULL == (cache = malloc(sizeof(cached_dht_t) * (DHT_NUM_MAX+1)) ) )
 		return NULL;
 
 	for (i=0; i<DHT_NUM_MAX; i++) {
@@ -97,11 +97,10 @@ void *dht_begin3(char *ifile, char *ofile)
 		cache[i].use_count = 0;
 	}
 
-	for (i=0; i<DHT_NUM_BUILTIN; i++) {
+	for (i = 0; i < DHT_NUM_BUILTIN; i++) {
 		/* copy in the built-in entries */
 		cache[i] = builtin1[i];
 	}
-
 	return (void *)cache;
 }
 
@@ -148,9 +147,11 @@ const int lits = 0;
 const int lens = 1;
 const int dists = 2;
 
-/* finds the top symbols in lit, len and dist ranges
-   cmdp->cpb.out_lzcount array may be modified
-   results returned in top[3] structs
+/* 
+   Finds the top symbols in lit, len and dist ranges
+   cmdp->cpb.out_lzcount array may be modified.  Results returned in
+   the top[3] struct.  We will use the top symbols as cache keys to
+   locate a matching dht.
 */
 static int dht_sort(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
 {
@@ -208,9 +209,11 @@ static int dht_sort(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
 		}
 	}
 #endif
+
+	NXPRT( fprintf(stderr, "top_lits %d %d top_lens %d %d\n", top[lits].sorted[0].sym, top[lits].sorted[1].sym, top[lens].sorted[0].sym, top[lens].sorted[1].sym ) );
+
 	return 0;
 }
-
 
 static inline int copy_cached_dht_to_cpb(nx_gzip_crb_cpb_t *cmdp, int idx, void *handle)
 {
@@ -292,7 +295,7 @@ search_cache:
 			/* top two literals and top two lengths are matched in the cache;
 			   assuming that this is a good dht match */
 
-			fprintf(stderr, "dht cache hit idx %d, use_count %ld\n", sidx, dht_cache[sidx].use_count);
+			NXPRT( fprintf(stderr, "dht cache hit idx %d, use_count %ld\n", sidx, dht_cache[sidx].use_count) );
 
 			/* copy the cached dht back to cpb */
 			copy_cached_dht_to_cpb(cmdp, sidx, handle);
@@ -335,15 +338,22 @@ force_dhtgen:
 	dhtlen = 8 * dht_num_bytes - ((dht_num_valid_bits) ? 8 - dht_num_valid_bits : 0 );
 	putnn(cmdp->cpb, in_dhtlen, dhtlen); /* write to cpb */
 
-	fprintf(stderr, "dhtgen bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits);
+	NXPRT( fprintf(stderr, "dhtgen bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits) );
 
 	if (request == dht_gen_req) /* without updating cache */
 		return 0;
 
+copy_to_cache:
 	/* make a copy in the cache at the least used position */
 	memcpy(dht_cache[least_used_idx].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
 	dht_cache[least_used_idx].in_dhtlen = dhtlen;
 	dht_cache[least_used_idx].use_count = 1;
+
+	/* save the dht identifier */
+	dht_cache[least_used_idx].lit[0] = top[lits].sorted[0].sym;
+	dht_cache[least_used_idx].lit[1] = top[lits].sorted[1].sym;	
+	dht_cache[least_used_idx].len[0] = top[lens].sorted[0].sym;
+	dht_cache[least_used_idx].len[1] = top[lens].sorted[1].sym;	
 
 	return 0;
 }
@@ -354,7 +364,7 @@ int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 }
 
 
-/* use this to make builtin dht data structures */
+/* use this utility to make builtin dht data structures */
 int dht_print(void *handle)
 {
 	int i, j, dht_num_bytes, dhtlen;
@@ -366,6 +376,10 @@ int dht_print(void *handle)
 
 		if (used_count == 0)
 			continue;
+
+		fprintf(stderr, "/* top lits %d %d lens %d %d */\n", 
+			dht_cache[j].lit[0], dht_cache[j].lit[1], 
+			dht_cache[j].len[0], dht_cache[j].len[1] );
 
 		dhtlen = dht_cache[j].in_dhtlen;
 		dht_num_bytes = (dhtlen + 7)/8;

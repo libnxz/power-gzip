@@ -71,8 +71,11 @@
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
 
 /* maximum of 5% of input and the nbyte value is used to sample symbols towards dht statistics */
-#define NX_LZ_SAMPLE_PERCENT  5 
-#define NX_LZ_SAMPLE_NBYTE    32768 
+#define NX_LZ_SAMPLE_PERCENT  5
+#ifndef NX_LZ_SAMPLE_NBYTE
+#define NX_LZ_SAMPLE_NBYTE    (1UL<<15)
+#endif
+#define NX_CHUNK_SZ  (1<<18)
 
 #ifdef NXTIMER
 struct _nx_time_dbg {
@@ -459,7 +462,7 @@ int compress_file(int argc, char **argv, void *handle)
 	NX_CLK( (td.freq = nx_get_freq())  );
 	
 	/* compress piecemeal in small chunks */    
-	chunk = 1<<22;
+	chunk = NX_CHUNK_SZ;
 
 	/* write the gzip header */    
 	num_hdr_bytes = gzip_header_blank(outbuf); 
@@ -486,7 +489,7 @@ int compress_file(int argc, char **argv, void *handle)
 	/* Fill in with the default dht here; instead we could also do
 	   fixed huffman with counts for sampling the LZcounts; fixed
 	   huffman doesn't need a dht_lookup */
-	dht_lookup(cmdp, 0, dhthandle); 
+	dht_lookup(cmdp, dht_default_req, dhthandle); 
 	first_pass = 1;
 
 	fault_tries = 50;
@@ -507,7 +510,8 @@ int compress_file(int argc, char **argv, void *handle)
 			/* If srclen is very large, use 5% of it. If
 			   srclen is smaller than 32KB, then use
 			   srclen itself as the sample */
-			srclen = NX_MIN( NX_MAX((srclen * NX_LZ_SAMPLE_PERCENT)/100, NX_LZ_SAMPLE_NBYTE), srclen);
+			srclen = NX_MIN( NX_MAX(((uint64_t)srclen * NX_LZ_SAMPLE_PERCENT)/100, NX_LZ_SAMPLE_NBYTE), srclen);
+			fprintf(stderr, "sample size %d\n", srclen);
 		}
 		else {
 			/* Here I will use the lzcounts collected from
@@ -515,7 +519,7 @@ int compress_file(int argc, char **argv, void *handle)
 			   or computed DHT; I don't need to sample the
 			   data anymore; previous run's lzcount
 			   is a good enough as an lzcount of this run */
-			dht_lookup(cmdp, 1, dhthandle); 
+			dht_lookup(cmdp, dht_search_req, dhthandle); 
 		}
 
 		NX_CLK( (td.touch1 = nx_get_time()) );
@@ -659,6 +663,7 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
 		sig, info->si_code, info->si_addr);
 
+	exit(-1);
 	nx_fault_storage_address = info->si_addr; 
 }
 

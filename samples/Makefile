@@ -27,9 +27,9 @@ nx_dhtgen.o:	../nx_dhtgen.c
 nx_dht_decomp.o:	../nx_dht_decomp.c
 	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../nx_dht_decomp.c
 
-#define SAVE_LZCOUNTS only when collecting counts
+#define SAVE_LZCOUNTS only when printing dhts in the cache
 gzip_nxdht.o:	gzip_nxdht.c
-	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c gzip_nxdht.c # -DSAVE_LZCOUNTS
+	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c gzip_nxdht.c -DSAVE_LZCOUNTS
 
 gunzip_nx.o:	gunzip_nx.c
 	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c gunzip_nx.c

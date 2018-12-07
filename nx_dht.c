@@ -169,7 +169,7 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
 
 	/* Will not use distances as cache keys */
 
-	DHTPRT( fprintf(stderr, "top litlens %d %d %d\n", top[llns].sorted[0].sym, top[llns].sorted[1].sym, top[llns].sorted[2].sym) );
+	/* DHTPRT( fprintf(stderr, "top litlens %d %d %d\n", top[llns].sorted[0].sym, top[llns].sorted[1].sym, top[llns].sorted[2].sym) ); */
 
 	return 0;
 }
@@ -350,11 +350,9 @@ int dht_print(void *handle)
 	for (j = 0; j < DHT_NUM_MAX; j++) {
 		int64_t used_count = dht_cache[j].use_count;
 
-		if (used_count == 0)
+		/* skip unused and builtin ones */
+		if (used_count <= 0)
 			continue;
-
-		fprintf(stderr, "/* top litlens %d %d %d */\n", 
-			dht_cache[j].litlen[0], dht_cache[j].litlen[1], dht_cache[j].litlen[2] );
 
 		dhtlen = dht_cache[j].in_dhtlen;
 		dht_num_bytes = (dhtlen + 7)/8;

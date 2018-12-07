@@ -50,9 +50,10 @@
 #include "nxu.h"
 #include "nx_dht.h"
 
-/* these determine how many dhtgen calls are made; if cache keys are
-   too many then dhtgen overhead increases; if cache keys are too few
-   then compression ratio suffers */
+/* If cache keys are too many then dhtgen overhead increases; if cache
+   keys are too few then compression ratio suffers.
+   #undef this to compare with two keys instead of one */
+/* #define DHT_ONE_KEY */
 
 /* Approximately greater. If the counts (probabilities) are similar
    then the code lengths will probably end up being equal do not make
@@ -144,10 +145,13 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
 		uint32_t c = lzcount[i];
 		if ( DHT_GT(c, top[llns].sorted[0].lzcnt) ) {
 			/* count greater than the top count */
+#if !defined(DHT_ONE_KEY)
 			top[llns].sorted[1] = top[llns].sorted[0];
+#endif
 			top[llns].sorted[0].lzcnt = c;           
 			top[llns].sorted[0].sym = i;
 		} 
+#if !defined(DHT_ONE_KEY)
 		else if ( DHT_GT(c, top[llns].sorted[1].lzcnt) ) {
 			/* count greater than the second most count */
 			top[llns].sorted[2] = top[llns].sorted[1];
@@ -159,9 +163,11 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
 			top[llns].sorted[2].lzcnt = c;
 			top[llns].sorted[2].sym = i;
 		}
+#endif
 	}
 
-	/* Will not use distances to as cachke keys */
+
+	/* Will not use distances as cache keys */
 
 	DHTPRT( fprintf(stderr, "top litlens %d %d %d\n", top[llns].sorted[0].sym, top[llns].sorted[1].sym, top[llns].sorted[2].sym) );
 
@@ -253,11 +259,14 @@ search_cache:
 			least_used_idx = sidx;
 		}
 
+#if !defined(DHT_ONE_KEY)
 		/* look for a match */
 		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym     /* top litlen */
 		    &&
 		    dht_cache[sidx].litlen[1] == top[llns].sorted[1].sym ) { /* second top litlen */
-			
+#else
+		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym) { /* top litlen */
+#endif
 			/* top two literals and top two lengths are matched in the cache;
 			   assuming that this is a good dht match */
 
@@ -278,7 +287,6 @@ search_cache:
 					if ( dht_cache[k].use_count >= 0 )
 						dht_cache[k].use_count = (dht_cache[k].use_count + 1) / 2;
 			}
-
 			return 0;
 		}
 

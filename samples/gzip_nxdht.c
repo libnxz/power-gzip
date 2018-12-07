@@ -649,6 +649,8 @@ int compress_file(int argc, char **argv, void *handle)
 	if (NULL != inbuf) free(inbuf);
 	if (NULL != outbuf) free(outbuf);    
 
+	dht_print(dhthandle);
+
 	dht_end(dhthandle);
 
 	return 0;

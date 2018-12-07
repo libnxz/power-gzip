@@ -39,27 +39,23 @@
 
 #include <nxu.h>
 
-#define DHT_TOPSYM_MAX   8     /* number of most frequent symbols tracked */
+#define DHT_TOPSYM_MAX   4     /* number of most frequent symbols tracked */
 #define DHT_NUM_MAX      100   /* max number of dht table entries */
 #define DHT_SZ_MAX       (DHT_MAXSZ+16)   /* number of dht bytes per entry */
-#define DHT_MAGIC        0x4e584448
 #define DHT_NUM_BUILTIN  2     /* number of built-in entries */
 
-#define dht_default_req    0  /* use this if no lzcounts available */
-#define dht_search_req     1  /* search the cache and generate if not found */
-#define dht_gen_req        2  /* unconditionally generate; do not cache */
-#define dht_invalidate_req 3  /* erase cache contents except builtin ones */
-
 typedef struct cached_dht_t {
+	/* cache location */
+	uint32_t index; 
+	/* 32bit XOR of the entire struct, inclusive of cksum, must
+	   equal 0. May use the cksum if this struct is read/write to
+	   a file; note that XOR is endian agnostic */
+	uint32_t cksum;
 	/* usage count for cache replacement 
 	    0: invalid entry; 
 	   -1: builtin entry not to be replaced; 
 	   >0: computed entry */
 	int64_t use_count;
-	/* 32bit XOR of the entire struct, inclusive of cksum, must
-	   equal 0. May use the cksum if this struct is read/write to
-	   a file; note that XOR is endian agnostic */
-	uint32_t cksum;
 	/* for alignment */
 	uint32_t cpb_reserved[3];
 	/* last 32b contains the 12 bit length; use
@@ -70,37 +66,29 @@ typedef struct cached_dht_t {
 	char in_dht_char[DHT_MAXSZ];
 	/* most freq symbols and their code lengths; use them to
 	   lookup the dht cache; */
-	int lit[DHT_TOPSYM_MAX];  
-	int len[DHT_TOPSYM_MAX];
-	int dis[DHT_TOPSYM_MAX];
-	int lit_bits[DHT_TOPSYM_MAX];
-	int len_bits[DHT_TOPSYM_MAX];
-	int dis_bits[DHT_TOPSYM_MAX];
+	int litlen[DHT_TOPSYM_MAX];  
+	int dist[DHT_TOPSYM_MAX];
 } cached_dht_t;
 
-extern unsigned char builtin_dht [][DHT_SZ_MAX];
-extern int builtin_dht_topsym [][DHT_TOPSYM_MAX+1];
+#define dht_default_req    0  /* use this if no lzcounts available */
+#define dht_search_req     1  /* search the cache and generate if not found */
+#define dht_gen_req        2  /* unconditionally generate; do not cache */
+#define dht_invalidate_req 3  /* erase cache contents except builtin ones */
 
-/* 
-   dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
+/* call in deflateInit; returns a handle for dht_lookup.
+   ifile and ofile are unused in this implementation */
+void *dht_begin(char *ifile, char *ofile);             
 
-   cmdp supplies the LZ symbol statistics in cmd->cpb.out_lzcount[].
-   An appropiate huffman table, computed or from cache, is returned in
-   cmd->cpb.in_dht[] and .in_dhtlen.  ofile != NULL, writes LZ
-   statistics and the dht if it was computed.  ifile != NULL, reads a
-   dht from ifile and caches it.  See nx_dht.h for formats.
+/* call in deflateEnd  */
+void dht_end(void *handle);                            
 
-   request and return values:
-   -1: error
-   0:  default dht
-   1:  found a dht in the cache
-   2:  compute a new dht
-*/
+/* call in deflate */
+int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 
-void *dht_begin(char *ifile, char *ofile);             /* deflateInit */
-void dht_end(void *handle);                            /* deflateEnd  */
-int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle); /* deflate */
+/* use this utility to make built-in dht data structures */
+int dht_print(void *handle);
 
+/* given lzcounts produce a dynamic huffman table */
 int dhtgen(uint32_t  *lhist,        /* supply the P9 LZ counts here */
 	   int num_lhist,
 	   uint32_t *dhist,

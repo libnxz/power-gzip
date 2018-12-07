@@ -50,44 +50,43 @@
 #include "nxu.h"
 #include "nx_dht.h"
 
-typedef struct dht_tab_t {
-	unsigned char *pdht;
-	int *pdht_topsym;
-	unsigned char dht[DHT_SZ_MAX];
-	int dht_topsym[DHT_TOPSYM_MAX+1];
-} dht_tab_t;
+/* these determine how many dhtgen calls are made; if cache keys are
+   too many then dhtgen overhead increases; if cache keys are too few
+   then compression ratio suffers */
 
-/* One time setup of the tables. Returns a handle */
-void *dht_begin1(char *ifile, char *ofile)
-{
-	int i;
-	dht_tab_t *table;
+/* Approximately greater. If the counts (probabilities) are similar
+   then the code lengths will probably end up being equal do not make
+   unnecessary dhtgen calls */
+#define DHT_GT(X,Y) ((X) > (((Y)*7)/4))
 
-	if (NULL == (table = malloc(sizeof(dht_tab_t) * (DHT_NUM_MAX+1))))
-		return NULL;
+/* util */
+#ifdef NXDBG
+#define DHTPRT(X) do{ X;}while(0)
+#else
+#define DHTPRT(X) do{  ;}while(0)
+#endif
 
-	/* setup the built-in entries */
-	for (i=0; i<DHT_NUM_MAX; i++) {
-		if (builtin_dht_topsym[i][0] < 0) break;
-		table[i].pdht = builtin_dht[i];
-		table[i].pdht_topsym = builtin_dht_topsym[i];
-		/* fprintf(stderr, "build dht %d\n", i); */
-	}
-	/* no entries */
-	table[i].pdht = NULL;
-	table[i].pdht_topsym = NULL;
+typedef struct top_sym_t {
+	struct { 
+		uint32_t lzcnt;
+		int sym;
+	} sorted[3];
+} top_sym_t;
 
-	/* computed entries will be added starting here */
-
-	return (void *)table;
-}
+const int llns = 0;
+const int dsts = 1;
+const int64_t large_int = 1<<30;
 
 extern cached_dht_t builtin1[DHT_NUM_BUILTIN];
-/* One time setup of the tables. Returns a handle */
-void *dht_begin3(char *ifile, char *ofile)
+
+/* One time setup of the tables. Returns a handle.
+   ifile ofile unused */
+void *dht_begin4(char *ifile, char *ofile)
 {
 	int i;
 	cached_dht_t *cache;
+
+	assert( DHT_NUM_MAX > DHT_NUM_BUILTIN );
 
 	if (NULL == (cache = malloc(sizeof(cached_dht_t) * (DHT_NUM_MAX+1)) ) )
 		return NULL;
@@ -97,9 +96,11 @@ void *dht_begin3(char *ifile, char *ofile)
 		cache[i].use_count = 0;
 	}
 
+	/* copy in the built-in entries to where they were found earlier */
 	for (i = 0; i < DHT_NUM_BUILTIN; i++) {
-		/* copy in the built-in entries */
-		cache[i] = builtin1[i];
+		int idx = builtin1[i].index;
+		assert( idx < DHT_NUM_BUILTIN && idx >= 0);
+		cache[idx] = builtin1[i];
 	}
 	return (void *)cache;
 }
@@ -112,107 +113,73 @@ void dht_end(void *handle)
 /* One time setup of the tables. Returns a handle */
 void *dht_begin(char *ifile, char *ofile)
 {
-	return dht_begin3(ifile, ofile);
+	return dht_begin4(ifile, ofile);
 }
 
-
-#define IN_DHTLEN(X) (((int)*((X)+15)) | (((int)*((X)+14))<<8))
-
-static int dht_lookup1(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
+static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
 {
-	int dhtlen;
-	dht_tab_t *table = handle;
+	int i;
+	uint32_t *lzcount;
+	
+	/* init */
+	top[llns].sorted[0].lzcnt = 0;
+	top[llns].sorted[0].sym = -1;
+	top[llns].sorted[2] = top[llns].sorted[1] = top[llns].sorted[0];
+	top[dsts] = top[llns];
 
-	/* sample procedure; we would normally search for a table entry */
+	lzcount = (uint32_t *)cmdp->cpb.out_lzcount;
 
-	dhtlen = IN_DHTLEN(table[0].pdht);     /* extract bit len */
-	putnn(cmdp->cpb, in_dhtlen, dhtlen);   /* tell cpb the dhtlen */
+	if (1 != lzcount[256]) {
+		/* anything other than 1 means not endian corrected */
+		for (i = 0; i < LLSZ+DSZ; i++) 
+			lzcount[i] = be32toh(lzcount[i]);
+		lzcount[256] = 1;
+		DHTPRT( fprintf(stderr, "lzcounts endian reversed\n") );
+	} 
+	else {
+		DHTPRT( fprintf(stderr, "lzcounts not endian reversed\n") );
+	}
 
-	dhtlen = (dhtlen + 7)/8;               /* bytes */
+	for (i = 0; i < LLSZ; i++) { /* Literals and Lengths */
+		uint32_t c = lzcount[i];
+		if ( DHT_GT(c, top[llns].sorted[0].lzcnt) ) {
+			/* count greater than the top count */
+			top[llns].sorted[1] = top[llns].sorted[0];
+			top[llns].sorted[0].lzcnt = c;           
+			top[llns].sorted[0].sym = i;
+		} 
+		else if ( DHT_GT(c, top[llns].sorted[1].lzcnt) ) {
+			/* count greater than the second most count */
+			top[llns].sorted[2] = top[llns].sorted[1];
+			top[llns].sorted[1].lzcnt = c;
+			top[llns].sorted[1].sym = i;
+		}
+		else if ( DHT_GT(c, top[llns].sorted[2].lzcnt) ) {
+			/* count greater than the second most count */
+			top[llns].sorted[2].lzcnt = c;
+			top[llns].sorted[2].sym = i;
+		}
+	}
 
-	/* deflate recognized part starts at byte 16; bytes 0-15 belong to P9 */
-	memcpy((void *)(cmdp->cpb.in_dht_char), (void *)(table[0].pdht + 16), dhtlen);
+	/* Will not use distances to as cachke keys */
+
+	DHTPRT( fprintf(stderr, "top litlens %d %d %d\n", top[llns].sorted[0].sym, top[llns].sorted[1].sym, top[llns].sorted[2].sym) );
 
 	return 0;
 }
 
-typedef struct top_sym_t {
-	struct { 
-		uint32_t lzcnt;
-		int sym;
-	} sorted[2];
-} top_sym_t;
-
-const int lits = 0;
-const int lens = 1;
-const int dists = 2;
-
 /* 
-   Finds the top symbols in lit, len and dist ranges
-   cmdp->cpb.out_lzcount array may be modified.  Results returned in
-   the top[3] struct.  We will use the top symbols as cache keys to
-   locate a matching dht.
+   Finds the top symbols in lit, len and dist ranges.
+   cmdp->cpb.out_lzcount array will be endian reversed first.  (To
+   protect cmdp from double reversals I will test and set the Literal 256
+   count to 1 after the first endian reversal)
+
+   Results returned in the top[3] struct.  We will use the top symbols
+   as cache keys to locate a matching dht.
 */
 static int dht_sort(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
 {
-	int i;
-	/* init */
-	top[lits].sorted[0].lzcnt = 0;
-	top[lits].sorted[0].sym = -1;
-	top[lits].sorted[1] = top[lits].sorted[0];
-	top[lens] = top[dists] = top[lits];
-	
-	/* find the top 2 symbols in each of the 3 ranges */
-	for (i = 0; i < 256; i++) { /* Literals */
-		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
-		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
-		if (c > top[lits].sorted[0].lzcnt ) {
-			/* count greater than the top count */
-			top[lits].sorted[1] = top[lits].sorted[0]; /* shift previous top by one */
-			top[lits].sorted[0].lzcnt = c;           /* save the new top count and symbol */
-			top[lits].sorted[0].sym = i;
-		} else if (c > top[lits].sorted[1].lzcnt) {
-			/* count greater than the second most count */
-			top[lits].sorted[1].lzcnt = c;
-			top[lits].sorted[1].sym = i;
-		}
-	}
-
-	for (i = 256; i < LLSZ; i++) { /* Lengths */
-		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
-		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
-		if (c > top[lens].sorted[0].lzcnt ) {
-			/* count greater than the top count */
-			top[lens].sorted[1] = top[lens].sorted[0];
-			top[lens].sorted[0].lzcnt = c;          
-			top[lens].sorted[0].sym = i;
-		} else if (c > top[lens].sorted[1].lzcnt) {
-			/* count greater than the second most count */
-			top[lens].sorted[1].lzcnt = c;
-			top[lens].sorted[1].sym = i;
-		}
-	}
-	
-#if 0 /* not using distances for cache search */
-	for (i = LLSZ; i < LLSZ+DSZ; i++) { /* Distances */
-		uint32_t c = be32toh(((uint32_t *)cmdp->cpb.out_lzcount)[i]);
-		((uint32_t *)cmdp->cpb.out_lzcount)[i] = c;
-		if (c > top[dists].sorted[0].lzcnt ) {
-			/* count greater than the top count */
-			top[dists].sorted[1] = top[dists].sorted[0];
-			top[dists].sorted[0].lzcnt = c;          
-			top[dists].sorted[0].sym = i;
-		} else if (c > top[dists].sorted[1].lzcnt) {
-			/* count greater than the second most count */
-			top[dists].sorted[1].lzcnt = c;
-			top[dists].sorted[1].sym = i;
-		}
-	}
-#endif
-
-	NXPRT( fprintf(stderr, "top_lits %d %d top_lens %d %d\n", top[lits].sorted[0].sym, top[lits].sorted[1].sym, top[lens].sorted[0].sym, top[lens].sorted[1].sym ) );
-
-	return 0;
+	return dht_sort4(cmdp, top);
 }
 
 static inline int copy_cached_dht_to_cpb(nx_gzip_crb_cpb_t *cmdp, int idx, void *handle)
@@ -226,7 +193,7 @@ static inline int copy_cached_dht_to_cpb(nx_gzip_crb_cpb_t *cmdp, int idx, void 
 	return 0;
 }
 
-static int dht_lookup3(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
+static int dht_lookup4(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int i, k, sidx;
 	int dht_num_bytes, dht_num_valid_bits, dhtlen;
@@ -257,13 +224,13 @@ search_cache:
 	dht_sort(cmdp, top);
 
 	/* speed up the search by biasing the start index sidx */
-	sidx = top[lits].sorted[0].sym;
+	sidx = top[llns].sorted[0].sym;
 	sidx = (sidx < 0) ? 0 : sidx;
 	sidx = sidx % DHT_NUM_MAX;
 
 	/* identify the least used cache entry if replacement necessary */
 	least_used_idx = 0;
-	least_used_count = 1UL<<30;
+	least_used_count = large_int;
 
 	/* search the dht cache */
 	for (i = 0; i < DHT_NUM_MAX; i++, sidx = (sidx+1) % DHT_NUM_MAX) {
@@ -287,15 +254,14 @@ search_cache:
 		}
 
 		/* look for a match */
-		if (dht_cache[sidx].lit[0] == top[lits].sorted[0].sym &&  /* top lit */
-		    dht_cache[sidx].len[0] == top[lens].sorted[0].sym &&  /* top len */
-		    dht_cache[sidx].lit[1] == top[lits].sorted[1].sym &&  /* second top lit */
-		    dht_cache[sidx].len[1] == top[lens].sorted[1].sym ) { /* second top len */
-		
+		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym     /* top litlen */
+		    &&
+		    dht_cache[sidx].litlen[1] == top[llns].sorted[1].sym ) { /* second top litlen */
+			
 			/* top two literals and top two lengths are matched in the cache;
 			   assuming that this is a good dht match */
 
-			NXPRT( fprintf(stderr, "dht cache hit idx %d, use_count %ld\n", sidx, dht_cache[sidx].use_count) );
+			DHTPRT( fprintf(stderr, "dht cache hit idx %d, use_count %ld\n", sidx, dht_cache[sidx].use_count) );
 
 			/* copy the cached dht back to cpb */
 			copy_cached_dht_to_cpb(cmdp, sidx, handle);
@@ -304,7 +270,7 @@ search_cache:
 			if (used_count >= 0)
 				++ dht_cache[sidx].use_count;
 
-			if (dht_cache[sidx].use_count > (1UL<<30)) {
+			if (dht_cache[sidx].use_count > large_int) {
 				/* prevent overflow; 
 				   +1 ensures that count=0 remains 0 and
 				   non-zero count remains non-zero */
@@ -320,6 +286,9 @@ search_cache:
 	/* search did not find anything */ 
 
 force_dhtgen:
+
+	DHTPRT( fprintf(stderr, "dht cache miss\n") );
+
 	/* makes a universal dht with no missing codes */
 	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount,        /* LitLen */
 			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, /* Dist */
@@ -338,7 +307,7 @@ force_dhtgen:
 	dhtlen = 8 * dht_num_bytes - ((dht_num_valid_bits) ? 8 - dht_num_valid_bits : 0 );
 	putnn(cmdp->cpb, in_dhtlen, dhtlen); /* write to cpb */
 
-	NXPRT( fprintf(stderr, "dhtgen bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits) );
+	DHTPRT( fprintf(stderr, "dhtgen bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits) );
 
 	if (request == dht_gen_req) /* without updating cache */
 		return 0;
@@ -348,23 +317,22 @@ copy_to_cache:
 	memcpy(dht_cache[least_used_idx].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
 	dht_cache[least_used_idx].in_dhtlen = dhtlen;
 	dht_cache[least_used_idx].use_count = 1;
+	dht_cache[least_used_idx].index = least_used_idx;
 
 	/* save the dht identifier */
-	dht_cache[least_used_idx].lit[0] = top[lits].sorted[0].sym;
-	dht_cache[least_used_idx].lit[1] = top[lits].sorted[1].sym;	
-	dht_cache[least_used_idx].len[0] = top[lens].sorted[0].sym;
-	dht_cache[least_used_idx].len[1] = top[lens].sorted[1].sym;	
+	dht_cache[least_used_idx].litlen[0] = top[llns].sorted[0].sym;
+	dht_cache[least_used_idx].litlen[1] = top[llns].sorted[1].sym;	
+	dht_cache[least_used_idx].litlen[2] = top[llns].sorted[2].sym;	
 
 	return 0;
 }
 
 int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
-	return dht_lookup3(cmdp, request, handle);
+	return dht_lookup4(cmdp, request, handle);
 }
 
-
-/* use this utility to make builtin dht data structures */
+/* use this utility to make built-in dht data structures */
 int dht_print(void *handle)
 {
 	int i, j, dht_num_bytes, dhtlen;
@@ -377,20 +345,21 @@ int dht_print(void *handle)
 		if (used_count == 0)
 			continue;
 
-		fprintf(stderr, "/* top lits %d %d lens %d %d */\n", 
-			dht_cache[j].lit[0], dht_cache[j].lit[1], 
-			dht_cache[j].len[0], dht_cache[j].len[1] );
+		fprintf(stderr, "/* top litlens %d %d %d */\n", 
+			dht_cache[j].litlen[0], dht_cache[j].litlen[1], dht_cache[j].litlen[2] );
 
 		dhtlen = dht_cache[j].in_dhtlen;
 		dht_num_bytes = (dhtlen + 7)/8;
 
 		fprintf(stderr, "{\n");
 
-		fprintf(stderr, "\t%d, /* count */\n", dht_cache[j].use_count);
+		fprintf(stderr, "\t%d, /* cache index */\n", dht_cache[j].index);
 
 		/* unused at the moment */
 		dht_cache[j].cksum = 0;
 		fprintf(stderr, "\t%d, /* cksum */\n", dht_cache[j].cksum);
+
+		fprintf(stderr, "\t%d, /* count */\n", dht_cache[j].use_count);
 
 		fprintf(stderr, "\t{0, 0, 0,}, /* cpb_reserved[3] unused */\n");
 
@@ -400,18 +369,14 @@ int dht_print(void *handle)
 		for (i=0; i<dht_num_bytes; i++) {
 			if (i % 16 == 0)
 				fprintf(stderr, "\n\t\t");
-			fprintf(stderr, "0x%02x, ", dht_cache[j].in_dht_char);
+			fprintf(stderr, "0x%02x, ", (unsigned char)dht_cache[j].in_dht_char[i]);
 		}
 		fprintf(stderr, "\n\t}, /* dht bytes end */\n");
 
-		fprintf(stderr, "\t{%d, %d,}, /* top lit */\n", dht_cache[j].lit[0], dht_cache[j].lit[1] );
-		fprintf(stderr, "\t{%d, %d,}, /* top len */\n", dht_cache[j].len[0], dht_cache[j].len[1] );
-		fprintf(stderr, "\t{%d, %d,}, /* top dis */\n", dht_cache[j].dis[0], dht_cache[j].dis[1] );
-
-		/* these are unused at the moment */
-		fprintf(stderr, "\t{%d, }, /* top lit bits */\n", dht_cache[j].lit_bits[0] );
-		fprintf(stderr, "\t{%d, }, /* top len bits */\n", dht_cache[j].len_bits[0] );
-		fprintf(stderr, "\t{%d, }, /* top dis bits */\n", dht_cache[j].dis_bits[0] );
+		fprintf(stderr, "\t{%d, %d, %d}, /* top litlens */\n", 
+			dht_cache[j].litlen[0], dht_cache[j].litlen[1], dht_cache[j].litlen[2] );
+		fprintf(stderr, "\t{%d, %d, %d}, /* top dists */\n", 
+			dht_cache[j].dist[0], dht_cache[j].dist[1], dht_cache[j].dist[2] );
 
 		fprintf(stderr, "},\n\n");
 	}

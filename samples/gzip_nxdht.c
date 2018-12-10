@@ -291,7 +291,7 @@ int compress_file(int argc, char **argv, void *handle)
 	size_t inlen, outlen, dsttotlen, srctotlen;	
 	uint32_t adler, crc, spbc, tpbc, tebc;
 	int lzcounts=1; /* always collect lzcounts */
-	int first_pass;
+	int initial_pass;
 	int cc,fc;
 	int num_hdr_bytes;
 	nx_gzip_crb_cpb_t nxcmd, *cmdp;
@@ -344,20 +344,20 @@ int compress_file(int argc, char **argv, void *handle)
 	   fixed huffman with counts for sampling the LZcounts; fixed
 	   huffman doesn't need a dht_lookup */
 	dht_lookup(cmdp, dht_default_req, dhthandle); 
-	first_pass = 1;
+	initial_pass = 1;
 
 	fault_tries = 50;
 
 	while (inlen > 0) {
 
-	first_pass_done:
+	initial_pass_done:
 		/* will submit a chunk size source per job */
 		srclen = NX_MIN(chunk, inlen);
 		/* supply large target in case data expands; 288
 		   is for very small src plus the dht headroom */				
 		dstlen = NX_MIN(2 * srclen + 288, outlen); 
 
-		if (first_pass == 1) {
+		if (initial_pass == 1) {
 			/* If requested a first pass to collect
 			   lzcounts; first pass can be short; no need
 			   to run the entire data through typically */
@@ -423,11 +423,11 @@ int compress_file(int argc, char **argv, void *handle)
 
 		fault_tries = 50; /* reset for the next chunk */
 
-		if (first_pass == 1) {
+		if (initial_pass == 1) {
 			/* we got our lzcount sample from the 1st pass */
 			NXPRT( fprintf(stderr, "first pass done\n") );
-			first_pass = 0;
-			goto first_pass_done;
+			initial_pass = 0;
+			goto initial_pass_done;
 		}
 	    
 		inlen     = inlen - srclen;

@@ -100,8 +100,9 @@ void *dht_begin4(char *ifile, char *ofile)
 	/* copy in the built-in entries to where they were found earlier */
 	for (i = 0; i < DHT_NUM_BUILTIN; i++) {
 		int idx = builtin1[i].index;
-		assert( idx < DHT_NUM_BUILTIN && idx >= 0);
+		assert( idx < DHT_NUM_MAX && idx >= 0);
 		cache[idx] = builtin1[i];
+		cache[idx].use_count = -1; /* make them permanent in the cache */
 	}
 	return (void *)cache;
 }

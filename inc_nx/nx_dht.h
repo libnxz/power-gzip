@@ -42,7 +42,7 @@
 #define DHT_TOPSYM_MAX   4     /* number of most frequent symbols tracked */
 #define DHT_NUM_MAX      256   /* max number of dht table entries */
 #define DHT_SZ_MAX       (DHT_MAXSZ+1)   /* number of dht bytes per entry */
-#define DHT_NUM_BUILTIN  2     /* number of built-in entries */
+#define DHT_NUM_BUILTIN  35    /* number of built-in entries */
 
 typedef struct cached_dht_t {
 	/* cache location */

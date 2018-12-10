@@ -398,7 +398,6 @@ inf_forever:
 				s->gzhead->time = s->gzhead->time << 8 | c;
 				++ s->inf_held;
 			}
-			s->gzhead->time = le32toh(s->gzhead->time);
 			s->inf_held = 0;
 			assert( ((s->gzhead->time & (1<<31)) == 0) );
 			/* assertion is a reminder for endian check; either

@@ -235,30 +235,12 @@ search_cache:
 	sidx = (sidx < 0) ? 0 : sidx;
 	sidx = sidx % DHT_NUM_MAX;
 
-	/* identify the least used cache entry if replacement necessary */
-	least_used_idx = 0;
-	least_used_count = large_int;
-
 	/* search the dht cache */
 	for (i = 0; i < DHT_NUM_MAX; i++, sidx = (sidx+1) % DHT_NUM_MAX) {
 		int64_t used_count = dht_cache[sidx].use_count;
 
-		if (used_count == 0) { /* unused cache entry */
-			if (least_used_count != 0) {
-				/* identify the first unused as a
-				   replacement candidate */
-				least_used_count = used_count;
-				least_used_idx = sidx;
-			}
+		if (used_count == 0)
 			continue; /* skip unused entries */
-		}
-
-		if (used_count < least_used_count && used_count > 0) {
-			/* identify the least used and non-builtin entry;
-			   note that used_count == -1 is a built-in item */
-			least_used_count = used_count;
-			least_used_idx = sidx;
-		}
 
 #if !defined(DHT_ONE_KEY)
 		/* look for a match */
@@ -322,6 +304,31 @@ force_dhtgen:
 		return 0;
 
 copy_to_cache:
+
+	/* identify the least used cache entry and replace*/
+	least_used_idx = 0;
+	least_used_count = large_int;
+
+	for (i = 0; i < DHT_NUM_MAX; i++) {
+		int64_t used_count = dht_cache[i].use_count;
+
+		if (used_count == 0) { /* unused cache entry */
+			/* identify the first unused as a
+			   replacement candidate and break */
+			least_used_count = used_count;
+			least_used_idx = i;
+			break;
+		}
+
+
+		if (used_count < least_used_count && used_count > 0) {
+			/* identify the least used and non-builtin entry;
+			   note that used_count == -1 is a built-in item */
+			least_used_count = used_count;
+			least_used_idx = i;
+		}
+	}	
+
 	/* make a copy in the cache at the least used position */
 	memcpy(dht_cache[least_used_idx].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
 	dht_cache[least_used_idx].in_dhtlen = dhtlen;

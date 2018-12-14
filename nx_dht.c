@@ -78,18 +78,18 @@ const int llns = 0;
 const int dsts = 1;
 const int64_t large_int = 1<<30;
 
-extern cached_dht_t builtin1[DHT_NUM_BUILTIN];
+extern dht_entry_t builtin1[DHT_NUM_BUILTIN];
 
 /* One time setup of the tables. Returns a handle.
    ifile ofile unused */
 void *dht_begin4(char *ifile, char *ofile)
 {
 	int i;
-	cached_dht_t *cache;
+	dht_entry_t *cache;
 
 	assert( DHT_NUM_MAX > DHT_NUM_BUILTIN );
 
-	if (NULL == (cache = malloc(sizeof(cached_dht_t) * (DHT_NUM_MAX+1)) ) )
+	if (NULL == (cache = malloc(sizeof(dht_entry_t) * (DHT_NUM_MAX+1)) ) )
 		return NULL;
 
 	for (i=0; i<DHT_NUM_MAX; i++) {
@@ -106,6 +106,34 @@ void *dht_begin4(char *ifile, char *ofile)
 	}
 	return (void *)cache;
 }
+
+/* One time setup of the tables. Returns a handle.
+   ifile ofile unused */
+void *dht_begin5(char *ifile, char *ofile)
+{
+	int i;
+	dht_entry_t *cache;
+
+	assert( DHT_NUM_MAX > DHT_NUM_BUILTIN );
+
+	if (NULL == (cache = malloc(sizeof(dht_entry_t) * (DHT_NUM_MAX+1)) ) )
+		return NULL;
+
+	for (i=0; i<DHT_NUM_MAX; i++) {
+		/* set all invalid */
+		cache[i].use_count = 0;
+	}
+
+	/* copy in the built-in entries to where they were found earlier */
+	for (i = 0; i < DHT_NUM_BUILTIN; i++) {
+		int idx = builtin1[i].index;
+		assert( idx < DHT_NUM_MAX && idx >= 0);
+		cache[idx] = builtin1[i];
+		cache[idx].use_count = -1; /* make them permanent in the cache */
+	}
+	return (void *)cache;
+}
+
 
 void dht_end(void *handle)
 {
@@ -189,10 +217,10 @@ static int dht_sort(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
 	return dht_sort4(cmdp, top);
 }
 
-static inline int copy_cached_dht_to_cpb(nx_gzip_crb_cpb_t *cmdp, int idx, void *handle)
+static inline int copy_dht_to_cpb(nx_gzip_crb_cpb_t *cmdp, int idx, void *handle)
 {
 	int dhtlen, dht_num_bytes;
-	cached_dht_t *dht_cache = (cached_dht_t *) handle;
+	dht_entry_t *dht_cache = (dht_entry_t *) handle;
 	dhtlen = dht_cache[idx].in_dhtlen;
 	dht_num_bytes = (dhtlen + 7)/8; /* bits to bytes */
 	putnn(cmdp->cpb, in_dhtlen, (uint32_t)dhtlen);
@@ -207,11 +235,11 @@ static int dht_lookup4(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 	int least_used_idx;
 	int64_t least_used_count;
 	top_sym_t top[3];
-	cached_dht_t *dht_cache = (cached_dht_t *) handle;
+	dht_entry_t *dht_cache = (dht_entry_t *) handle;
 	
 	if (request == dht_default_req) {
 		/* first builtin entry is the default */
-		copy_cached_dht_to_cpb(cmdp, 0, handle);
+		copy_dht_to_cpb(cmdp, 0, handle);
 		return 0;
 	}
 	else if (request == dht_gen_req)
@@ -256,7 +284,7 @@ search_cache:
 			DHTPRT( fprintf(stderr, "dht cache hit idx %d, use_count %ld\n", sidx, dht_cache[sidx].use_count) );
 
 			/* copy the cached dht back to cpb */
-			copy_cached_dht_to_cpb(cmdp, sidx, handle);
+			copy_dht_to_cpb(cmdp, sidx, handle);
 
 			/* manage the cache usage counts; do not mess with builtin */
 			if (used_count >= 0)
@@ -352,7 +380,7 @@ int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 int dht_print(void *handle)
 {
 	int i, j, dht_num_bytes, dhtlen;
-	cached_dht_t *dht_cache = (cached_dht_t *) handle;
+	dht_entry_t *dht_cache = (dht_entry_t *) handle;
 
 	/* search the dht cache */
 	for (j = 0; j < DHT_NUM_MAX; j++) {

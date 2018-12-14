@@ -44,7 +44,7 @@
 #define DHT_SZ_MAX       (DHT_MAXSZ+1)   /* number of dht bytes per entry */
 #define DHT_NUM_BUILTIN  35    /* number of built-in entries */
 
-typedef struct cached_dht_t {
+typedef struct dht_entry_t {
 	/* cache location */
 	uint32_t index; 
 	/* 32bit XOR of the entire struct, inclusive of cksum, must
@@ -68,7 +68,14 @@ typedef struct cached_dht_t {
 	   lookup the dht cache; */
 	int litlen[DHT_TOPSYM_MAX];  
 	int dist[DHT_TOPSYM_MAX];
-} cached_dht_t;
+} dht_entry_t;
+
+typedef struct dht_tab_t {
+	/* put any locks here */
+	dht_entry_t *builtin;
+	dht_entry_t *cached;
+} dht_tab_t;
+
 
 #define dht_default_req    0  /* use this if no lzcounts available */
 #define dht_search_req     1  /* search the cache and generate if not found */

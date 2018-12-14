@@ -40,7 +40,7 @@
 #include <nxu.h>
 
 #define DHT_TOPSYM_MAX   4     /* number of most frequent symbols tracked */
-#define DHT_NUM_MAX      256   /* max number of dht table entries */
+#define DHT_NUM_MAX      128   /* max number of dht table entries */
 #define DHT_SZ_MAX       (DHT_MAXSZ+1)   /* number of dht bytes per entry */
 #define DHT_NUM_BUILTIN  35    /* number of built-in entries */
 
@@ -73,7 +73,7 @@ typedef struct dht_entry_t {
 typedef struct dht_tab_t {
 	/* put any locks here */
 	dht_entry_t *builtin;
-	dht_entry_t *cached;
+	dht_entry_t cache[DHT_NUM_MAX+1];
 } dht_tab_t;
 
 

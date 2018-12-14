@@ -112,26 +112,19 @@ void *dht_begin4(char *ifile, char *ofile)
 void *dht_begin5(char *ifile, char *ofile)
 {
 	int i;
-	dht_entry_t *cache;
+	dht_tab_t *dtab;
 
-	assert( DHT_NUM_MAX > DHT_NUM_BUILTIN );
-
-	if (NULL == (cache = malloc(sizeof(dht_entry_t) * (DHT_NUM_MAX+1)) ) )
+	if (NULL == (dtab = malloc(sizeof(dht_tab_t))))
 		return NULL;
-
+	
 	for (i=0; i<DHT_NUM_MAX; i++) {
 		/* set all invalid */
-		cache[i].use_count = 0;
+		dtab->cache[i].use_count = 0;
 	}
 
-	/* copy in the built-in entries to where they were found earlier */
-	for (i = 0; i < DHT_NUM_BUILTIN; i++) {
-		int idx = builtin1[i].index;
-		assert( idx < DHT_NUM_MAX && idx >= 0);
-		cache[idx] = builtin1[i];
-		cache[idx].use_count = -1; /* make them permanent in the cache */
-	}
-	return (void *)cache;
+	dtab->builtin = builtin1;
+	    
+	return (void *)dtab;
 }
 
 
@@ -217,17 +210,17 @@ static int dht_sort(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
 	return dht_sort4(cmdp, top);
 }
 
-static inline int copy_dht_to_cpb(nx_gzip_crb_cpb_t *cmdp, int idx, void *handle)
+static inline int copy_dht_to_cpb(nx_gzip_crb_cpb_t *cmdp, dht_entry_t *d)
 {
 	int dhtlen, dht_num_bytes;
-	dht_entry_t *dht_cache = (dht_entry_t *) handle;
-	dhtlen = dht_cache[idx].in_dhtlen;
+	dhtlen = d->in_dhtlen;
 	dht_num_bytes = (dhtlen + 7)/8; /* bits to bytes */
 	putnn(cmdp->cpb, in_dhtlen, (uint32_t)dhtlen);
-	memcpy(cmdp->cpb.in_dht_char, dht_cache[idx].in_dht_char, dht_num_bytes);
+	memcpy(cmdp->cpb.in_dht_char, d->in_dht_char, dht_num_bytes);
 	return 0;
 }
 
+#if 0
 static int dht_lookup4(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int i, k, sidx;
@@ -370,6 +363,150 @@ copy_to_cache:
 
 	return 0;
 }
+#endif
+
+static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
+{
+	int i, k, sidx;
+	int dht_num_bytes, dht_num_valid_bits, dhtlen;
+	int least_used_idx;
+	int64_t least_used_count;
+	top_sym_t top[3];
+	dht_tab_t *dtab = (dht_tab_t *) handle;
+	
+	if (request == dht_default_req) {
+		/* first builtin entry is the default */
+		copy_dht_to_cpb(cmdp, &dtab->builtin[0]);
+		return 0;
+	}
+	else if (request == dht_gen_req)
+		goto force_dhtgen;
+	else if (request == dht_search_req)
+		goto search_cache;
+	else if (request == dht_invalidate_req) {
+		/* erases all non-builtin entries TODO */
+	}
+	else assert(0);
+
+	/* find most frequent symbols */
+	dht_sort(cmdp, top);
+
+search_cache:	
+
+
+	/* speed up the search by biasing the start index sidx */
+	sidx = top[llns].sorted[0].sym;
+	sidx = (sidx < 0) ? 0 : sidx;
+	sidx = sidx % DHT_NUM_MAX;
+
+	/* search the dht cache */
+	for (i = 0; i < DHT_NUM_MAX; i++, sidx = (sidx+1) % DHT_NUM_MAX) {
+		int64_t used_count = dht_cache[sidx].use_count;
+
+		if (used_count == 0)
+			continue; /* skip unused entries */
+
+#if !defined(DHT_ONE_KEY)
+		/* look for a match */
+		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym     /* top litlen */
+		    &&
+		    dht_cache[sidx].litlen[1] == top[llns].sorted[1].sym ) { /* second top litlen */
+#else
+		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym) { /* top litlen */
+#endif
+			/* top two literals and top two lengths are matched in the cache;
+			   assuming that this is a good dht match */
+
+			DHTPRT( fprintf(stderr, "dht cache hit idx %d, use_count %ld\n", sidx, dht_cache[sidx].use_count) );
+
+			/* copy the cached dht back to cpb */
+			copy_dht_to_cpb(cmdp, sidx, handle);
+
+			/* manage the cache usage counts; do not mess with builtin */
+			if (used_count >= 0)
+				++ dht_cache[sidx].use_count;
+
+			if (dht_cache[sidx].use_count > large_int) {
+				/* prevent overflow; 
+				   +1 ensures that count=0 remains 0 and
+				   non-zero count remains non-zero */
+				for (k = 0; k < DHT_NUM_MAX; k++)
+					if ( dht_cache[k].use_count >= 0 )
+						dht_cache[k].use_count = (dht_cache[k].use_count + 1) / 2;
+			}
+			return 0;
+		}
+
+	}
+	/* search did not find anything */ 
+
+force_dhtgen:
+
+	DHTPRT( fprintf(stderr, "dht cache miss\n") );
+
+	/* makes a universal dht with no missing codes */
+	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount,        /* LitLen */
+			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, /* Dist */
+			   1);
+
+	/* dhtgen writes directly to cpb; 286 LitLen counts followed by 30 Dist counts */
+	dhtgen( (uint32_t *)cmdp->cpb.out_lzcount,
+		LLSZ,
+	        (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, 
+		DSZ,
+		(char *)(cmdp->cpb.in_dht_char), 
+		&dht_num_bytes, 
+		&dht_num_valid_bits, /* last byte bits, 0 is encoded as 8 bits */    
+		0
+		); 
+	dhtlen = 8 * dht_num_bytes - ((dht_num_valid_bits) ? 8 - dht_num_valid_bits : 0 );
+	putnn(cmdp->cpb, in_dhtlen, dhtlen); /* write to cpb */
+
+	DHTPRT( fprintf(stderr, "dhtgen bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits) );
+
+	if (request == dht_gen_req) /* without updating cache */
+		return 0;
+
+copy_to_cache:
+
+	/* identify the least used cache entry and replace*/
+	least_used_idx = 0;
+	least_used_count = large_int;
+
+	for (i = 0; i < DHT_NUM_MAX; i++) {
+		int64_t used_count = dht_cache[i].use_count;
+
+		if (used_count == 0) { /* unused cache entry */
+			/* identify the first unused as a
+			   replacement candidate and break */
+			least_used_count = used_count;
+			least_used_idx = i;
+			break;
+		}
+
+
+		if (used_count < least_used_count && used_count > 0) {
+			/* identify the least used and non-builtin entry;
+			   note that used_count == -1 is a built-in item */
+			least_used_count = used_count;
+			least_used_idx = i;
+		}
+	}	
+
+	/* make a copy in the cache at the least used position */
+	memcpy(dht_cache[least_used_idx].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
+	dht_cache[least_used_idx].in_dhtlen = dhtlen;
+	dht_cache[least_used_idx].use_count = 1;
+	dht_cache[least_used_idx].index = least_used_idx;
+
+	/* save the dht identifier */
+	dht_cache[least_used_idx].litlen[0] = top[llns].sorted[0].sym;
+	dht_cache[least_used_idx].litlen[1] = top[llns].sorted[1].sym;	
+	dht_cache[least_used_idx].litlen[2] = top[llns].sorted[2].sym;	
+
+	return 0;
+}
+
 
 int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {

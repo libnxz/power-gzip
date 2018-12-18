@@ -51,6 +51,8 @@ typedef struct dht_entry_t {
 	   equal 0. May use the cksum if this struct is read/write to
 	   a file; note that XOR is endian agnostic */
 	uint32_t cksum;
+	/* reference count for atomic access */
+	int32_t ref_count;
 	/* usage count for cache replacement 
 	    0: invalid entry; 
 	   -1: builtin entry not to be replaced; 

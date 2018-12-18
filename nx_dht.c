@@ -67,6 +67,15 @@
 #define DHTPRT(X) do{  ;}while(0)
 #endif
 
+#if !defined(DHT_ONE_KEY)
+#define SECOND_KEY(X) (X)
+#else
+#define SECOND_KEY(X) (!!1)
+#endif
+
+#if defined(DHT_ATOMIC)
+#endif
+
 typedef struct top_sym_t {
 	struct { 
 		uint32_t lzcnt;
@@ -120,6 +129,7 @@ void *dht_begin5(char *ifile, char *ofile)
 	for (i=0; i<DHT_NUM_MAX; i++) {
 		/* set all invalid */
 		dtab->cache[i].use_count = 0;
+		dtab->cache[i].ref_count = 0;
 	}
 
 	dtab->builtin = builtin1;
@@ -365,6 +375,139 @@ copy_to_cache:
 }
 #endif
 
+
+static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_entry_t *dht_cache, top_sym_t *top)
+{
+	int i, k, sidx;
+
+	/* search the dht cache */
+	for (i = 0; i < DHT_NUM_BUILTIN; i++) {
+		if (dht_cache[i].litlen[0] == top[llns].sorted[0].sym && /* top litlen */
+		    SECOND_KEY((dht_cache[i].litlen[1] == top[llns].sorted[1].sym))) { /* second top litlen */
+			    DHTPRT( fprintf(stderr, "builtin hit idx %d\n", i ) );
+			    copy_dht_to_cpb(cmdp, &(dht_cache[i]));
+			    return 0;
+		}
+	}
+	return -1; /* not found in the builtin table */
+}
+
+static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_entry_t *dht_cache, top_sym_t *top)
+{
+	int i, k, sidx;
+	
+	/* speed up the search by biasing the start index sidx */
+	sidx = top[llns].sorted[0].sym;
+	sidx = (sidx < 0) ? 0 : sidx;
+	sidx = sidx % DHT_NUM_MAX;
+
+	/* search the dht cache */
+	for (i = 0; i < DHT_NUM_MAX; i++, sidx = (sidx+1) % DHT_NUM_MAX) {
+		int64_t used_count;
+
+		/* TODO atomit */
+		used_count = dht_cache[sidx].use_count;
+
+		if (used_count == 0)
+			continue; /* skip unused entries; we can break if we never invalidate a cache entry */
+
+		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym && /* top litlen */
+		    SECOND_KEY((dht_cache[sidx].litlen[1] == top[llns].sorted[1].sym)) ) {
+
+			/* TODO lock it by reference count */
+
+			DHTPRT( fprintf(stderr, "dht cache hit idx %d, use_count %ld\n", sidx, dht_cache[sidx].use_count) );
+
+			/* copy the cached dht back to cpb */
+			copy_dht_to_cpb(cmdp, &(dht_cache[sidx]));
+
+			/* TODO atomic */
+			++used_count;
+			dht_cache[sidx].use_count = used_count; 
+
+			/* TODO unlock it */
+			return 0;
+		}
+	}
+	/* search did not find anything */ 
+	return -1;
+}
+
+static int dht_make_dht(nx_gzip_crb_cpb_t *cmdp, dht_entry_t *dht_cache, top_sym_t *top)
+{
+	int i, k, sidx;
+	int least_used_idx;
+	int64_t least_used_count;
+
+	/* makes a universal dht with no missing codes */
+	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount,        /* LitLen */
+			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, /* Dist */
+			   1);
+
+	/* dhtgen writes directly to cpb; 286 LitLen counts followed by 30 Dist counts */
+	dhtgen( (uint32_t *)cmdp->cpb.out_lzcount,
+		LLSZ,
+	        (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, 
+		DSZ,
+		(char *)(cmdp->cpb.in_dht_char), 
+		&dht_num_bytes, 
+		&dht_num_valid_bits, /* last byte bits, 0 is encoded as 8 bits */    
+		0
+		); 
+	dhtlen = 8 * dht_num_bytes - ((dht_num_valid_bits) ? 8 - dht_num_valid_bits : 0 );
+	putnn(cmdp->cpb, in_dhtlen, dhtlen); /* write to cpb */
+
+	DHTPRT( fprintf(stderr, "dhtgen bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits) );
+
+
+	/* identify the least used cache entry and replace*/
+	least_used_idx = 0;
+	least_used_count = large_int;
+
+	/* speed up the search by biasing the start index sidx */
+	sidx = top[llns].sorted[0].sym;
+	sidx = (sidx < 0) ? 0 : sidx;
+	sidx = sidx % DHT_NUM_MAX;
+
+	/* search for an empty cache slot */
+	for (i = 0; i < DHT_NUM_MAX; i++, sidx = (sidx+1) % DHT_NUM_MAX) {
+		int64_t used_count;
+
+		/* TODO atomic */
+		used_count = dht_cache[sidx].use_count;
+
+		if (used_count == 0) {
+			/* unused cache entry */
+			least_used_count = used_count;
+			least_used_idx = i;
+			break;
+		}
+		if (used_count < least_used_count) {
+			/* least used cache entry */
+			least_used_count = used_count;
+			least_used_idx = i;
+		}
+	} 
+	
+	/* write lock the least_used_idx */
+
+	/* make a copy in the cache at the least used position */
+	memcpy(dht_cache[least_used_idx].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
+	dht_cache[least_used_idx].in_dhtlen = dhtlen;
+	dht_cache[least_used_idx].use_count = 1;  /* TODO increment or max it */
+	dht_cache[least_used_idx].index = least_used_idx;
+
+	/* save the dht identifying key */
+	dht_cache[least_used_idx].litlen[0] = top[llns].sorted[0].sym;
+	dht_cache[least_used_idx].litlen[1] = top[llns].sorted[1].sym;	
+	dht_cache[least_used_idx].litlen[2] = top[llns].sorted[2].sym;	
+
+	/* write unlock the entry */
+
+
+	return 0;
+}	
+
 static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int i, k, sidx;
@@ -392,6 +535,7 @@ static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 	dht_sort(cmdp, top);
 
 search_cache:	
+search_builtin:
 
 
 	/* speed up the search by biasing the start index sidx */

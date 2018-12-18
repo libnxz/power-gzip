@@ -1,8 +1,71 @@
 #include "gzip_simple.h"
 
+__attribute__((constructor)) void nx_init(void)
+{
+	nx_overflow_buffer = malloc(OVERFLOW_BUFFER_SIZE);
+	memset(nx_overflow_buffer, 0, OVERFLOW_BUFFER_SIZE);
+
+	int ctr = 0;
+	for (ctr = 0; ctr < NX_MAX_DEVICES; ctr++) {
+		nx_devices[ctr] = malloc(sizeof(p9_simple_handle_t));
+		nx_devices[ctr]->vas_handle =
+			nx_function_begin(NX_FUNC_COMP_GZIP, ctr);
+		if (nx_devices[ctr]->vas_handle == NULL) {
+			fprintf(stderr, "device handle open error chip id %d\n",
+				ctr);
+			exit(-1);
+		}
+		nx_devices[ctr]->open_count = 0;
+		nx_devices[ctr]->chipId = ctr;
+	}
+
+	/* add a signal action */
+	sigact.sa_handler = 0;
+	sigact.sa_sigaction = sigsegv_handler;
+	sigact.sa_flags = SA_SIGINFO;
+	sigact.sa_restorer = 0;
+	sigemptyset(&sigact.sa_mask);
+	sigaction(SIGSEGV, &sigact, NULL);
+}
+
+__attribute__((destructor)) void nx_deinit(void)
+{
+	int ctr = 0;
+	int retval = 0;
+	for (ctr = 0; ctr < NX_MAX_DEVICES; ctr++) {
+		retval = nx_function_end(nx_devices[ctr]->vas_handle);
+		if (retval < 0) {
+			fprintf(stderr,
+				"device handle close error chip id %d\n", ctr);
+			exit(-1);
+		}
+		if (nx_devices[ctr]->open_count != 0) {
+
+			fprintf(stderr,
+				" device handles are not properly closed chip id=%d open count=%d \n",
+				ctr, nx_devices[ctr]->open_count);
+		}
+		free(nx_devices[ctr]);
+	}
+
+
+	free(nx_overflow_buffer);
+}
+
+
 /******************/
-/*Utility functions*/
+/*utility functions*/
 /******************/
+int findChip(int cpuId)
+{
+	if (cpuId < 80) {
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
+
 static void intcopy(int value, char *buffer)
 {
 	buffer[3] = (value >> 24) & 0xFF;
@@ -196,7 +259,7 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
 		sig, info->si_code, info->si_addr);
 	nx_fault_storage_address = info->si_addr;
-	exit(0);
+	// exit(0);
 }
 
 static void nx_print_dde(nx_dde_t *ddep, const char *msg)
@@ -278,29 +341,15 @@ void nx_init_csb(nx_gzip_crb_cpb_t *cmdp, void *src, void *dst, int srclen,
 /******************/
 /*Library functions*/
 /******************/
-
 /*open device*/
 p9_simple_handle_t *p9open()
 {
-	p9_simple_handle_t *myhandle =
-		malloc(sizeof(p9_simple_handle_t) + OVERFLOW_BUFFER_SIZE);
-	myhandle->dev_handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0);
-
-	myhandle->overflow_buffer = myhandle + sizeof(gzip_dev *);
-	if (myhandle->dev_handle == NULL) {
-		free(myhandle);
-		return NULL;
-	}
-
-	/* add a signal action */
-	sigact.sa_handler = 0;
-	sigact.sa_sigaction = sigsegv_handler;
-	sigact.sa_flags = SA_SIGINFO;
-	sigact.sa_restorer = 0;
-	sigemptyset(&sigact.sa_mask);
-	sigaction(SIGSEGV, &sigact, NULL);
-
-	return myhandle;
+	int cpu_id = 0;
+	syscall(SYS_getcpu, &cpu_id, NULL, NULL);
+	int chipId = findChip(cpu_id);
+	p9_simple_handle_t *nx_device = nx_devices[chipId];
+	__sync_fetch_and_add(&(nx_devices[chipId]->open_count), 1);
+	return nx_device;
 };
 
 /*compress*/
@@ -355,7 +404,7 @@ int p9deflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 	nx_touch_pages(dstp, dstlen, pagesize, 1);
 
 	/*run the job */
-	cc = nxu_run_job(cmdp, handle->dev_handle);
+	cc = nxu_run_job(cmdp, handle->vas_handle);
 
 	if (!cc) {
 		cc = getnn(cmdp->crb.csb, csb_cc);
@@ -376,15 +425,16 @@ int p9deflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 	int comp = get32(cmdp->crb.csb, tpbc);
 
 	/*add gzip/zlib trailers*/
+	int checksum;
 	if (flag == GZIP_WRAPPER) {
 		/*gzip trailer, crc32 and compressed data size*/
-		int crc32 = cmdp->cpb.out_crc;
-		intcopy(crc32, dstp + header + comp);
+		checksum = cmdp->cpb.out_crc;
+		intcopy(checksum, dstp + header + comp);
 		intcopy(srclen, dstp + header + comp + 4);
 	} else if (flag == ZLIB_WRAPPER) {
 		/*zlib trailer, adler32 only*/
-		int adler32 = cmdp->cpb.out_adler;
-		intcopy(adler32, dstp + header + comp);
+		checksum = cmdp->cpb.out_adler;
+		intcopy(checksum, dstp + header + comp);
 	}
 	return comp + header + trailer;
 };
@@ -431,19 +481,17 @@ int p9inflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 
 	/*set source/destination and sizes*/
 	nx_init_csb(cmdp, src + header, dst, srclen - header - trailer, dstlen,
-		    ddl, handle->overflow_buffer);
+		    ddl, nx_overflow_buffer);
 
 #ifdef P9DBG
 	/*print dde*/
 	nx_print_dde(ddl, "inflate test");
 #endif
-
 	/*touch all pages before submitting job*/
 	nx_touch_pages(src, srclen, pagesize, 0);
 	nx_touch_pages(dst, dstlen, pagesize, 1);
-
 	/*run the job*/
-	cc = nxu_run_job(cmdp, handle->dev_handle);
+	cc = nxu_run_job(cmdp, handle->vas_handle);
 
 	if (!cc) {
 		cc = getnn(cmdp->crb.csb, csb_cc);
@@ -456,44 +504,34 @@ int p9inflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 
 	int uncompressed = get32(cmdp->crb.csb, tpbc);
 
-#ifdef P9DBG
+	int checksum;
+	int tail_checksum;
 	if (flag == GZIP_WRAPPER) {
-		/*gzip trailer, crc32 and compressed data size*/
-		int crc32 = cmdp->cpb.out_crc;
-		int s_crc32 = *(int *)(srcp + srclen - trailer);
-		int size = *(int *)(srcp + srclen - trailer + 4);
-		fprintf(stdout,
-			"crc computed from src trailer=%d - cbp.out_crc computed=%d\n",
-			crc32, s_crc32);
-		fprintf(stdout,
-			"size read from src trailer=%d - tbpc computed:=%d\n",
-			size, uncompressed);
+		checksum = cmdp->cpb.out_crc;
+		tail_checksum = *(int *)(srcp + srclen - trailer);
+		int tail_size = *(int *)(srcp + srclen - trailer + 4);
+		if (checksum != tail_checksum || uncompressed != tail_size) {
+			fprintf(stderr,
+				"GZIP crc32 or size mismatch! [tail crc32 =%d computed=%d] [tail size =%d computed=%d]\n",
+				tail_checksum, checksum, tail_size,
+				uncompressed);
+			return -1;
+		}
 	} else if (flag == ZLIB_WRAPPER) {
-		/*zlib trailer, adler32 only*/
-		int adler32 = cmdp->cpb.out_adler;
-		int s_adler32 = (int)srcp[srclen - trailer];
-		fprintf(stdout,
-			"adler computed on inflate=%d adler read from header=%d\n",
-			adler32, s_adler32);
+		checksum = cmdp->cpb.out_adler;
+		if (checksum != tail_checksum) {
+			fprintf(stderr,
+				"ZLIB adler32 or size mismatch! [tail adler32 =%d computed=%d]\n",
+				tail_checksum, checksum);
+			return -1;
+		}
 	}
-#endif
-
 	return uncompressed;
 };
 
 /*close the compressor*/
 int p9close(p9_simple_handle_t *handle)
 {
-	int retval = 0;
-	if (handle != NULL && handle->dev_handle != NULL) {
-		retval = nx_function_end(handle->dev_handle);
-	}
-
-	if (retval < 0) {
-		return retval;
-	}
-
-	free(handle);
-	handle = NULL;
-	return retval;
+	__sync_fetch_and_add(&(handle->open_count), -1);
+	return 0;
 };

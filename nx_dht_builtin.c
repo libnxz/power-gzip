@@ -103,10 +103,11 @@
 /* index is where the struct was found in the cache */
 dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 {
-	/* index */ 0,
-	/* cksum */ 0, 
-	/* count */ -1, 
-	/* cpb_reserved[3] */ { 0, 0, 0, }, 
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+
 	/* in_dhtlen */ 281,
 	{ /* default dht that approximates the fixed huffman */
 		0xbd, 0x63, 0x00, 0x8c, 0x03, 0x06, 0xd6, 0xb6, 0x6d, 0xdb, 0xb6, 0x6d, 0xdb, 0xb6, 0x6d, 0x73,
@@ -118,10 +119,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	1, /* cache index */
-	0, /* cksum */
-	34, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	852, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -138,10 +140,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	2, /* cache index */
-	0, /* cksum */
-	26, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	673, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -157,10 +160,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	3, /* cache index */
-	0, /* cksum */
-	80, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	820, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -177,10 +181,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	4, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	908, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -198,10 +203,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	5, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	906, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -219,10 +225,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	6, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	1130, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -241,10 +248,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	7, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	1187, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -264,10 +272,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	8, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	936, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -285,10 +294,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	9, /* cache index */
-	0, /* cksum */
-	66, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	798, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -305,10 +315,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	10, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	1031, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -327,10 +338,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	11, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	998, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -348,10 +360,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	12, /* cache index */
-	0, /* cksum */
-	12, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	1037, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -370,10 +383,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	13, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	1032, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -392,10 +406,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	14, /* cache index */
-	0, /* cksum */
-	20, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	844, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -412,10 +427,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	15, /* cache index */
-	0, /* cksum */
-	10, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	837, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -432,10 +448,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	16, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	843, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -452,10 +469,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	17, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	873, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -472,10 +490,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	18, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	785, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -492,10 +511,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	19, /* cache index */
-	0, /* cksum */
-	6, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	820, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -512,10 +532,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	20, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	876, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -532,10 +553,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	21, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	860, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -552,10 +574,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	22, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	910, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -573,10 +596,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	23, /* cache index */
-	0, /* cksum */
-	6, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	640, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -591,10 +615,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	24, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	679, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -610,10 +635,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	25, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	674, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -629,10 +655,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	26, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	611, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -647,10 +674,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	27, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	622, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -665,10 +693,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	28, /* cache index */
-	0, /* cksum */
-	2, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	640, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -683,10 +712,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	29, /* cache index */
-	0, /* cksum */
-	4, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	838, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -703,10 +733,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	32, /* cache index */
-	0, /* cksum */
-	24, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	804, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -723,10 +754,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	33, /* cache index */
-	0, /* cksum */
-	4, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	739, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -742,10 +774,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	34, /* cache index */
-	0, /* cksum */
-	78, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	851, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -762,10 +795,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	139, /* cache index */
-	0, /* cksum */
-	4, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	1059, /* in_dhtlen */
 	{ /* dht bytes start */
 
@@ -784,10 +818,11 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 },
 
 {
-	229, /* cache index */
-	0, /* cksum */
-	4, /* count */
-	{0, 0, 0,}, /* cpb_reserved[3] unused */
+	/* cksum */ 0,
+	/* valid */ 0,
+	/* refcnt */ 0,
+	/* acccnt */ 0, 
+	
 	732, /* in_dhtlen */
 	{ /* dht bytes start */
 

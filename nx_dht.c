@@ -73,8 +73,9 @@
 #define SECOND_KEY(X) (!!1)
 #endif
 
-#if defined(DHT_ATOMIC)
-#endif
+
+#define DHT_ATOMICS
+
 
 typedef struct top_sym_t {
 	struct { 
@@ -91,52 +92,26 @@ extern dht_entry_t builtin1[DHT_NUM_BUILTIN];
 
 /* One time setup of the tables. Returns a handle.
    ifile ofile unused */
-void *dht_begin4(char *ifile, char *ofile)
-{
-	int i;
-	dht_entry_t *cache;
-
-	assert( DHT_NUM_MAX > DHT_NUM_BUILTIN );
-
-	if (NULL == (cache = malloc(sizeof(dht_entry_t) * (DHT_NUM_MAX+1)) ) )
-		return NULL;
-
-	for (i=0; i<DHT_NUM_MAX; i++) {
-		/* set all invalid */
-		cache[i].use_count = 0;
-	}
-
-	/* copy in the built-in entries to where they were found earlier */
-	for (i = 0; i < DHT_NUM_BUILTIN; i++) {
-		int idx = builtin1[i].index;
-		assert( idx < DHT_NUM_MAX && idx >= 0);
-		cache[idx] = builtin1[i];
-		cache[idx].use_count = -1; /* make them permanent in the cache */
-	}
-	return (void *)cache;
-}
-
-/* One time setup of the tables. Returns a handle.
-   ifile ofile unused */
 void *dht_begin5(char *ifile, char *ofile)
 {
 	int i;
-	dht_tab_t *dtab;
+	dht_tab_t *dht_tab;
 
-	if (NULL == (dtab = malloc(sizeof(dht_tab_t))))
+	if (NULL == (dht_tab = malloc(sizeof(dht_tab_t))))
 		return NULL;
 	
 	for (i=0; i<DHT_NUM_MAX; i++) {
 		/* set all invalid */
-		dtab->cache[i].use_count = 0;
-		dtab->cache[i].ref_count = 0;
+		dht_tab->cache[i].valid = 0;		
+		dht_tab->cache[i].ref_count = 0;
 	}
-
-	dtab->builtin = builtin1;
-	    
-	return (void *)dtab;
+	dht_tab->builtin = builtin1;
+	dht_tab->last_builtin_idx = 0;
+	dht_tab->last_cache_idx = 0;
+	dht_tab->clock = 0;	
+	
+	return (void *)dht_tab;
 }
-
 
 void dht_end(void *handle)
 {
@@ -146,7 +121,7 @@ void dht_end(void *handle)
 /* One time setup of the tables. Returns a handle */
 void *dht_begin(char *ifile, char *ofile)
 {
-	return dht_begin4(ifile, ofile);
+	return dht_begin5(ifile, ofile);
 }
 
 static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *top)
@@ -370,156 +345,222 @@ copy_to_cache:
 	dht_cache[least_used_idx].litlen[0] = top[llns].sorted[0].sym;
 	dht_cache[least_used_idx].litlen[1] = top[llns].sorted[1].sym;	
 	dht_cache[least_used_idx].litlen[2] = top[llns].sorted[2].sym;	
-
+	
 	return 0;
 }
 #endif
 
+	
+#define DHT_WRITER 0x8FFF
+#define DHT_LOCK_RETRY 384
+#if defined(DHT_ATOMICS)
+#define dht_load(P)         __atomic_load_n((P), __ATOMIC_RELAXED)
+#define dht_store(P,V)      __atomic_store_n((P), (V), __ATOMIC_RELAXED)
+#define dht_fetch_add(P,V)  __atomic_fetch_add((P), (V), __ATOMIC_RELAXED)
+#define dht_fetch_sub(P,V)  __atomic_fetch_sub((P), (V), __ATOMIC_RELAXED)	
+#else
+#define dht_load(P)  *(P)
+#define dht_store(P,V)  do { *(P) = (V); } while(0)
+#define dht_fetch_add(P,V)  ({typeof(*(P)) tmp = *(P); *(P) = tmp + (V); tmp;})
+#define dht_fetch_sub(P,V)  ({typeof(*(P)) tmp = *(P); *(P) = tmp - (V); tmp;})	
+#endif
 
-static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_entry_t *dht_cache, top_sym_t *top)
+#if !defined(DHT_ATOMICS)
+#define read_lock(P)     1
+#define read_unlock(P)   1	
+#define write_lock(P)    1
+#define write_unlock(P)  1	
+
+#else
+static int inline read_lock(int *ref_count)
+{
+	/* 
+
+	   bool __atomic_compare_exchange_n (type *ptr, type *expected, type desired, 
+	   bool weak, int success_memorder, int failure_memorder)
+
+	   Compares the contents of *ptr with
+	   the contents of *expected. If equal, the operation is a
+	   read-modify-write operation that writes desired into
+	   *ptr. 
+
+	   If they are not equal, the operation is a read and the
+	   current contents of *ptr are written into *expected. weak
+	   is true for weak compare_exchange, which may fail
+	   spuriously, and false for the strong variation, which never
+	   fails spuriously. Many targets only offer the strong
+	   variation and ignore the parameter. When in doubt, use the
+	   strong variation.  
+
+	   If desired is written into *ptr then true is returned and
+	   memory is affected according to the memory order specified
+	   by success_memorder. There are no restrictions on what
+	   memory order can be used here.  Otherwise, false is
+	   returned and memory is affected according to
+	   failure_memorder. This memory order cannot be
+	   __ATOMIC_RELEASE nor __ATOMIC_ACQ_REL. It also cannot be a
+	   stronger order than that specified by success_memorder. */
+	
+	int retry = DHT_LOCK_RETRY;
+	while( retry-- > 0)  {
+		int readers = dht_load(ref_count);
+		int new_readers = readers + 1;
+		if (readers != DHT_WRITER) {
+			if (__atomic_compare_exchange_n(ref_count,  /* actual */
+							&readers,   /* expected */
+							new_readers,/* new; +1 reader */
+							1,
+							__ATOMIC_RELAXED,
+							__ATOMIC_RELAXED))
+				return 1; /* success */
+			/* retry few times */
+		}
+		else return 0; /* writer will take long time  */
+	}
+	return 0;
+}
+
+static int inline read_unlock(int *ref_count)
+{
+	int retry = DHT_LOCK_RETRY;	
+	while( retry-- > 0)  {
+		int readers = dht_load(ref_count);
+		int new_readers = readers - 1;
+		/* read_unlock error; needs a matching lock */
+		assert( readers != DHT_WRITER && readers > 0 );
+		if (__atomic_compare_exchange_n(ref_count,  /* actual */
+						&readers,   /* expected */
+						new_readers,/* new; -1 reader */
+						1,
+						__ATOMIC_RELAXED,
+						__ATOMIC_RELAXED))
+			return 1; /* success */
+		/* retry few times */
+
+		retry = dht_fetch_add( ref_count, 5);
+	}
+	return 0;
+}
+
+static int inline write_lock(int *ref_count)
+{
+	int retry = 1;
+	while( retry-- > 0)  {
+		int readers = dht_load(ref_count);
+		if (readers == 0) { /* unlocked */
+			if (__atomic_compare_exchange_n(ref_count,  /* actual */
+							&readers,   /* expected */
+							DHT_WRITER, /* new; write locked */
+							1,
+							__ATOMIC_RELAXED,
+							__ATOMIC_RELAXED))
+				return 1; /* success */
+		}
+	}
+	return 0;
+}
+
+static int inline write_unlock(int *ref_count)
+{
+	int retry = 1;
+	while( retry-- > 0)  {
+		int readers = dht_load(ref_count);
+		assert(readers == DHT_WRITER);
+		if (__atomic_compare_exchange_n(ref_count,  /* actual */
+						&readers,   /* expected */
+						0,          /* new; unlocked*/
+						1,
+						__ATOMIC_RELAXED,
+						__ATOMIC_RELAXED))
+			return 1; /* success */
+	}
+	return 0;
+}
+
+
+#endif	/* !defined(DHT_ATOMICS) */
+		      
+/* search nx_dht_builtin.c */
+static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym_t *top)
 {
 	int i, k, sidx;
+	dht_entry_t *dht_cache = dht_tab->builtin;
 
-	/* search the dht cache */
-	for (i = 0; i < DHT_NUM_BUILTIN; i++) {
-		if (dht_cache[i].litlen[0] == top[llns].sorted[0].sym && /* top litlen */
-		    SECOND_KEY((dht_cache[i].litlen[1] == top[llns].sorted[1].sym))) { /* second top litlen */
-			    DHTPRT( fprintf(stderr, "builtin hit idx %d\n", i ) );
-			    copy_dht_to_cpb(cmdp, &(dht_cache[i]));
-			    return 0;
+	/* speed up the search */	
+	sidx = dht_load( &dht_tab->last_builtin_idx );
+	sidx = (sidx < 0) ? 0 : sidx;
+	sidx = sidx % DHT_NUM_MAX;
+	
+	/* search the builtin dht cache */
+	for (i = 0; i < DHT_NUM_BUILTIN; i++, sidx = (sidx+1) % DHT_NUM_BUILTIN) {	
+
+		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym && /* top litlen */
+		    SECOND_KEY((dht_cache[sidx].litlen[1] == top[llns].sorted[1].sym))) { /* second top litlen */
+
+			DHTPRT( fprintf(stderr, "builtin hit idx %d\n", sidx ) );
+			copy_dht_to_cpb(cmdp, &(dht_cache[sidx]));
+
+			dht_store( &dht_tab->last_builtin_idx, sidx );
+
+			return 0;
 		}
 	}
 	return -1; /* not found in the builtin table */
 }
 
-static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_entry_t *dht_cache, top_sym_t *top)
+/* search the user generated cached dhts */
+static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym_t *top)
 {
 	int i, k, sidx;
+	dht_entry_t *dht_cache = dht_tab->cache;
 	
-	/* speed up the search by biasing the start index sidx */
-	sidx = top[llns].sorted[0].sym;
+	/* speed up the search starting from the last */
+	sidx = dht_load( &dht_tab->last_cache_idx ); 
 	sidx = (sidx < 0) ? 0 : sidx;
 	sidx = sidx % DHT_NUM_MAX;
 
 	/* search the dht cache */
 	for (i = 0; i < DHT_NUM_MAX; i++, sidx = (sidx+1) % DHT_NUM_MAX) {
-		int64_t used_count;
 
-		/* TODO atomit */
-		used_count = dht_cache[sidx].use_count;
-
-		if (used_count == 0)
-			continue; /* skip unused entries; we can break if we never invalidate a cache entry */
+		if (dht_cache[sidx].valid == 0)
+			continue; /* skip unused entries */
 
 		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym && /* top litlen */
 		    SECOND_KEY((dht_cache[sidx].litlen[1] == top[llns].sorted[1].sym)) ) {
 
-			/* TODO lock it by reference count */
+			if (read_lock( &dht_cache[sidx].ref_count )) {
 
-			DHTPRT( fprintf(stderr, "dht cache hit idx %d, use_count %ld\n", sidx, dht_cache[sidx].use_count) );
+				DHTPRT( fprintf(stderr, "dht cache hit idx %d, access_count %ld\n", sidx, dht_cache[sidx].access_count) );
 
-			/* copy the cached dht back to cpb */
-			copy_dht_to_cpb(cmdp, &(dht_cache[sidx]));
+				/* copy the cached dht back to cpb */
+				copy_dht_to_cpb(cmdp, &(dht_cache[sidx]));
+				
+				dht_store( &dht_cache[sidx].access_count, 1);
+				dht_store( &dht_tab->last_cache_idx, sidx );
+				
+				read_unlock( &dht_cache[sidx].ref_count );
 
-			/* TODO atomic */
-			++used_count;
-			dht_cache[sidx].use_count = used_count; 
-
-			/* TODO unlock it */
-			return 0;
+				return 0;
+			}
 		}
 	}
 	/* search did not find anything */ 
 	return -1;
 }
 
-static int dht_make_dht(nx_gzip_crb_cpb_t *cmdp, dht_entry_t *dht_cache, top_sym_t *top)
-{
-	int i, k, sidx;
-	int least_used_idx;
-	int64_t least_used_count;
-
-	/* makes a universal dht with no missing codes */
-	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount,        /* LitLen */
-			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, /* Dist */
-			   1);
-
-	/* dhtgen writes directly to cpb; 286 LitLen counts followed by 30 Dist counts */
-	dhtgen( (uint32_t *)cmdp->cpb.out_lzcount,
-		LLSZ,
-	        (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, 
-		DSZ,
-		(char *)(cmdp->cpb.in_dht_char), 
-		&dht_num_bytes, 
-		&dht_num_valid_bits, /* last byte bits, 0 is encoded as 8 bits */    
-		0
-		); 
-	dhtlen = 8 * dht_num_bytes - ((dht_num_valid_bits) ? 8 - dht_num_valid_bits : 0 );
-	putnn(cmdp->cpb, in_dhtlen, dhtlen); /* write to cpb */
-
-	DHTPRT( fprintf(stderr, "dhtgen bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits) );
-
-
-	/* identify the least used cache entry and replace*/
-	least_used_idx = 0;
-	least_used_count = large_int;
-
-	/* speed up the search by biasing the start index sidx */
-	sidx = top[llns].sorted[0].sym;
-	sidx = (sidx < 0) ? 0 : sidx;
-	sidx = sidx % DHT_NUM_MAX;
-
-	/* search for an empty cache slot */
-	for (i = 0; i < DHT_NUM_MAX; i++, sidx = (sidx+1) % DHT_NUM_MAX) {
-		int64_t used_count;
-
-		/* TODO atomic */
-		used_count = dht_cache[sidx].use_count;
-
-		if (used_count == 0) {
-			/* unused cache entry */
-			least_used_count = used_count;
-			least_used_idx = i;
-			break;
-		}
-		if (used_count < least_used_count) {
-			/* least used cache entry */
-			least_used_count = used_count;
-			least_used_idx = i;
-		}
-	} 
-	
-	/* write lock the least_used_idx */
-
-	/* make a copy in the cache at the least used position */
-	memcpy(dht_cache[least_used_idx].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
-	dht_cache[least_used_idx].in_dhtlen = dhtlen;
-	dht_cache[least_used_idx].use_count = 1;  /* TODO increment or max it */
-	dht_cache[least_used_idx].index = least_used_idx;
-
-	/* save the dht identifying key */
-	dht_cache[least_used_idx].litlen[0] = top[llns].sorted[0].sym;
-	dht_cache[least_used_idx].litlen[1] = top[llns].sorted[1].sym;	
-	dht_cache[least_used_idx].litlen[2] = top[llns].sorted[2].sym;	
-
-	/* write unlock the entry */
-
-
-	return 0;
-}	
-
 static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
-	int i, k, sidx;
+	int i, k, sidx, clock;
 	int dht_num_bytes, dht_num_valid_bits, dhtlen;
 	int least_used_idx;
 	int64_t least_used_count;
 	top_sym_t top[3];
-	dht_tab_t *dtab = (dht_tab_t *) handle;
+	dht_tab_t *dht_tab = (dht_tab_t *) handle;
+	dht_entry_t *dht_cache = dht_tab->cache;
 	
 	if (request == dht_default_req) {
 		/* first builtin entry is the default */
-		copy_dht_to_cpb(cmdp, &dtab->builtin[0]);
+		copy_dht_to_cpb(cmdp, &dht_tab->builtin[0]);
 		return 0;
 	}
 	else if (request == dht_gen_req)
@@ -528,66 +569,37 @@ static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 		goto search_cache;
 	else if (request == dht_invalidate_req) {
 		/* erases all non-builtin entries TODO */
+		assert(0);
 	}
 	else assert(0);
 
+search_cache:	
 	/* find most frequent symbols */
 	dht_sort(cmdp, top);
 
-search_cache:	
-search_builtin:
+	if( !dht_search_cache(cmdp, dht_tab, top) )
+		return 0; /* found */
 
+	if( !dht_search_builtin(cmdp, dht_tab, top) )
+		return 0; /* found */
 
-	/* speed up the search by biasing the start index sidx */
-	sidx = top[llns].sorted[0].sym;
-	sidx = (sidx < 0) ? 0 : sidx;
-	sidx = sidx % DHT_NUM_MAX;
-
-	/* search the dht cache */
-	for (i = 0; i < DHT_NUM_MAX; i++, sidx = (sidx+1) % DHT_NUM_MAX) {
-		int64_t used_count = dht_cache[sidx].use_count;
-
-		if (used_count == 0)
-			continue; /* skip unused entries */
-
-#if !defined(DHT_ONE_KEY)
-		/* look for a match */
-		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym     /* top litlen */
-		    &&
-		    dht_cache[sidx].litlen[1] == top[llns].sorted[1].sym ) { /* second top litlen */
-#else
-		if (dht_cache[sidx].litlen[0] == top[llns].sorted[0].sym) { /* top litlen */
-#endif
-			/* top two literals and top two lengths are matched in the cache;
-			   assuming that this is a good dht match */
-
-			DHTPRT( fprintf(stderr, "dht cache hit idx %d, use_count %ld\n", sidx, dht_cache[sidx].use_count) );
-
-			/* copy the cached dht back to cpb */
-			copy_dht_to_cpb(cmdp, sidx, handle);
-
-			/* manage the cache usage counts; do not mess with builtin */
-			if (used_count >= 0)
-				++ dht_cache[sidx].use_count;
-
-			if (dht_cache[sidx].use_count > large_int) {
-				/* prevent overflow; 
-				   +1 ensures that count=0 remains 0 and
-				   non-zero count remains non-zero */
-				for (k = 0; k < DHT_NUM_MAX; k++)
-					if ( dht_cache[k].use_count >= 0 )
-						dht_cache[k].use_count = (dht_cache[k].use_count + 1) / 2;
-			}
-			return 0;
+search_lru:
+	/* LRU cache entry*/
+	while (1) {
+		/* atomic load */
+		clock = dht_load( &dht_tab->clock ); /* old value */
+		dht_tab->clock = dht_tab->clock + 1; /* atomic fetch and add */
+		if( dht_cache[clock].access_count == 0 ) { /* atomic load */
+			/* if lock entry with ref count successful
+			   and break;
+			   else if lock not successful continue */
 		}
-
+		else {
+			dht_cache[clock].access_count = 0; /* clear the access bit; atomic */
+		}
 	}
-	/* search did not find anything */ 
 
 force_dhtgen:
-
-	DHTPRT( fprintf(stderr, "dht cache miss\n") );
-
 	/* makes a universal dht with no missing codes */
 	fill_zero_lzcounts((uint32_t *)cmdp->cpb.out_lzcount,        /* LitLen */
 			   (uint32_t *)cmdp->cpb.out_lzcount + LLSZ, /* Dist */
@@ -613,40 +625,17 @@ force_dhtgen:
 
 copy_to_cache:
 
-	/* identify the least used cache entry and replace*/
-	least_used_idx = 0;
-	least_used_count = large_int;
-
-	for (i = 0; i < DHT_NUM_MAX; i++) {
-		int64_t used_count = dht_cache[i].use_count;
-
-		if (used_count == 0) { /* unused cache entry */
-			/* identify the first unused as a
-			   replacement candidate and break */
-			least_used_count = used_count;
-			least_used_idx = i;
-			break;
-		}
-
-
-		if (used_count < least_used_count && used_count > 0) {
-			/* identify the least used and non-builtin entry;
-			   note that used_count == -1 is a built-in item */
-			least_used_count = used_count;
-			least_used_idx = i;
-		}
-	}	
-
 	/* make a copy in the cache at the least used position */
-	memcpy(dht_cache[least_used_idx].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
-	dht_cache[least_used_idx].in_dhtlen = dhtlen;
-	dht_cache[least_used_idx].use_count = 1;
-	dht_cache[least_used_idx].index = least_used_idx;
+	memcpy(dht_cache[clock].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
+	dht_cache[clock].in_dhtlen = dhtlen;
+	/* dht_cache[clock].index = clock; */
 
-	/* save the dht identifier */
-	dht_cache[least_used_idx].litlen[0] = top[llns].sorted[0].sym;
-	dht_cache[least_used_idx].litlen[1] = top[llns].sorted[1].sym;	
-	dht_cache[least_used_idx].litlen[2] = top[llns].sorted[2].sym;	
+	/* save the dht identifying key */
+	dht_cache[clock].litlen[0] = top[llns].sorted[0].sym;
+	dht_cache[clock].litlen[1] = top[llns].sorted[1].sym;	
+	dht_cache[clock].litlen[2] = top[llns].sorted[2].sym;	
+
+	/* unlock the entry */
 
 	return 0;
 }
@@ -654,21 +643,21 @@ copy_to_cache:
 
 int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
-	return dht_lookup4(cmdp, request, handle);
+	return dht_lookup5(cmdp, request, handle);
 }
 
 /* use this utility to make built-in dht data structures */
 int dht_print(void *handle)
 {
 	int i, j, dht_num_bytes, dhtlen;
-	dht_entry_t *dht_cache = (dht_entry_t *) handle;
+	dht_entry_t *dht_cache = ((dht_tab_t *) handle)->cache;
 
 	/* search the dht cache */
 	for (j = 0; j < DHT_NUM_MAX; j++) {
-		int64_t used_count = dht_cache[j].use_count;
+		int64_t ref_count = dht_cache[j].ref_count;
 
 		/* skip unused and builtin ones */
-		if (used_count <= 0)
+		if (ref_count <= 0)
 			continue;
 
 		dhtlen = dht_cache[j].in_dhtlen;
@@ -676,16 +665,12 @@ int dht_print(void *handle)
 
 		fprintf(stderr, "{\n");
 
-		fprintf(stderr, "\t%d, /* cache index */\n", dht_cache[j].index);
-
 		/* unused at the moment */
 		dht_cache[j].cksum = 0;
 		fprintf(stderr, "\t%d, /* cksum */\n", dht_cache[j].cksum);
-
-		fprintf(stderr, "\t%d, /* count */\n", dht_cache[j].use_count);
-
-		fprintf(stderr, "\t{0, 0, 0,}, /* cpb_reserved[3] unused */\n");
-
+		fprintf(stderr, "\t%d, /* valid */\n", dht_cache[j].valid);
+		fprintf(stderr, "\t%d, /* ref_count */\n", dht_cache[j].ref_count);
+		fprintf(stderr, "\t%ld, /* access_count */\n", dht_cache[j].access_count);
 		fprintf(stderr, "\t%d, /* in_dhtlen */\n", dht_cache[j].in_dhtlen);
 
 		fprintf(stderr, "\t{ /* dht bytes start */\n");
@@ -698,6 +683,7 @@ int dht_print(void *handle)
 
 		fprintf(stderr, "\t{%d, %d, %d}, /* top litlens */\n", 
 			dht_cache[j].litlen[0], dht_cache[j].litlen[1], dht_cache[j].litlen[2] );
+
 		fprintf(stderr, "\t{%d, %d, %d}, /* top dists */\n", 
 			dht_cache[j].dist[0], dht_cache[j].dist[1], dht_cache[j].dist[2] );
 

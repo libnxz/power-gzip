@@ -104,7 +104,7 @@
 dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 
@@ -120,7 +120,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -141,7 +141,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -161,7 +161,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -182,7 +182,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -204,7 +204,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -226,7 +226,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -249,7 +249,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -273,7 +273,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -295,7 +295,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -316,7 +316,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -339,7 +339,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -361,7 +361,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -384,7 +384,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -407,7 +407,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -428,7 +428,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -449,7 +449,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -470,7 +470,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -491,7 +491,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -512,7 +512,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -533,7 +533,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -554,7 +554,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -575,7 +575,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -597,7 +597,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -616,7 +616,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -636,7 +636,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -656,7 +656,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -675,7 +675,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -694,7 +694,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -713,7 +713,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -734,7 +734,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -755,7 +755,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -775,7 +775,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -796,7 +796,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -819,7 +819,7 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 {
 	/* cksum */ 0,
-	/* valid */ 0,
+	/* valid */ 1,
 	/* refcnt */ 0,
 	/* acccnt */ 0, 
 	
@@ -839,6 +839,10 @@ dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 
 };
 
+dht_entry_t *get_builtin_table()
+{
+	return builtin1;
+}
 
 
 		

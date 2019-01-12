@@ -57,7 +57,7 @@ typedef struct dht_entry_t {
 	   0 is not accessed 
 	   1 is accessed once 
 	   2 is accessed two or more time */
-	volatile int64_t access_count;
+	volatile int64_t accessed;
 	/* for alignment */
 	/* uint32_t cpb_reserved[3]; */
 	/* last 32b contains the 12 bit length; use

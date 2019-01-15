@@ -68,17 +68,12 @@
 #define DHTPRT(X) do{  ;}while(0)
 #endif
 
-#define DHT_REUSE_COUNT 10
-
 /* use top symbol or top two symbols as cache lookup keys */
 #if !defined(DHT_ONE_KEY)
 #define SECOND_KEY(X) (X)
 #else
 #define SECOND_KEY(X) (!!1) /* always TRUE */
 #endif
-
-/* define if multithreaded; nx_zlib should not need this */
-#define DHT_ATOMICS
 
 typedef struct top_sym_t {
 	struct { 
@@ -584,7 +579,7 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 			return -1;
 		}
 		
-		if (dht_atomic_fetch_add( &dht_tab->reused_count, 1) > DHT_REUSE_COUNT) {
+		if (dht_atomic_fetch_add( &dht_tab->reused_count, 1) >= DHT_REUSE_COUNT) {
 			/* reused more than the threshold */
 			dht_atomic_store( &dht_tab->last_used_entry, NULL );
 			dht_atomic_store( &dht_tab->reused_count, 0);

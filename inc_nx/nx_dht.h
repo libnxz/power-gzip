@@ -77,6 +77,8 @@ typedef struct dht_tab_t {
 	int last_builtin_idx;
 	int last_cache_idx;
 	int clock;
+	int reused_count;
+	dht_entry_t *last_used_entry;
 	dht_entry_t *builtin;
 	dht_entry_t cache[DHT_NUM_MAX+1];
 } dht_tab_t;

@@ -68,6 +68,8 @@
 #define DHTPRT(X) do{  ;}while(0)
 #endif
 
+#define DHT_REUSE_COUNT 10
+
 /* use top symbol or top two symbols as cache lookup keys */
 #if !defined(DHT_ONE_KEY)
 #define SECOND_KEY(X) (X)
@@ -110,6 +112,7 @@ void *dht_begin5(char *ifile, char *ofile)
 	dht_tab->builtin = get_builtin_table();
 	dht_tab->last_builtin_idx = -1;
 	dht_tab->last_cache_idx = -1;
+	dht_tab->last_used_entry = NULL;	
 	dht_tab->clock = 0;	
 	
 	return (void *)dht_tab;
@@ -366,6 +369,7 @@ copy_to_cache:
 #define dht_atomic_fetch_add(P,V)  __atomic_fetch_add((P), (V), __ATOMIC_RELAXED)
 #define dht_atomic_fetch_sub(P,V)  __atomic_fetch_sub((P), (V), __ATOMIC_RELAXED)	
 #else /* defined(DHT_ATOMICS) */
+
 #define dht_atomic_load(P)  (*(P))
 #define dht_atomic_store(P,V)  do { *(P) = (V); } while(0)
 #define dht_atomic_fetch_add(P,V)  ({typeof(*(P)) tmp = *(P); *(P) = tmp + (V); tmp;})
@@ -377,6 +381,7 @@ copy_to_cache:
 #define read_unlock(P)   1	
 #define write_lock(P)    1
 #define write_unlock(P)  1	
+
 #else /* !defined(DHT_ATOMICS) */
 static int inline read_lock(int *ref_count)
 {
@@ -508,6 +513,10 @@ static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_s
 
 			dht_atomic_store( &dht_tab->last_builtin_idx, sidx );
 
+			dht_atomic_store( &dht_tab->last_used_entry, &(builtin[sidx]) );
+
+			dht_atomic_store( &dht_tab->reused_count, 0);
+			
 			return 0;
 		}
 	}
@@ -545,6 +554,10 @@ static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym
 				dht_atomic_store( &dht_cache[sidx].accessed, 1);
 
 				dht_atomic_store( &dht_tab->last_cache_idx, sidx );
+
+				dht_atomic_store( &dht_tab->last_used_entry, &(dht_cache[sidx]) );
+
+				dht_atomic_store( &dht_tab->reused_count, 0);
 				
 				read_unlock( &dht_cache[sidx].ref_count );
 
@@ -556,6 +569,44 @@ static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym
 	return -1;
 }
 
+static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
+{
+	int i, k, sidx;
+	dht_entry_t *dht_entry = dht_atomic_load( &dht_tab->last_used_entry );
+
+	if (dht_entry == NULL)
+		return -1;
+
+	if (read_lock( &dht_entry->ref_count)) {
+
+		if (dht_atomic_load( &dht_entry->valid) == 0) {
+			read_unlock( &dht_entry->ref_count );			
+			return -1;
+		}
+		
+		if (dht_atomic_fetch_add( &dht_tab->reused_count, 1) > DHT_REUSE_COUNT) {
+			/* reused more than the threshold */
+			dht_atomic_store( &dht_tab->last_used_entry, NULL );
+			dht_atomic_store( &dht_tab->reused_count, 0);
+			read_unlock( &dht_entry->ref_count );			
+			return -1;
+		}
+
+		DHTPRT( fprintf(stderr, "dht entry reuse last (%d %d)\n", dht_entry->litlen[0], dht_entry->litlen[1]) );
+
+		/* copy the cached dht back to cpb */
+		copy_dht_to_cpb(cmdp, dht_entry);
+
+		/* for lru */
+		dht_atomic_store( &dht_entry->accessed, 1);
+
+		read_unlock( &dht_entry->ref_count );
+
+		return 0;
+	}
+	return -1;
+}
+ 
 static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
 	int i, k, sidx, clock=0;
@@ -581,18 +632,22 @@ static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 	}
 	else assert(0);
 
-search_cache:	
+search_cache:
+	/* reuse the last dht to eliminate sort and dhtgen overheads */	
+	if (!dht_use_last(cmdp, dht_tab))
+		return 0;
+	
 	/* find most frequent symbols */
 	dht_sort(cmdp, top);
 
-	if( !dht_search_cache(cmdp, dht_tab, top) )
+	if (!dht_search_cache(cmdp, dht_tab, top))
 		return 0; /* found */
 
-	if( !dht_search_builtin(cmdp, dht_tab, top) )
+	if (!dht_search_builtin(cmdp, dht_tab, top))
 		return 0; /* found */
 
 search_lru:
-	/* LRU cache entry*/
+	/* Did not find the DHT. Throw away LRU cache entry*/
 	while (1) {
 		/* advance the clock hand */
 		clock = dht_atomic_load( &dht_tab->clock ); /* old value */
@@ -644,6 +699,12 @@ copy_to_cache:
 	dht_cache[clock].litlen[2] = top[llns].sorted[2].sym;	
 	
 	dht_atomic_store( &dht_cache[clock].valid, 1 );
+
+	/* for lru */
+	dht_atomic_store( &dht_cache[clock].accessed, 1);
+	dht_atomic_store( &dht_tab->last_cache_idx, clock );
+	dht_atomic_store( &dht_tab->last_used_entry, &(dht_cache[clock]) );
+	dht_atomic_store( &dht_tab->reused_count, 0);
 
 	assert( write_unlock( &dht_cache[clock].ref_count ) );
 	

@@ -365,8 +365,6 @@ static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_s
 			dht_atomic_store( &dht_tab->last_builtin_idx, sidx );
 
 			dht_atomic_store( &dht_tab->last_used_entry, &(builtin[sidx]) );
-
-			dht_atomic_store( &dht_tab->reused_count, 0);
 			
 			return 0;
 		}
@@ -408,8 +406,6 @@ static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym
 
 				dht_atomic_store( &dht_tab->last_used_entry, &(dht_cache[sidx]) );
 
-				dht_atomic_store( &dht_tab->reused_count, 0);
-				
 				read_unlock( &dht_cache[sidx].ref_count );
 
 				return 0;
@@ -440,15 +436,19 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 		/* extract the source data amount this crb has processed */
 		fc = getnn(cmdp->crb, gzip_fc);
 
+		/* exclude history bytes read */
 		if (fc == GZIP_FC_COMPRESS_RESUME_FHT ||
 		    fc == GZIP_FC_COMPRESS_RESUME_DHT ||
 		    fc == GZIP_FC_COMPRESS_RESUME_FHT_COUNT ||
-		    fc == GZIP_FC_COMPRESS_RESUME_DHT_COUNT)
+		    fc == GZIP_FC_COMPRESS_RESUME_DHT_COUNT) {
 			histlen = getnn(cmdp->cpb, in_histlen) * 16;
-		else 
+		}
+		else { 
 			histlen = 0;
+		}
 
-		source_bytes = -1;
+		source_bytes = 0;
+
 		if (fc == GZIP_FC_COMPRESS_FHT_COUNT || 
 		    fc == GZIP_FC_COMPRESS_DHT_COUNT ||
 		    fc == GZIP_FC_COMPRESS_RESUME_FHT_COUNT ||
@@ -461,26 +461,24 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 			 fc == GZIP_FC_COMPRESS_RESUME_DHT) {
 			/* this might be an error producing a dht with no lzcounts */
 			source_bytes = get32(cmdp->cpb, out_spbc_comp) - histlen;
-			DHTPRT( fprintf(stderr, "producing a dht with no lzcounts?\n") );
+			DHTPRT( fprintf(stderr, "producing a dht with no lzcounts???\n") );
+			assert(0);
 		}
-		
-		if (source_bytes < 0) {
+
+		if (source_bytes < 0 ) source_bytes = 0;
+
+		dht_atomic_fetch_add( &dht_tab->nbytes_accumulated, source_bytes);
+
+		/* if last dht is reused for greater or equal to
+		 * DHT_NUM_SRC_BYTES go to cache search */
+		if (source_bytes == 0 || (dht_atomic_load( &dht_tab->nbytes_accumulated ) >= DHT_NUM_SRC_BYTES)) {
 			dht_atomic_store( &dht_tab->last_used_entry, NULL );
-			dht_atomic_store( &dht_tab->reused_count, 0);
+			dht_atomic_store( &dht_tab->nbytes_accumulated, source_bytes);
 			read_unlock( &dht_entry->ref_count );			
 			return -1;
 		}
-
 		
-		if (dht_atomic_fetch_add( &dht_tab->reused_count, 1) >= DHT_REUSE_COUNT) {
-			/* reused more than the threshold */
-			dht_atomic_store( &dht_tab->last_used_entry, NULL );
-			dht_atomic_store( &dht_tab->reused_count, 0);
-			read_unlock( &dht_entry->ref_count );			
-			return -1;
-		}
-
-		DHTPRT( fprintf(stderr, "dht entry reuse last (%d %d)\n", dht_entry->litlen[0], dht_entry->litlen[1]) );
+		DHTPRT( fprintf(stderr, "dht entry reuse last (litlen %d %d) %ld bytes\n", dht_entry->litlen[0], dht_entry->litlen[1], source_bytes ));
 
 		/* copy the cached dht back to cpb */
 		copy_dht_to_cpb(cmdp, dht_entry);
@@ -592,7 +590,6 @@ copy_to_cache:
 	dht_atomic_store( &dht_cache[clock].accessed, 1);
 	dht_atomic_store( &dht_tab->last_cache_idx, clock );
 	dht_atomic_store( &dht_tab->last_used_entry, &(dht_cache[clock]) );
-	dht_atomic_store( &dht_tab->reused_count, 0);
 
 	assert( write_unlock( &dht_cache[clock].ref_count ) );
 	

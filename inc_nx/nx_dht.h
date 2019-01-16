@@ -43,9 +43,9 @@
 #define DHT_NUM_MAX      128   /* max number of dht table entries */
 #define DHT_SZ_MAX       (DHT_MAXSZ+1)   /* number of dht bytes per entry */
 #define DHT_NUM_BUILTIN  35    /* number of built-in entries */
-#define DHT_REUSE_COUNT  1     /* amortize nx_dht.c over multiple calls */
-/* use the last dht if accumulated source data sizes is less than this value */
-#define DHT_NUM_BYTES    (256*1024) 
+/* use the last dht if accumulated source data sizes is less than this
+   value to amortize dht_lookup overheads over many */
+#define DHT_NUM_SRC_BYTES    (4*256*1024) 
 
 /* #define DHT_ATOMICS            /* define if multithreaded; nx_zlib should not need this */
 

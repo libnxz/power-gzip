@@ -41,8 +41,9 @@
   How to make these builtin huffman table entries:
 
   1. Concatenate all the files of interest in to a single file
-  2. Compress the file with a utility that has dht_print() function
-  enabled. For example gzip_nxdht.c
+  2. Change define DHT_NUM_SRC_BYTES to 0
+     Compress the file with a utility that has dht_print() function
+     enabled. For example gzip_nxdht.c
      #ifdef SAVE_LZCOUNTS
         dht_print(dhthandle);
      #endif

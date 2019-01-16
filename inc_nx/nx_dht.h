@@ -44,7 +44,10 @@
 #define DHT_SZ_MAX       (DHT_MAXSZ+1)   /* number of dht bytes per entry */
 #define DHT_NUM_BUILTIN  35    /* number of built-in entries */
 #define DHT_REUSE_COUNT  1     /* amortize nx_dht.c over multiple calls */
-#define DHT_ATOMICS            /* define if multithreaded; nx_zlib should not need this */
+/* use the last dht if accumulated source data sizes is less than this value */
+#define DHT_NUM_BYTES    (256*1024) 
+
+/* #define DHT_ATOMICS            /* define if multithreaded; nx_zlib should not need this */
 
 typedef struct dht_entry_t {
 	/* 32bit XOR of the entire struct, inclusive of cksum, must
@@ -80,6 +83,7 @@ typedef struct dht_tab_t {
 	int last_cache_idx;
 	int clock;
 	int reused_count;
+	long nbytes_accumulated;
 	dht_entry_t *last_used_entry;
 	dht_entry_t *builtin;
 	dht_entry_t cache[DHT_NUM_MAX+1];

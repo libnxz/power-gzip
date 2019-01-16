@@ -145,10 +145,10 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 		for (i = 0; i < LLSZ+DSZ; i++) 
 			lzcount[i] = be32toh(lzcount[i]);
 		lzcount[256] = 1;
-		DHTPRT( fprintf(stderr, "lzcounts endian corrected\n") );
+		DHTPRT( fprintf(stderr, "dht_sort: lzcounts endian corrected\n") );
 	} 
 	else {
-		DHTPRT( fprintf(stderr, "lzcounts endian ok\n") );
+		DHTPRT( fprintf(stderr, "dht_sort: lzcounts endian ok\n") );
 	}
 
 	for (i = 0; i < LLSZ; i++) { /* Literals and Lengths */
@@ -359,7 +359,7 @@ static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_s
 		if (builtin[sidx].litlen[0] == top[llns].sorted[0].sym && /* top litlen */
 		    SECOND_KEY((builtin[sidx].litlen[1] == top[llns].sorted[1].sym)) ) { /* second top litlen */
 
-			DHTPRT( fprintf(stderr, "builtin hit idx %d\n", sidx ) );
+			DHTPRT( fprintf(stderr, "dht_search_builtin: hit idx %d (litlen %d %d)\n", sidx, builtin[sidx].litlen[0], builtin[sidx].litlen[1] ) );
 			copy_dht_to_cpb(cmdp, &(builtin[sidx]));
 
 			dht_atomic_store( &dht_tab->last_builtin_idx, sidx );
@@ -394,7 +394,7 @@ static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym
 
 			if (read_lock( &dht_cache[sidx].ref_count)) {
 
-				DHTPRT( fprintf(stderr, "dht cache hit idx %d, accessed %ld\n", sidx, dht_cache[sidx].accessed) );
+				DHTPRT( fprintf(stderr, "dht_search_cache: hit idx %d, accessed %ld, (litlen %d %d)\n", sidx, dht_cache[sidx].accessed, dht_cache[sidx].litlen[0], dht_cache[sidx].litlen[1]) );
 
 				/* copy the cached dht back to cpb */
 				copy_dht_to_cpb(cmdp, &(dht_cache[sidx]));
@@ -426,6 +426,8 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 	if (dht_entry == NULL)
 		return -1;
 
+	DHTPRT( fprintf(stderr, "dht_use_last: entry %p\n", dht_entry) );
+
 	if (read_lock( &dht_entry->ref_count)) {
 
 		if (dht_atomic_load( &dht_entry->valid) == 0) {
@@ -442,6 +444,7 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 		    fc == GZIP_FC_COMPRESS_RESUME_FHT_COUNT ||
 		    fc == GZIP_FC_COMPRESS_RESUME_DHT_COUNT) {
 			histlen = getnn(cmdp->cpb, in_histlen) * 16;
+			DHTPRT( fprintf(stderr, "dht_use_last: resume fc 0x%x\n", fc) );
 		}
 		else { 
 			histlen = 0;
@@ -454,6 +457,7 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 		    fc == GZIP_FC_COMPRESS_RESUME_FHT_COUNT ||
 		    fc == GZIP_FC_COMPRESS_RESUME_DHT_COUNT) {
 			source_bytes = get32(cmdp->cpb, out_spbc_comp_with_count) - histlen;
+			DHTPRT( fprintf(stderr, "dht_use_last: fc 0x%x source_bytes %ld\n", fc, source_bytes) );
 		}
 		else if (fc == GZIP_FC_COMPRESS_FHT || 
 			 fc == GZIP_FC_COMPRESS_DHT || 
@@ -461,7 +465,7 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 			 fc == GZIP_FC_COMPRESS_RESUME_DHT) {
 			/* this might be an error producing a dht with no lzcounts */
 			source_bytes = get32(cmdp->cpb, out_spbc_comp) - histlen;
-			DHTPRT( fprintf(stderr, "producing a dht with no lzcounts???\n") );
+			DHTPRT( fprintf(stderr, "dht_use_last: producing a dht with no lzcounts???\n") );
 			assert(0);
 		}
 
@@ -469,16 +473,19 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 
 		dht_atomic_fetch_add( &dht_tab->nbytes_accumulated, source_bytes);
 
+		DHTPRT( fprintf(stderr, "dht_use_last: bytes accumulated so far %ld\n", dht_tab->nbytes_accumulated) );
+
 		/* if last dht is reused for greater or equal to
 		 * DHT_NUM_SRC_BYTES go to cache search */
 		if (source_bytes == 0 || (dht_atomic_load( &dht_tab->nbytes_accumulated ) >= DHT_NUM_SRC_BYTES)) {
 			dht_atomic_store( &dht_tab->last_used_entry, NULL );
 			dht_atomic_store( &dht_tab->nbytes_accumulated, source_bytes);
 			read_unlock( &dht_entry->ref_count );			
+			DHTPRT( fprintf(stderr, "dht_use_last: quit reusing, search caches or dhtgen\n") );
 			return -1;
 		}
 		
-		DHTPRT( fprintf(stderr, "dht entry reuse last (litlen %d %d) %ld bytes\n", dht_entry->litlen[0], dht_entry->litlen[1], source_bytes ));
+		DHTPRT( fprintf(stderr, "dht_use_last: reusing last (litlen %d %d)\n", dht_entry->litlen[0], dht_entry->litlen[1]));
 
 		/* copy the cached dht back to cpb */
 		copy_dht_to_cpb(cmdp, dht_entry);
@@ -569,7 +576,7 @@ force_dhtgen:
 	dhtlen = 8 * dht_num_bytes - ((dht_num_valid_bits) ? 8 - dht_num_valid_bits : 0 );
 	putnn(cmdp->cpb, in_dhtlen, dhtlen); /* write to cpb */
 
-	DHTPRT( fprintf(stderr, "dhtgen bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits) );
+	DHTPRT( fprintf(stderr, "dhtgen: bytes %d last byte bits %d\n", dht_num_bytes, dht_num_valid_bits) );
 
 	if (request == dht_gen_req) /* without updating cache */
 		return 0;
@@ -585,6 +592,8 @@ copy_to_cache:
 	dht_cache[clock].litlen[2] = top[llns].sorted[2].sym;	
 	
 	dht_atomic_store( &dht_cache[clock].valid, 1 );
+
+	DHTPRT( fprintf(stderr, "dht_lookup: insert idx %d (litlen %d %d)\n", clock, dht_cache[clock].litlen[0],dht_cache[clock].litlen[1]));
 
 	/* for lru */
 	dht_atomic_store( &dht_cache[clock].accessed, 1);

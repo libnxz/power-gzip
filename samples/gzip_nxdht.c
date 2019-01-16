@@ -75,7 +75,7 @@
 #ifndef NX_LZ_SAMPLE_NBYTE
 #define NX_LZ_SAMPLE_NBYTE    (1UL<<15)
 #endif
-#define NX_CHUNK_SZ  (1<<20)
+#define NX_CHUNK_SZ  (1<<18)
 
 #ifdef NXTIMER
 struct _nx_time_dbg {

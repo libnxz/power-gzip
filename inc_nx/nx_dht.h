@@ -45,7 +45,7 @@
 #define DHT_NUM_BUILTIN  35    /* number of built-in entries */
 /* use the last dht if accumulated source data sizes is less than this
    value to amortize dht_lookup overheads over many */
-#define DHT_NUM_SRC_BYTES    (4*256*1024) 
+#define DHT_NUM_SRC_BYTES    (512*1024) 
 
 /* #define DHT_ATOMICS            /* define if multithreaded; nx_zlib should not need this */
 

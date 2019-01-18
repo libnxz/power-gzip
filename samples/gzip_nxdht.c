@@ -65,10 +65,17 @@
 #include "nx_dht.h"
 #include "nx.h"
 
-/* #define SAVE_LZCOUNTS  define only when needing an lzcount file */
+/* #define SAVE_LZCOUNTS  define only when printing a builtin dht */
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
+
+/* maximum of 5% of input and the nbyte value is used to sample symbols towards dht statistics */
+#define NX_LZ_SAMPLE_PERCENT  5
+#ifndef NX_LZ_SAMPLE_NBYTE
+#define NX_LZ_SAMPLE_NBYTE    (1UL<<15)
+#endif
+#define NX_CHUNK_SZ  (1<<18)
 
 #ifdef NXTIMER
 struct _nx_time_dbg {
@@ -275,151 +282,6 @@ static void set_bfinal(void *buf, int bfinal)
 		*b = *b & (unsigned char) 0xfe;
 }
 
-#ifdef SAVE_LZCOUNTS
-#include <math.h>
-/* developer utility; not for run time */
-static void save_lzcounts(nx_gzip_crb_cpb_t *cmdp, const char *fname)
-{
-	int i,j;
-	FILE *fp;
-	char prtbuf[256];
-	long llsum, dsum;
-	llsum = dsum = 0;
-	const int nsym = 8;
-	struct tops {
-		int sym;
-		int count;
-		int bitlen; /* just an estimate */
-	} tops[3][nsym]; /* top 4 symbols for literals, lengths and distances */
-
-	for (i=0; i<3; i++) 
-		for (j=0; j<nsym; j++) {
-			tops[i][j].sym = 0; tops[i][j].count = 0; tops[i][j].bitlen = 0; 
-		}
-	
-	if (NULL == (fp = fopen(fname, "w"))) {
-		perror(fname);
-		return;
-	}
-
-	for (i=0; i<LLSZ; i++) {
-		int count = get32(cmdp->cpb, out_lzcount[i]);
-		if (count > 0) {
-			sprintf(prtbuf, "%d : %d\n", i, count );
-			/* NXPRT( fprintf(stderr, "%s", prtbuf) ); */
-			fputs(prtbuf, fp);
-			llsum += count;
-		}
-	}
-
-	for (i=0; i<DSZ; i++) {
-		int count = get32(cmdp->cpb, out_lzcount[i+LLSZ]);
-		if (count > 0) {
-			sprintf(prtbuf, "%d : %d\n", i, count );
-			/* NXPRT( fprintf(stderr, "%s", prtbuf) ); */
-			fputs(prtbuf, fp);
-			dsum += count;
-		}
-	}
-
-	/* find most frequent literals */
-	for (i=0; i<256; i++) {
-		int k;
-		int count = get32(cmdp->cpb, out_lzcount[i]);
-		for (j=0; j<nsym; j++) {
-			if (count > tops[0][j].count ) {
-				for (k=nsym-1; k>j; k--) {
-					/* shift everything right */
-					tops[0][k] = tops[0][k-1];
-				}
-				/* replace the current symbol */
-				tops[0][j].sym = i;
-				tops[0][j].count = count;
-				tops[0][j].bitlen = (int)( -log2((double)count/(double)llsum) + 0.5 );
-				break;
-			}
-		}
-	}
-	/* NXPRT( for(i=0; i<nsym; i++) fprintf(stderr, "top lit %d %d %d\n", tops[0][i].sym, tops[0][i].count, tops[0][i].bitlen) ); */
-	
-	/* find most frequent lens */
-	for (i=257; i<LLSZ; i++) {
-		int k;
-		int count = get32(cmdp->cpb, out_lzcount[i]);
-		for (j=0; j<nsym; j++) {
-			if (count > tops[1][j].count ) {
-				for (k=nsym-1; k>j; k--) {
-					/* shift everything right */
-					tops[1][k] = tops[1][k-1];
-				}
-				/* replace the current symbol */
-				tops[1][j].sym = i;
-				tops[1][j].count = count;
-				tops[1][j].bitlen = (int)( -log2((double)count/(double)llsum) + 0.5 );
-				break;
-			}
-		}
-	}
-	/* NXPRT( for(i=0; i<nsym; i++) fprintf(stderr, "top len %d %d %d\n", tops[1][i].sym, tops[1][i].count, tops[1][i].bitlen) );  */
-
-	/* find most frequent distance */
-	for (i=0; i<DSZ; i++) {
-		int k;
-		int count = get32(cmdp->cpb, out_lzcount[i+LLSZ]);
-		for (j=0; j<nsym; j++) {
-			if (count > tops[2][j].count ) {
-				for (k=nsym-1; k>j; k--) {
-					/* shift everything right */
-					tops[2][k] = tops[2][k-1];
-				}
-				/* replace the current symbol */
-				tops[2][j].sym = i;
-				tops[2][j].count = count;
-				tops[2][j].bitlen = -log2((double)count/(double)dsum);
-				tops[2][j].bitlen = (int)( -log2((double)count/(double)dsum) + 0.5 );
-				break;
-			}
-		}
-	}
-	/* NXPRT( for(i=0; i<nsym; i++) fprintf(stderr, "top dst %d %d %d\n", tops[2][i].sym, tops[2][i].count, tops[2][i].bitlen) ); */
-
-	fputs("# { /* L,L,D */ ", fp);
-	for(i=0; i<3; i++)  {
-		for(j=0; j<nsym; j++) { 
-			sprintf(prtbuf, "%d, ", tops[i][j].sym); fputs(prtbuf, fp); 
-		}
-		fputs(" ", fp);
-	}
-	fputs(" }\n", fp);
-
-	fputs("# { /* L,L,D */ ", fp);
-	for(i=0; i<3; i++)  {
-		for(j=0; j<nsym; j++) { 
-			sprintf(prtbuf, "%d, ", tops[i][j].bitlen); fputs(prtbuf, fp); 
-		}
-		fputs(" ", fp);
-	}
-	fputs(" }\n", fp);
-
-
-#if 0
-	sprintf(prtbuf, "# { /* lit */ %d, %d, %d, %d,  /* len */ %d, %d, %d, %d,  /* dist */ %d, %d, %d, %d, }\n",
-		tops[0][0].sym,	tops[0][1].sym,	tops[0][2].sym,	tops[0][3].sym, 
-		tops[1][0].sym,	tops[1][1].sym,	tops[1][2].sym,	tops[1][3].sym, 
-		tops[2][0].sym,	tops[2][1].sym,	tops[2][2].sym,	tops[2][3].sym );
-	fputs(prtbuf, fp);
-
-	sprintf(prtbuf, "# { /* lit */ %d, %d, %d, %d,  /* len */ %d, %d, %d, %d,  /* dist */ %d, %d, %d, %d, }\n",
-		tops[0][0].bitlen, tops[0][1].bitlen, tops[0][2].bitlen, tops[0][3].bitlen, 
-		tops[1][0].bitlen, tops[1][1].bitlen, tops[1][2].bitlen, tops[1][3].bitlen, 
-		tops[2][0].bitlen, tops[2][1].bitlen, tops[2][2].bitlen, tops[2][3].bitlen );
-	fputs(prtbuf, fp);
-#endif
-
-	fclose(fp);
-}
-#endif
-
 int compress_file(int argc, char **argv, void *handle)
 {
 	char *inbuf, *outbuf, *srcbuf, *dstbuf;
@@ -429,7 +291,7 @@ int compress_file(int argc, char **argv, void *handle)
 	size_t inlen, outlen, dsttotlen, srctotlen;	
 	uint32_t adler, crc, spbc, tpbc, tebc;
 	int lzcounts=1; /* always collect lzcounts */
-	int first_pass;
+	int initial_pass;
 	int cc,fc;
 	int num_hdr_bytes;
 	nx_gzip_crb_cpb_t nxcmd, *cmdp;
@@ -454,7 +316,7 @@ int compress_file(int argc, char **argv, void *handle)
 	NX_CLK( (td.freq = nx_get_freq())  );
 	
 	/* compress piecemeal in small chunks */    
-	chunk = 1<<22;
+	chunk = NX_CHUNK_SZ;
 
 	/* write the gzip header */    
 	num_hdr_bytes = gzip_header_blank(outbuf); 
@@ -465,7 +327,9 @@ int compress_file(int argc, char **argv, void *handle)
 	srcbuf    = inbuf;
 	srctotlen = 0;
 
-	/* setup the builtin dht tables */
+	/* One time init of the dht tables; consider saving this
+	   handle in the nx_stream data structure for the nx_zlib
+	   implementation */
 	dhthandle = dht_begin(NULL, NULL);
 
 	/* prep the CRB */
@@ -476,30 +340,32 @@ int compress_file(int argc, char **argv, void *handle)
 	/* memset(&cmdp->cpb.out_lzcount, 0, sizeof(uint32_t) * (LLSZ+DSZ) ); */
 	put32(cmdp->cpb, in_crc, 0); /* initial gzip crc */
 
-	/* Fill in with the default dht here; we could also do fixed huffman for
-	   sampling the LZcounts; fixed huffman doesn't need a dht_lookup */
-	dht_lookup(cmdp, 0, dhthandle); 
-	first_pass = 1;
+	/* Fill in with the default dht here; instead we could also do
+	   fixed huffman with counts for sampling the LZcounts; fixed
+	   huffman doesn't need a dht_lookup */
+	dht_lookup(cmdp, dht_default_req, dhthandle); 
+	initial_pass = 1;
 
 	fault_tries = 50;
 
 	while (inlen > 0) {
 
-	first_pass_done:
+	initial_pass_done:
 		/* will submit a chunk size source per job */
 		srclen = NX_MIN(chunk, inlen);
 		/* supply large target in case data expands; 288
-		   is for very small src plus the dht room */				
-		dstlen = NX_MIN(2*srclen+288, outlen); 
+		   is for very small src plus the dht headroom */				
+		dstlen = NX_MIN(2 * srclen + 288, outlen); 
 
-		if (first_pass == 1) {
+		if (initial_pass == 1) {
 			/* If requested a first pass to collect
 			   lzcounts; first pass can be short; no need
 			   to run the entire data through typically */
 			/* If srclen is very large, use 5% of it. If
 			   srclen is smaller than 32KB, then use
 			   srclen itself as the sample */
-			srclen = NX_MIN( NX_MAX((srclen * 5)/100, 32768), srclen);
+			srclen = NX_MIN( NX_MAX(((uint64_t)srclen * NX_LZ_SAMPLE_PERCENT)/100, NX_LZ_SAMPLE_NBYTE), srclen);
+			fprintf(stderr, "sample size %d\n", srclen);
 		}
 		else {
 			/* Here I will use the lzcounts collected from
@@ -507,7 +373,7 @@ int compress_file(int argc, char **argv, void *handle)
 			   or computed DHT; I don't need to sample the
 			   data anymore; previous run's lzcount
 			   is a good enough as an lzcount of this run */
-			dht_lookup(cmdp, 1, dhthandle); 
+			dht_lookup(cmdp, dht_search_req, dhthandle); 
 		}
 
 		NX_CLK( (td.touch1 = nx_get_time()) );
@@ -557,15 +423,11 @@ int compress_file(int argc, char **argv, void *handle)
 
 		fault_tries = 50; /* reset for the next chunk */
 
-		if (first_pass == 1) {
+		if (initial_pass == 1) {
 			/* we got our lzcount sample from the 1st pass */
 			NXPRT( fprintf(stderr, "first pass done\n") );
-			first_pass = 0;
-#ifdef SAVE_LZCOUNTS
-			/* save lzcounts to use with the makedht tool */
-			save_lzcounts(cmdp, "1.lzcount");
-#endif
-			goto first_pass_done;
+			initial_pass = 0;
+			goto initial_pass_done;
 		}
 	    
 		inlen     = inlen - srclen;
@@ -637,6 +499,10 @@ int compress_file(int argc, char **argv, void *handle)
 	if (NULL != inbuf) free(inbuf);
 	if (NULL != outbuf) free(outbuf);    
 
+#ifdef SAVE_LZCOUNTS
+	/* print a dht based on the lzcounts */
+	dht_print(dhthandle);
+#endif
 	dht_end(dhthandle);
 
 	return 0;
@@ -651,6 +517,7 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
 		sig, info->si_code, info->si_addr);
 
+	exit(-1);
 	nx_fault_storage_address = info->si_addr; 
 }
 

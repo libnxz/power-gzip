@@ -26,6 +26,7 @@
 #include "nx-helpers.h"
 #include "copy-paste.h"
 #include "nxu.h"
+#include "nx_dbg.h"
 #include <sys/platform/ppc.h>
 
 #define barrier()
@@ -117,13 +118,13 @@ int nx_function_end(void *handle)
         int rc = 0;
         struct nx_handle *nxhandle = handle;
         /* check erro here? if unmap successfully, page fault usually found? */
-        rc = munmap(nxhandle->paste_addr, 4096);
+        // rc = munmap(nxhandle->paste_addr, 4096);
 
-        /* rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+        rc = munmap(nxhandle->paste_addr - 0x400, 4096);
         if (rc < 0) {
                 fprintf(stderr, "munmap() failed, errno %d\n", errno);
                 return rc;
-        }*/
+        }
         close(nxhandle->fd);
         free(nxhandle);
         return rc;
@@ -169,6 +170,7 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	/* check CSB flags */
 	if( getnn( cmdp->crb.csb, csb_v ) == 0 ) {
 		fprintf( stderr, "CSB still not valid after %d polls, giving up", (int) poll );
+		prt_err("CSB still not valid after %d polls, giving up.\n", (int) poll);
 		return -ETIMEDOUT;
 	}
 
@@ -199,7 +201,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 		
 		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
 
-		if (ret & 2) {
+		if ((ret == 2) || (ret == 3)) {
 
 #ifdef NX_JOB_CALLBACK			
 			if (!!callback && !once) {
@@ -209,12 +211,11 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			}
 #endif 
 			ret = nx_wait_for_csb( cmdp );
-			NXPRT( fprintf( stderr, "wait_for_csb() returns %d\n", ret) );
 			if (!ret) {
 				goto out;
 			} else if (ret == -EAGAIN) {
 				volatile long x;
-				fprintf( stderr, "Touching address %p, 0x%lx\n",
+				prt_err("Touching address %p, 0x%lx\n",
 					 nx_fault_storage_address,
 					 *(long *)nx_fault_storage_address);
 				x = *(long *)nx_fault_storage_address;
@@ -223,7 +224,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 				continue;
 			}
 			else {
-				fprintf( stderr, "wait_for_csb() returns %d\n", ret);
+				prt_err("wait_for_csb() returns %d\n", ret);
 				break;
 			}
 		} else {
@@ -238,7 +239,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 				/* sleep */
 				static unsigned int pr=0;
 				if (pr++ % 100 == 0) {
-					fprintf( stderr, "Paste attempt %d/%d, failed pid= %d\n", i, retries, getpid());
+					prt_err("Paste attempt %d/%d, failed pid= %d\n", i, retries, getpid());
 				}
 				usleep(1);
 			}
@@ -249,6 +250,4 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 out:
 	return ret;
 }
-
-
 

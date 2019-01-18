@@ -43,23 +43,28 @@
 #define DHT_NUM_MAX      128   /* max number of dht table entries */
 #define DHT_SZ_MAX       (DHT_MAXSZ+1)   /* number of dht bytes per entry */
 #define DHT_NUM_BUILTIN  35    /* number of built-in entries */
+/* use the last dht if accumulated source data sizes is less than this
+   value to amortize dht_lookup overheads over many */
+#define DHT_NUM_SRC_BYTES    (512*1024) 
+
+/* #define DHT_ATOMICS            /* define if multithreaded; nx_zlib should not need this */
 
 typedef struct dht_entry_t {
-	/* cache location */
-	uint32_t index; 
 	/* 32bit XOR of the entire struct, inclusive of cksum, must
 	   equal 0. May use the cksum if this struct is read/write to
 	   a file; note that XOR is endian agnostic */
 	uint32_t cksum;
-	/* reference count for atomic access */
-	int32_t ref_count;
-	/* usage count for cache replacement 
-	    0: invalid entry; 
-	   -1: builtin entry not to be replaced; 
-	   >0: computed entry */
-	int64_t use_count;
+	volatile int valid;
+	/* reference count for atomic reads; 1 or more is the number
+	   of threads reading */
+	int ref_count;
+	/* for the clock algorithm; since the last clock sweep
+	   0 is not accessed 
+	   1 is accessed once 
+	   2 is accessed two or more time */
+	volatile int64_t accessed;
 	/* for alignment */
-	uint32_t cpb_reserved[3];
+	/* uint32_t cpb_reserved[3]; */
 	/* last 32b contains the 12 bit length; use
 	   the getnn/putnn macros to access
 	   endian-safe */
@@ -74,6 +79,12 @@ typedef struct dht_entry_t {
 
 typedef struct dht_tab_t {
 	/* put any locks here */
+	int last_builtin_idx;
+	int last_cache_idx;
+	int clock;
+	int reused_count;
+	long nbytes_accumulated;
+	dht_entry_t *last_used_entry;
 	dht_entry_t *builtin;
 	dht_entry_t cache[DHT_NUM_MAX+1];
 } dht_tab_t;

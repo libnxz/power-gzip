@@ -1755,6 +1755,11 @@ int nx_deflateSetHeader(z_streamp strm, gz_headerp head)
 	return Z_OK;
 }
 
+int nx_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength)
+{
+	return Z_OK;
+}
+
 #ifdef ZLIB_API
 int deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
 {
@@ -1766,6 +1771,11 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		int stream_size)
 {
 	return nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+}
+
+int deflateReset(z_streamp strm)
+{
+	return nx_deflateReset(strm);
 }
 
 int deflateEnd(z_streamp strm)
@@ -1787,5 +1797,11 @@ int deflateSetHeader(z_streamp strm, gz_headerp head)
 {
 	return nx_deflateSetHeader(strm, head);
 }
+
+int deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength)
+{
+	return nx_deflateSetDictionary(strm, dictionary, dictLength);
+}
+
 #endif
 

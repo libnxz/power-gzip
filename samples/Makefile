@@ -3,6 +3,9 @@ SRC =
 INC = ../inc_nx
 TESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test
 NXFLAGS = -DNXDBG  #-DNXDBG -DNXTIMER -DNX_MMAP
+DHT_O = gzip_nxdht.o gzip_vas.o nx_dht.o nx_dht_builtin.o nx_dhtgen.o
+FHT_O = gzip_nxfht.o gzip_vas.o
+GUN_O = gunzip_nx.o gzip_vas.o
 
 all:	$(TESTS)
 
@@ -18,21 +21,27 @@ nx_dht.o:	../nx_dht.c
 nx_dht_builtin.o:	../nx_dht_builtin.c
 	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../nx_dht_builtin.c
 
-#define SAVE_LZCOUNTS only when collecting counts
+nx_dhtgen.o:	../nx_dhtgen.c
+	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../nx_dhtgen.c
+
+nx_dht_decomp.o:	../nx_dht_decomp.c
+	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../nx_dht_decomp.c
+
+#define SAVE_LZCOUNTS only when printing dhts in the cache
 gzip_nxdht.o:	gzip_nxdht.c
 	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c gzip_nxdht.c #-DSAVE_LZCOUNTS
 
 gunzip_nx.o:	gunzip_nx.c
 	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c gunzip_nx.c
 
-gzip_nxfht_test: 	gzip_nxfht.o gzip_vas.o
-	gcc $(CFLAGS) -o gzip_nxfht_test gzip_nxfht.o gzip_vas.o
+gzip_nxfht_test: 	$(FHT_O)
+	gcc $(CFLAGS) -o gzip_nxfht_test $(FHT_O)
 
-gzip_nxdht_test: 	gzip_nxdht.o gzip_vas.o nx_dht.o nx_dht_builtin.o
-	gcc $(CFLAGS) -lm -o gzip_nxdht_test gzip_nxdht.o gzip_vas.o nx_dht.o nx_dht_builtin.o
+gzip_nxdht_test: 	$(DHT_O)
+	gcc $(CFLAGS) -lm -o gzip_nxdht_test $(DHT_O)
 
-gunzip_nx_test: 	gunzip_nx.o gzip_vas.o
-	gcc $(CFLAGS) -o gunzip_nx_test gunzip_nx.o gzip_vas.o
+gunzip_nx_test: 	$(GUN_O)
+	gcc $(CFLAGS) -o gunzip_nx_test $(GUN_O)
 
 clean:
 	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~

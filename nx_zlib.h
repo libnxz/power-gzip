@@ -49,6 +49,7 @@
 #include <sys/ioctl.h>
 #include <endian.h>
 #include <pthread.h>
+#include <sys/platform/ppc.h>
 #include "nxu.h"
 #include "nx_dbg.h"
 
@@ -77,6 +78,14 @@
 #define HEADER_RAW   0
 #define HEADER_ZLIB  1
 #define HEADER_GZIP  2
+
+#ifndef MAX_WBITS
+#  define MAX_WBITS 15
+#endif
+#ifndef DEF_WBITS
+#  define DEF_WBITS MAX_WBITS
+#endif
+
 
 extern FILE *nx_gzip_log;
 
@@ -310,11 +319,11 @@ typedef struct nx_stream_s *nx_streamp;
 
 #define print_dbg_info(s, line) \
 do { prt_info(\
-"== %d s->avail_in %d s->total_in %d \
-s->used_in %d s->cur_in %d \
-s->avail_out %d s->total_out %d \
-s->used_out %d s->cur_out %d \
-s->len_in %d s->len_out %d\n", line, \
+"== %d avail_in %d total_in %d \
+used_in %d cur_in %d \
+avail_out %d total_out %d \
+used_out %d cur_out %d \
+len_in %d len_out %d\n", line, \
 (s)->avail_in, (s)->total_in, \
 (s)->used_in, (s)->cur_in, \
 (s)->avail_out, (s)->total_out, \
@@ -384,6 +393,12 @@ struct zlib_stats {
 	unsigned long inflatePrime;
 	unsigned long inflateCopy;
 	unsigned long inflateEnd;
+	
+	uint64_t deflate_len;
+	uint64_t deflate_time;
+
+	uint64_t inflate_len;
+	uint64_t inflate_time;
 
 };
 
@@ -397,6 +412,29 @@ inline void zlib_stats_inc(unsigned long *count)
         pthread_mutex_lock(&zlib_stats_mutex);
         *count = *count + 1;
         pthread_mutex_unlock(&zlib_stats_mutex);
+}
+
+static inline uint64_t get_nxtime_now(void)
+{
+	return __ppc_get_timebase();
+}
+
+static inline uint64_t get_nxtime_diff(uint64_t t1, uint64_t t2)
+{
+	if (t2 > t1) {
+		return t2-t1;
+	}else{
+		return (0xFFFFFFFFFFFFFFF-t1) + t2;
+	}
+}
+
+static inline double nxtime_to_us(uint64_t nxtime)
+{
+	uint64_t freq;
+
+	freq = __ppc_get_timebase_freq();
+	
+	return (double)(nxtime * 1000000 / freq) ;
 }
 
 #ifndef ARRAY_SIZE

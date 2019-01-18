@@ -17,9 +17,11 @@
 #ifndef _NXU_DBG_H_
 #define _NXU_DBG_H_
 
-
+#include <sys/file.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <time.h>
+#include <pthread.h>
 
 extern FILE *nx_gzip_log;
 extern int nx_gzip_trace;
@@ -29,40 +31,51 @@ extern unsigned int nx_gzip_inflate_flags;
 extern unsigned int nx_gzip_deflate_flags;
 
 extern int nx_dbg;
+pthread_mutex_t mutex_log;
 
 #define nx_gzip_trace_enabled()       (nx_gzip_trace & 0x1)
 #define nx_gzip_hw_trace_enabled()    (nx_gzip_trace & 0x2)
 #define nx_gzip_sw_trace_enabled()    (nx_gzip_trace & 0x4)
 #define nx_gzip_gather_statistics()   (nx_gzip_trace & 0x8)
 
+#define prt(fmt, ...) do { \
+	pthread_mutex_lock (&mutex_log);				\
+	flock(nx_gzip_log->_fileno, LOCK_EX);				\
+	time_t t; struct tm* m; time(&t); m=localtime(&t);		\
+	fprintf(nx_gzip_log, "[%04d/%02d/%02d %02d:%02d:%02d] "fmt,	\
+		m->tm_year + 1900, m->tm_mon+1, m->tm_mday,		\
+		m->tm_hour, m->tm_min, m->tm_sec, ## __VA_ARGS__);	\
+	fflush(nx_gzip_log);						\
+	flock(nx_gzip_log->_fileno, LOCK_UN);				\
+	pthread_mutex_unlock (&mutex_log);				\
+} while(0)
+
 /* Use in case of an error */
-#define prt_err(fmt, ...) do { if (nx_dbg >= 0)				\
-		fprintf(nx_gzip_log, "%s:%u: Error: " fmt,		\
-			__FILE__, __LINE__, ## __VA_ARGS__);		\
-	} while (0)
+#define prt_err(fmt, ...) do { if (nx_dbg >= 0) {			\
+	prt("%s:%u: Error: "fmt,					\
+		__FILE__, __LINE__, ## __VA_ARGS__);			\
+}} while (0)
 
 /* Use in case of an warning */
-#define prt_warn(fmt, ...) do {	if (nx_dbg >= 1)			\
-		fprintf(nx_gzip_log, "%s:%u: Warning: " fmt,		\
-			__FILE__, __LINE__, ## __VA_ARGS__);		\
-	} while (0)
+#define prt_warn(fmt, ...) do {	if (nx_dbg >= 1) {			\
+	prt("%s:%u: Warning: "fmt,					\
+		__FILE__, __LINE__, ## __VA_ARGS__);			\
+}} while (0)
 
 /* Informational printouts */
-#define prt_info(fmt, ...) do {	if (nx_dbg >= 2)			\
-		fprintf(nx_gzip_log, "Info: " fmt, ## __VA_ARGS__);	\
-	} while (0)
+#define prt_info(fmt, ...) do {	if (nx_dbg >= 2) {			\
+	prt("Info: "fmt, ## __VA_ARGS__);				\
+}} while (0)
 
 /* Trace zlib wrapper code */
-#define prt_trace(fmt, ...) do {					\
-                if (nx_gzip_trace_enabled())				\
-			fprintf(nx_gzip_log, "### " fmt, ## __VA_ARGS__); \
-	} while (0)
+#define prt_trace(fmt, ...) do { if (nx_gzip_trace_enabled()) {		\
+	prt("### "fmt, ## __VA_ARGS__);					\
+}} while (0)
 
 /* Trace statistics */
-#define prt_stat(fmt, ...) do {					\
-                if (nx_gzip_gather_statistics())				\
-			fprintf(nx_gzip_log, "### " fmt, ## __VA_ARGS__); \
-	} while (0)
+#define prt_stat(fmt, ...) do {	if (nx_gzip_gather_statistics()) {	\
+	prt("### "fmt, ## __VA_ARGS__);					\
+}} while (0)
 
 /* Trace zlib hardware implementation */
 #define hw_trace(fmt, ...) do {						\

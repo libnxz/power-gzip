@@ -1,5 +1,5 @@
 /*
- * Deflate Huffman Tables
+ * Deflate Prebuilt Huffman Tables
  *
  * Copyright (C) IBM Corporation, 2011-2017
  *
@@ -48,20 +48,20 @@
         dht_print(dhthandle);
      #endif
   3. Stderr dumps the dht cache contents. Now, include that dump
-  in this nx_dht_builtin.c (edit out the extranous output; include only 
+  in this nx_dht_builtin.c (edit out the extraneous output; include only 
   those in the curly braces. Make sure that the DHT_NUM_BUILTIN definition
   matches the number of blocks in builtin1[]
   4. Re-make
   
-  Why do we need this builtin table?  In essence to speedup execution.
+  We use a builtin table to speedup execution.
 
   P9 NX cannot make its own huffman tables.
-  It need software to supply the table (referred to as dht.)
+  It needs software to supply a table (referred to as dht.)
   Nx_dhtgen.c makes the table however it is expected to be slow.
-  Therefore the dhts are cached. For an additional speedup, cache
+  Therefore dhts are cached. For an additional speedup, cache
   contents can be primed through this file nx_dht_builtin.c.
 
-  Where did the table contents come from?
+  Table contents come from the following:
 
   5264  [2018-12-10 09:53:15] tar xf cantrbry.tar
   5265  [2018-12-10 09:53:23] tar xf silesia.tar

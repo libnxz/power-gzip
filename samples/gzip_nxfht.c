@@ -63,6 +63,10 @@
 #include <signal.h>
 #include "nxu.h"
 #include "nx.h"
+#include "nx_dbg.h"
+
+int nx_dbg = 0;
+FILE *nx_gzip_log = NULL;
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 

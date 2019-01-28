@@ -32,7 +32,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Author: Bulent Abali <abali@us.ibm.com>
+ * Authors: Bulent Abali <abali@us.ibm.com>
+ *          Xiao Lei Hu  <xlhu@cn.ibm.com>
  *
  */
 

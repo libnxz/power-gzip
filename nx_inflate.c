@@ -103,6 +103,7 @@ int nx_inflateReset(z_streamp strm)
 	s->inf_state = 0;
 	s->resuming = 0;
 	s->history_len = 0;
+	s->is_final = 0;
 
 	s->nxcmdp  = &s->nxcmd0;
 

@@ -665,17 +665,49 @@ static retlibnx_t nx_to_zstrm_trailer(void *buf, uint32_t cksum)
 	return LIBNX_OK;
 }
 
-int nx_deflateReset(z_streamp strm)
+static int nx_deflateResetKeep(z_streamp strm)
 {
 	nx_streamp s;
-	if (strm == Z_NULL)
-		return Z_STREAM_ERROR;
+	strm->total_in = strm->total_out = 0;
+	strm->msg = Z_NULL; /* use zfree if we ever allocate msg dynamically */
+	strm->data_type = Z_UNKNOWN;
+	
 	s = (nx_streamp) strm->state;
 	s->total_in = s->total_out = 0;
-	strm->total_in = strm->total_out = 0;	
-	strm->msg = Z_NULL;
-	strm->data_type = Z_UNKNOWN;
+	
+	if (s->wrap < 0) {
+	        s->wrap = -s->wrap; /* was made negative by deflate(..., Z_FINISH); */
+	}
+	if (s->wrap == 0)      s->status = NX_RAW_STATE;
+	else if (s->wrap == 1) s->status = NX_ZLIB_STATE;
+	else if (s->wrap == 2) s->status = NX_GZIP_STATE;
+	
+	s->len_out = nx_config.deflate_fifo_out_len;
+	
+	if (nx_deflate_method == 1)
+	        s->dhthandle = dht_begin(NULL, NULL);
+	
+	s->used_in = s->used_out = 0;
+	s->cur_in  = s->cur_out = 0;
+	s->tebc = 0;
+	s->is_final = 0;
+	
+	s->ddl_in = s->dde_in;
+	s->ddl_out = s->dde_out;
+	
+	s->crc32 = INIT_CRC;
+	s->adler32 = INIT_ADLER;
+	s->need_stored_block = 0;
+	
 	return Z_OK;
+}
+
+int nx_deflateReset(z_streamp strm)
+{
+	if (strm == Z_NULL)
+		return Z_STREAM_ERROR;
+
+	return nx_deflateResetKeep(strm);
 }
 
 int nx_deflateEnd(z_streamp strm)

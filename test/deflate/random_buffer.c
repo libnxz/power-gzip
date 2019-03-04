@@ -24,6 +24,7 @@ static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsign
 	c_stream.next_out = compr;
 
 	while (c_stream.total_in != src_len && c_stream.total_out < compr_len) {
+	    step = (step < (src_len - c_stream.total_in))?(step):(src_len - c_stream.total_in);
 	    c_stream.avail_in = c_stream.avail_out = step;
 	    err = nx_deflate(&c_stream, Z_NO_FLUSH);
 	    if (c_stream.total_in > src_len) break;

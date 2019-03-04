@@ -1208,6 +1208,11 @@ int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, 
 	return cc;
 }
 
+int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLength)
+{
+        return Z_OK;
+}
+
 #ifdef ZLIB_API
 int inflateInit_(z_streamp strm, const char *version, int stream_size)
 {
@@ -1217,6 +1222,10 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 {
 	return nx_inflateInit2_(strm, windowBits, version, stream_size);
 }
+int inflateReset(z_streamp strm)
+{
+        return nx_inflateReset(strm);
+}
 int inflateEnd(z_streamp strm)
 {
 	return nx_inflateEnd(strm);
@@ -1224,6 +1233,10 @@ int inflateEnd(z_streamp strm)
 int inflate(z_streamp strm, int flush)
 {
 	return nx_inflate(strm, flush);
+}
+int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLength)
+{
+        return nx_inflateSetDictionary(strm, dictionary, dictLength);
 }
 #endif
 

@@ -57,6 +57,7 @@
 #include "nx_zlib.h"
 #include "nx.h"
 #include "nx_dbg.h"
+#include "nx_dht.h"
 
 #define DEF_MEM_LEVEL 8
 #define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), ZLIB_VERSION, (int)sizeof(z_stream))
@@ -1738,11 +1739,11 @@ s3:
 	} else if (s->strategy == Z_DEFAULT_STRATEGY) { /* dynamic huffman */
 		print_dbg_info(s, __LINE__);
 		if (s->invoke_cnt == 0) {
-			dht_lookup(cmdp, 0, s->dhthandle);
+			dht_lookup(cmdp, dht_default_req, s->dhthandle);
 			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 32*1024);
 		}
 		else {
-			dht_lookup(cmdp, 1, s->dhthandle);
+			dht_lookup(cmdp, dht_search_req, s->dhthandle);
 			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 0);
 		}
 		nx_compress_update_checksum(s, !combine_cksum);

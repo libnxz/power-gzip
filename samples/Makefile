@@ -49,5 +49,8 @@ zpipe:
 compdecomp: 	compdecomp.c
 	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp compdecomp.c ../libnxz.a -lpthread
 
+compdecomp_th: compdecomp_th.c
+	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp_th compdecomp_th.c ../libnxz.a -lpthread
+
 clean:
-	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp
+	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th

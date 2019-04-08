@@ -171,7 +171,7 @@ int compress_file(int argc, char **argv)
 	   size divided by time for decompress it is output size
 	   divided by time */
 	
-	fprintf(stderr, "begin compressing %ld bytes %d times\n", (long)compdata_len, iterations);
+	fprintf(stderr, "begin compressing %ld bytes %d times\n", (long)inlen, iterations);
 
 	gettimeofday(&ts, NULL);
 
@@ -186,7 +186,7 @@ int compress_file(int argc, char **argv)
 	gettimeofday(&te, NULL);
 	elapsed = (double) te.tv_sec + (double)te.tv_usec/1.0e6
 		- (double) ts.tv_sec + (double)ts.tv_usec/1.0e6;
-	fprintf(stderr, "compressed %ld bytes to %ld bytes %d times in %g seconds, %g GiB/s\n",
+	fprintf(stderr, "compressed %ld bytes to %ld bytes %d times in %g seconds, %g GB/s\n",
 		(long)inlen, (long)compdata_len, iterations, elapsed,
 		(double)inlen * (double)iterations / elapsed / 1.0e9);	
 
@@ -210,7 +210,7 @@ int compress_file(int argc, char **argv)
 	gettimeofday(&te, NULL);
 	elapsed = (double) te.tv_sec + (double)te.tv_usec/1.0e6
 		- (double) ts.tv_sec + (double)ts.tv_usec/1.0e6;
-	fprintf(stderr, "uncompressed %ld bytes to %ld bytes %d times in %g seconds, %g GiB/s\n",
+	fprintf(stderr, "uncompressed %ld bytes to %ld bytes %d times in %g seconds, %g GB/s\n",
 		(long) compdata_len, (long)decompdata_len, iterations, elapsed,
 		(double)decompdata_len * (double)iterations / elapsed / 1.0e9);	
 	

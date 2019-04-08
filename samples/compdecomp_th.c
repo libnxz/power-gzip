@@ -160,7 +160,8 @@ void *comp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: compress error\n", tid);
 		return (void *) -1;
 	}	
-	fprintf(stderr, "tid %d: compressed %ld to %ld bytes\n", tid, (long)inlen, (long)compdata_len);		
+	if (tid == 0) /* print from one thread only to prevent crowding of output */
+		fprintf(stderr, "tid %d: compressed %ld to %ld bytes\n", tid, (long)inlen, (long)compdata_len);		
 
 	/* wait all threads to finish their first runs; want this for pretty printing */	
 	pthread_barrier_wait(&barr);
@@ -173,9 +174,9 @@ void *comp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: uncompress error\n", tid);
 		return (void *) -1;		
 	}
-	fprintf(stderr, "tid %d: uncompressed %ld to %ld bytes\n", tid, (long)compdata_len, (long)decompdata_len);		
-	fflush(stderr);
-
+	if (tid == 0)
+		fprintf(stderr, "tid %d: uncompressed %ld to %ld bytes\n", tid, (long)compdata_len, (long)decompdata_len);		
+	
 	/* wait all threads to finish their first runs; want this for pretty printing */		
 	pthread_barrier_wait(&barr);
 	
@@ -183,8 +184,9 @@ void *comp_file_multith(void *argsv)
 	   larger of the input and output; for compress it is input
 	   size divided by time for decompress it is output size
 	   divided by time */
-	
-	fprintf(stderr, "tid %d: begin compressing %ld bytes %d times\n", tid, (long)inlen, iterations);
+
+	if (tid == 0)
+		fprintf(stderr, "tid %d: begin compressing %ld bytes %d times\n", tid, (long)inlen, iterations);
 
 	gettimeofday(&ts, NULL);
 
@@ -244,7 +246,8 @@ void *decomp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: compress error\n", tid);
 		return (void *) -1;
 	}	
-	fprintf(stderr, "tid %d: compressed %ld to %ld bytes\n", tid, (long)inlen, (long)compdata_len);		
+	if (tid == 0)
+		fprintf(stderr, "tid %d: compressed %ld to %ld bytes\n", tid, (long)inlen, (long)compdata_len);		
 
 	/* wait all threads to finish their first runs; want this for pretty printing */
 	pthread_barrier_wait(&barr);
@@ -257,8 +260,8 @@ void *decomp_file_multith(void *argsv)
 		fprintf(stderr, "uncompress error\n");
 		return (void *) -1;		
 	}
-	fprintf(stderr, "tid %d: uncompressed %ld to %ld bytes\n", tid, (long)compdata_len, (long)decompdata_len);		
-	fflush(stderr);
+	if (tid == 0)
+		fprintf(stderr, "tid %d: uncompressed %ld to %ld bytes\n", tid, (long)compdata_len, (long)decompdata_len);		
 
 	/* wait all threads to finish their first runs; want this for pretty printing */	
 	pthread_barrier_wait(&barr);
@@ -267,8 +270,8 @@ void *decomp_file_multith(void *argsv)
 	   larger of the input and output; for compress it is input
 	   size divided by time for decompress it is output size
 	   divided by time */
-	
-	fprintf(stderr, "tid %d: begin uncompressing %ld bytes %d times\n", tid, (long)compdata_len, iterations);
+	if (tid == 0)	
+		fprintf(stderr, "tid %d: begin uncompressing %ld bytes %d times\n", tid, (long)compdata_len, iterations);
 
 	gettimeofday(&ts, NULL);
 
@@ -324,8 +327,10 @@ int main(int argc, char **argv)
 	/* need this for pretty print */
 	pthread_barrier_init(&barr, NULL, num_threads);
 
-	/* let's push through about 200 GB minimum */
-	iterations = (200L * 1000 * 1000L * 1000L) / ((long)inlen * (long)num_threads);
+	/* Let's push through about 200 GB minimum.  Why add a
+	   constant to size? To finish test early for small data
+	   because s/w overheads dominate */
+	iterations = (200L * 1000 * 1000L * 1000L) / (((long)inlen + (1<<20L)) * (long)num_threads);
 	iterations = (iterations > 0) ? iterations : 1; 
 	
 	fprintf(stderr, "starting %d compress threads\n", num_threads);
@@ -359,7 +364,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "%6.4g ", gbps);
 		sum += gbps;
 	}
-	fprintf(stderr, "\nTotal compress throughput %7.4g\n", sum);	
+	fprintf(stderr, "\nTotal compress throughput GB/s %7.4g\n\n", sum);	
 
 	fprintf(stderr, "starting %d uncompress threads\n", num_threads);
 	for (i = 0; i < num_threads; i++) {
@@ -393,7 +398,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "%6.4g ", gbps);
 		sum += gbps;
 	}
-	fprintf(stderr, "\nTotal uncompress throughput %7.4g\n", sum);	
+	fprintf(stderr, "\nTotal uncompress throughput GB/s %7.4g\n\n", sum);	
 	
 	return rc;
 }

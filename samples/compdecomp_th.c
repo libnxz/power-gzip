@@ -45,6 +45,15 @@
  *
  */
 
+/* how to compile run:
+   cd power-gzip
+   make
+   verify that libnxz.a was created
+   cd samples
+   make compdecomp_th
+   sudo ./compdecomp_th <filename> <thread_count>
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdio.h>

@@ -116,7 +116,7 @@ typedef struct thread_args_t {
 	int my_id;
 	char *inbuf;
 	size_t inlen;
-	int iterations;
+        long iterations;
 	double elapsed_time;
 } thread_args_t;
 
@@ -133,8 +133,8 @@ void *comp_file_multith(void *argsv)
 	char *compbuf, *decompbuf;
 	size_t compbuf_len, decompbuf_len;
 	uLongf compdata_len, decompdata_len;
-	int iterations;
-	int i;
+	long iterations;
+	long i;
 	struct timeval ts, te;
 	double elapsed;
 	thread_args_t *argsp = (thread_args_t *) argsv;
@@ -186,7 +186,7 @@ void *comp_file_multith(void *argsv)
 	   divided by time */
 
 	if (tid == 0)
-		fprintf(stderr, "tid %d: begin compressing %ld bytes %d times\n", tid, (long)inlen, iterations);
+		fprintf(stderr, "tid %d: begin compressing %ld bytes %ld times\n", tid, (long)inlen, iterations);
 
 	gettimeofday(&ts, NULL);
 
@@ -204,7 +204,7 @@ void *comp_file_multith(void *argsv)
 
 	argsp->elapsed_time = elapsed;
 #if 0	
-	fprintf(stderr, "tid %d: compressed %ld bytes to %ld bytes %d times in %g seconds, %g GB/s\n", tid,
+	fprintf(stderr, "tid %d: compressed %ld bytes to %ld bytes %ld times in %g seconds, %g GB/s\n", tid,
 		(long)inlen, (long)compdata_len, iterations, elapsed,
 		(double)inlen * (double)iterations / elapsed / 1.0e9);	
 #endif
@@ -219,8 +219,8 @@ void *decomp_file_multith(void *argsv)
 	char *compbuf, *decompbuf;
 	size_t compbuf_len, decompbuf_len;
 	uLongf compdata_len, decompdata_len;
-	int iterations ;
-	int i;
+	long iterations ;
+	long i;
 	struct timeval ts, te;
 	double elapsed;
 	thread_args_t *argsp = (thread_args_t *) argsv;
@@ -271,7 +271,7 @@ void *decomp_file_multith(void *argsv)
 	   size divided by time for decompress it is output size
 	   divided by time */
 	if (tid == 0)	
-		fprintf(stderr, "tid %d: begin uncompressing %ld bytes %d times\n", tid, (long)compdata_len, iterations);
+		fprintf(stderr, "tid %d: begin uncompressing %ld bytes %ld times\n", tid, (long)compdata_len, iterations);
 
 	gettimeofday(&ts, NULL);
 
@@ -293,7 +293,7 @@ void *decomp_file_multith(void *argsv)
 	argsp->elapsed_time = elapsed;	
 
 #if 0		
-	fprintf(stderr, "tid %d: uncompressed %ld bytes to %ld bytes %d times in %g seconds, %g GB/s\n", tid,
+	fprintf(stderr, "tid %d: uncompressed %ld bytes to %ld bytes %ld times in %g seconds, %g GB/s\n", tid,
 		(long) compdata_len, (long)decompdata_len, iterations, elapsed,
 		(double)decompdata_len * (double)iterations / elapsed / 1.0e9);	
 #endif
@@ -311,7 +311,7 @@ int main(int argc, char **argv)
 	thread_args_t th_args[MAX_THREADS];	
 	int num_threads, i;
 	void *ret;
-	int iterations = 100;
+	long iterations;
 	double sum;
 	
 	if (argc != 3) {
@@ -327,13 +327,14 @@ int main(int argc, char **argv)
 	/* need this for pretty print */
 	pthread_barrier_init(&barr, NULL, num_threads);
 
-	/* Let's push through about 200 GB minimum.  Why add a
-	   constant to size? To finish test early for small data
-	   because s/w overheads dominate */
-	iterations = (200L * 1000 * 1000L * 1000L) / (((long)inlen + (1<<20L)) * (long)num_threads);
-	iterations = (iterations > 0) ? iterations : 1; 
+	/* Let's run for about 30 seconds; constants are some guesses  */
+	double expected_thread_usec = 50.0 + ((double)inlen / (5.0e3/(double)num_threads));
+	iterations = (long)((double)30000000 / expected_thread_usec);
+	iterations = (iterations > 0) ? iterations : 1; 	
+
+	/* reduce iterations by thread count */
 	
-	fprintf(stderr, "starting %d compress threads\n", num_threads);
+	fprintf(stderr, "starting %d compress threads %ld iterations\n", num_threads, iterations);
 	for (i = 0; i < num_threads; i++) {
 		th_args[i].inbuf = inbuf;
 		th_args[i].inlen = inlen;		
@@ -366,6 +367,7 @@ int main(int argc, char **argv)
 	}
 	fprintf(stderr, "\nTotal compress throughput GB/s %7.4g\n\n", sum);	
 
+#ifdef DECOMP_HANGS /* for some sizes, NX csb doesn't set */
 	fprintf(stderr, "starting %d uncompress threads\n", num_threads);
 	for (i = 0; i < num_threads; i++) {
 		th_args[i].inbuf = inbuf;
@@ -399,6 +401,7 @@ int main(int argc, char **argv)
 		sum += gbps;
 	}
 	fprintf(stderr, "\nTotal uncompress throughput GB/s %7.4g\n\n", sum);	
+#endif
 	
 	return rc;
 }

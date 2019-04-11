@@ -41,7 +41,7 @@ int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong source
 {
     z_stream stream;
     int err;
-    const uInt max = (uInt)-1;
+    const uInt max = 1<<24; /* issue #45 workaround; not the best place to chunk input */
     uLong left;
 
     left = *destLen;

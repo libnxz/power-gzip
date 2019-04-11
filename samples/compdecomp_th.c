@@ -189,7 +189,7 @@ void *comp_file_multith(void *argsv)
 	/* wait all threads to finish their first runs; want this for pretty printing */		
 	pthread_barrier_wait(&barr);
 	
-	/* now do some timing runs; when we report bandwidth it's the
+	/* TIMING RUNS start here; when we report bandwidth it's the
 	   larger of the input and output; for compress it is input
 	   size divided by time for decompress it is output size
 	   divided by time */
@@ -208,15 +208,16 @@ void *comp_file_multith(void *argsv)
 	}
 
 	gettimeofday(&te, NULL);
-	elapsed = (double) te.tv_sec + (double)te.tv_usec/1.0e6
-		- (double) ts.tv_sec + (double)ts.tv_usec/1.0e6;
 
+	elapsed = ((double) te.tv_sec + (double)te.tv_usec/1.0e6) 
+		- ((double) ts.tv_sec + (double)ts.tv_usec/1.0e6);
 	argsp->elapsed_time = elapsed;
-#if 0	
-	fprintf(stderr, "tid %d: compressed %ld bytes to %ld bytes %ld times in %g seconds, %g GB/s\n", tid,
-		(long)inlen, (long)compdata_len, iterations, elapsed,
-		(double)inlen * (double)iterations / elapsed / 1.0e9);	
-#endif
+
+	if (tid == 0)
+		fprintf(stderr, "tid %d: compressed %ld bytes to %ld bytes %ld times in %7.4g seconds\n",
+			tid, (long)inlen, (long)compdata_len, iterations, elapsed);
+
+	
 	return (void *) -1;	
 }
 
@@ -275,7 +276,7 @@ void *decomp_file_multith(void *argsv)
 	/* wait all threads to finish their first runs; want this for pretty printing */	
 	pthread_barrier_wait(&barr);
 	
-	/* now do some timing runs; when we report bandwidth it's the
+	/* TIMING RUNS start here; when we report bandwidth it's the
 	   larger of the input and output; for compress it is input
 	   size divided by time for decompress it is output size
 	   divided by time */
@@ -296,16 +297,16 @@ void *decomp_file_multith(void *argsv)
 	}
 
 	gettimeofday(&te, NULL);
-	elapsed = (double) te.tv_sec + (double)te.tv_usec/1.0e6
-		- (double) ts.tv_sec + (double)ts.tv_usec/1.0e6;
 
+	elapsed = ((double) te.tv_sec + (double)te.tv_usec/1.0e6)
+		- ((double) ts.tv_sec + (double)ts.tv_usec/1.0e6);
 	argsp->elapsed_time = elapsed;	
 
-#if 0		
-	fprintf(stderr, "tid %d: uncompressed %ld bytes to %ld bytes %ld times in %g seconds, %g GB/s\n", tid,
-		(long) compdata_len, (long)decompdata_len, iterations, elapsed,
-		(double)decompdata_len * (double)iterations / elapsed / 1.0e9);	
-#endif
+	if (tid == 0)
+		fprintf(stderr, "tid %d: uncompressed %ld bytes to %ld bytes %ld times in %7.4g seconds\n",
+			tid, (long)compdata_len, (long)decompdata_len, iterations, elapsed);
+
+	
 	return (void *) -1;	
 }
 
@@ -336,19 +337,15 @@ int main(int argc, char **argv)
 	/* need this for pretty print */
 	pthread_barrier_init(&barr, NULL, num_threads);
 
-	/* Let's run for about 30 seconds; constants are some guesses  */
-	double expected_thread_usec = 50.0 + ((double)inlen / (5.0e3/(double)num_threads));
-	iterations = (long)((double)30000000 / expected_thread_usec);
-	iterations = (iterations > 0) ? iterations : 1; 	
+	iterations = 100;
 
-	/* reduce iterations by thread count */
-	
 	fprintf(stderr, "starting %d compress threads %ld iterations\n", num_threads, iterations);
 	for (i = 0; i < num_threads; i++) {
 		th_args[i].inbuf = inbuf;
 		th_args[i].inlen = inlen;		
 		th_args[i].my_id = i;
 		th_args[i].iterations = iterations;
+
 		rc = pthread_create(&threads[i], NULL, comp_file_multith, (void *)&th_args[i]);
 		if (rc != 0) {
 			fprintf(stderr, "error: pthread_create %d\n", rc);
@@ -375,14 +372,14 @@ int main(int argc, char **argv)
 		sum += gbps;
 	}
 	fprintf(stderr, "\nTotal compress throughput GB/s %7.4g\n\n", sum);	
-
-#ifdef DECOMP_HANGS /* for some sizes, NX csb doesn't set */
+	
 	fprintf(stderr, "starting %d uncompress threads\n", num_threads);
 	for (i = 0; i < num_threads; i++) {
 		th_args[i].inbuf = inbuf;
 		th_args[i].inlen = inlen;		
 		th_args[i].my_id = i;
 		th_args[i].iterations = iterations;
+
 		rc = pthread_create(&threads[i], NULL, decomp_file_multith, (void *)&th_args[i]);
 		if (rc != 0) {
 			fprintf(stderr, "error: pthread_create %d\n", rc);
@@ -410,7 +407,6 @@ int main(int argc, char **argv)
 		sum += gbps;
 	}
 	fprintf(stderr, "\nTotal uncompress throughput GB/s %7.4g\n\n", sum);	
-#endif
 	
 	return rc;
 }

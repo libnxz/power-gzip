@@ -363,7 +363,7 @@ int main(int argc, char **argv)
 	}
 
 	/* report results */
-	fprintf(stderr, "Compress threads throughput GB/s:\n");
+	fprintf(stderr, "Compress individual threads throughput GB/s:\n");
 	sum = 0;
 	for (i=0; i < num_threads; i++) {
 		double gbps = (double)th_args[i].inlen * (double)th_args[i].iterations /
@@ -371,7 +371,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "%6.4g ", gbps);
 		sum += gbps;
 	}
-	fprintf(stderr, "\nTotal compress throughput GB/s %7.4g\n\n", sum);	
+	fprintf(stderr, "\nTotal compress throughput GB/s %7.4g, bytes %ld, iterations %ld, threads %d\n\n",
+		sum, th_args[0].inlen, th_args[0].iterations, num_threads);	
+
+
 	
 	fprintf(stderr, "starting %d uncompress threads\n", num_threads);
 	for (i = 0; i < num_threads; i++) {
@@ -398,7 +401,7 @@ int main(int argc, char **argv)
 	}
 
 	/* report results */
-	fprintf(stderr, "Uncompress threads throughput GB/s:\n");
+	fprintf(stderr, "Uncompress individual threads throughput GB/s:\n");
 	sum = 0;
 	for (i=0; i < num_threads; i++) {
 		double gbps = (double)th_args[i].inlen * (double)th_args[i].iterations /
@@ -406,7 +409,8 @@ int main(int argc, char **argv)
 		fprintf(stderr, "%6.4g ", gbps);
 		sum += gbps;
 	}
-	fprintf(stderr, "\nTotal uncompress throughput GB/s %7.4g\n\n", sum);	
+	fprintf(stderr, "\nTotal uncompress throughput GB/s %7.4g, bytes %ld, iterations %ld, threads %d\n\n",
+		sum, th_args[0].inlen, th_args[0].iterations, num_threads);	
 	
 	return rc;
 }

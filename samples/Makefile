@@ -46,10 +46,10 @@ gunzip_nx_test: 	$(GUN_O)
 zpipe:
 	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe zpipe.c ../libnxz.a -lpthread
 
-compdecomp: 	compdecomp.c
+compdecomp: 	compdecomp.c ../libnxz.a
 	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp compdecomp.c ../libnxz.a -lpthread
 
-compdecomp_th: compdecomp_th.c
+compdecomp_th: compdecomp_th.c  ../libnxz.a
 	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp_th compdecomp_th.c ../libnxz.a -lpthread
 
 clean:

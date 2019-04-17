@@ -861,7 +861,7 @@ restart_nx:
 		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
 		/* get64 does the endian conversion */
 
-		prt_warn(" pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
+		prt_info(" pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
 			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz);
 
 		if (pgfault_retries == nx_config.retry_max) {
@@ -917,7 +917,7 @@ restart_nx:
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > s->history_len );
 		source_sz = ((source_sz - s->history_len + 2) / 2) + s->history_len;
-		prt_warn("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len);
+		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len);
 		nx_space_retries++;
 		goto restart_nx;
 

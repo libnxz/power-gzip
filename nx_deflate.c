@@ -1313,7 +1313,7 @@ restart:
 		/* nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1); */
 		/* get64 does the endian conversion */
 
-		prt_warn(" pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n", 
+		prt_info(" pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n", 
 			pgfault_retries, bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
 		if (pgfault_retries == nx_pgfault_retries) {
 			/* try once with exact number of pages */
@@ -1359,7 +1359,7 @@ restart:
 
 		/* target buffer not large enough retry fewer pages  */		
 		bytes_in = NX_MAX( bytes_in/2, pgsz);
-		prt_warn("ERR_NX_TARGET_SPACE, retry with bytes_in %d\n", bytes_in);
+		prt_info("ERR_NX_TARGET_SPACE, retry with bytes_in %d\n", bytes_in);
 		goto restart;
 
 	case ERR_NX_TPBC_GT_SPBC:  

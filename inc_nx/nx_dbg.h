@@ -61,9 +61,9 @@ pthread_mutex_t mutex_log;
 	time_t t; struct tm* m; time(&t); m=localtime(&t);		\
 	fprintf(nx_gzip_log, "[%04d/%02d/%02d %02d:%02d:%02d] "		\
 		"pid %d: " fmt,	\
-		m->tm_year + 1900, m->tm_mon+1, m->tm_mday,		\
-		m->tm_hour, m->tm_min, m->tm_sec, 			\
-		getpid(), ## __VA_ARGS__);				\
+		(int)m->tm_year + 1900, (int)m->tm_mon+1, (int)m->tm_mday, \
+		(int)m->tm_hour, (int)m->tm_min, (int)m->tm_sec,	\
+		(int)getpid(), ## __VA_ARGS__);				\
 	fflush(nx_gzip_log);						\
 	flock(nx_gzip_log->_fileno, LOCK_UN);				\
 	pthread_mutex_unlock (&mutex_log);				\

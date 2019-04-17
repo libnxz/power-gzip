@@ -68,7 +68,7 @@ int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sou
 
     stream.next_out = dest;
     stream.avail_out = 0;
-    prt_info("uncompress begin: sourceLen %d\n", *sourceLen);
+    prt_info("uncompress begin: sourceLen %ld\n", *sourceLen);
     do {
         if (stream.avail_out == 0) {
             stream.avail_out = left > (uLong)max ? max : (uInt)left;
@@ -87,7 +87,7 @@ int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sou
     else if (stream.total_out && err == Z_BUF_ERROR)
         left = 1;
 
-    prt_info("uncompress end: stream.total_out %d\n", stream.total_out);
+    prt_info("uncompress end: stream.total_out %ld\n", stream.total_out);
     nx_inflateEnd(&stream);
     return err == Z_STREAM_END ? Z_OK :
            err == Z_NEED_DICT ? Z_DATA_ERROR  :

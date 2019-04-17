@@ -676,7 +676,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 
 copy_fifo_out_to_next_out:
 	if (++loop_cnt == loop_max) {
-		prt_err("cannot make progress; too many loops loop_cnt = %d\n", loop_cnt);
+		prt_err("cannot make progress; too many loops loop_cnt = %ld\n", (long)loop_cnt);
 		return Z_STREAM_END;
 	}
 

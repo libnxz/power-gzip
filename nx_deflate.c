@@ -392,7 +392,7 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 {
 	int k;
 	if (s->wrap == HEADER_GZIP) {
-		prt_info("s->total_out %d\n", s->total_out);
+		prt_info("s->total_out %ld\n", s->total_out);
 		uint32_t isize = s->total_in & ((1ULL<<32)-1);
 		uint32_t cksum = s->crc32;
 		/* TODO hto32le */
@@ -403,14 +403,14 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 			nx_put_byte(s, (cksum & 0xFF000000) >> 24);
 			cksum = cksum << 8;
 		}
-		prt_info("s->total_out %d k %d\n", s->total_out, k);
+		prt_info("s->total_out %ld k %d\n", s->total_out, k);
 		k=0;
 		while (k++ < 4) {
 			prt_info("%02x\n", isize & 0xFF);
 			nx_put_byte(s, isize & 0xFF);
 			isize = isize >> 8;
 		}
-		prt_info("s->total_out %d\n", s->total_out);
+		prt_info("s->total_out %ld\n", s->total_out);
 		return k;
 	}
 	else if (s->wrap == HEADER_ZLIB) {
@@ -1616,7 +1616,7 @@ int nx_deflate(z_streamp strm, int flush)
 
 s1:
 	if (++loop_cnt == loop_max) {
-		prt_err("can not make progress, loop_cnt = %d\n", loop_cnt);
+		prt_err("can not make progress, loop_cnt = %ld\n", loop_cnt);
 		return Z_STREAM_ERROR;
 	}
 
@@ -1648,7 +1648,7 @@ s1:
 		}
 
 		print_dbg_info(s, __LINE__);
-		prt_info("s->zstrm->total_out %d s->status %d\n", s->zstrm->total_out, s->status);
+		prt_info("s->zstrm->total_out %ld s->status %ld\n", (long)s->zstrm->total_out, (long)s->status);
 		if (s->used_out == 0 && s->status == NX_TRAILER_STATE)
 			return Z_STREAM_END;
 		
@@ -1687,7 +1687,7 @@ s2:
 
 s3:
 	if (++loop_cnt == loop_max) {
-		prt_err("can not make progress on s3, loop_cnt = %d\n", loop_cnt);
+		prt_err("can not make progress on s3, loop_cnt = %ld\n", loop_cnt);
 		return Z_STREAM_ERROR;
 	}
 

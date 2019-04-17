@@ -1,5 +1,11 @@
-# CC=gcc
-CC = /opt/at11.0/bin/gcc
+OPTCC = /opt/at11.0/bin/gcc
+ifneq ("$(wildcard $(OPTCC))","")
+	CC = $(OPTCC)
+else
+	CC = gcc
+endif
+#CC=gcc
+#CC = /opt/at11.0/bin/gcc
 FLG = -std=gnu11
 SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
 ZLIB = -DZLIB_API

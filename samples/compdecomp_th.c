@@ -337,7 +337,7 @@ int main(int argc, char **argv)
 	/* need this for pretty print */
 	pthread_barrier_init(&barr, NULL, num_threads);
 
-	iterations = 100;
+	iterations = 10;
 
 	fprintf(stderr, "starting %d compress threads %ld iterations\n", num_threads, iterations);
 	for (i = 0; i < num_threads; i++) {

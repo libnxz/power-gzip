@@ -1,7 +1,7 @@
 CFLAGS = -O3
 SRC =
 INC = ../inc_nx
-TESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test
+TESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th
 NXFLAGS = #-DNXDBG  #-DNXDBG -DNXTIMER -DNX_MMAP
 DHT_O = gzip_nxdht.o gzip_vas.o nx_dht.o nx_dht_builtin.o nx_dhtgen.o
 FHT_O = gzip_nxfht.o gzip_vas.o

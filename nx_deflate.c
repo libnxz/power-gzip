@@ -57,6 +57,7 @@
 #include "nx_zlib.h"
 #include "nx.h"
 #include "nx_dbg.h"
+#include "nx_dht.h"
 
 #define DEF_MEM_LEVEL 8
 #define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), ZLIB_VERSION, (int)sizeof(z_stream))
@@ -391,7 +392,7 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 {
 	int k;
 	if (s->wrap == HEADER_GZIP) {
-		prt_info("s->total_out %d\n", s->total_out);
+		prt_info("s->total_out %ld\n", s->total_out);
 		uint32_t isize = s->total_in & ((1ULL<<32)-1);
 		uint32_t cksum = s->crc32;
 		/* TODO hto32le */
@@ -402,14 +403,14 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 			nx_put_byte(s, (cksum & 0xFF000000) >> 24);
 			cksum = cksum << 8;
 		}
-		prt_info("s->total_out %d k %d\n", s->total_out, k);
+		prt_info("s->total_out %ld k %d\n", s->total_out, k);
 		k=0;
 		while (k++ < 4) {
 			prt_info("%02x\n", isize & 0xFF);
 			nx_put_byte(s, isize & 0xFF);
 			isize = isize >> 8;
 		}
-		prt_info("s->total_out %d\n", s->total_out);
+		prt_info("s->total_out %ld\n", s->total_out);
 		return k;
 	}
 	else if (s->wrap == HEADER_ZLIB) {
@@ -665,17 +666,49 @@ static retlibnx_t nx_to_zstrm_trailer(void *buf, uint32_t cksum)
 	return LIBNX_OK;
 }
 
-int nx_deflateReset(z_streamp strm)
+static int nx_deflateResetKeep(z_streamp strm)
 {
 	nx_streamp s;
-	if (strm == Z_NULL)
-		return Z_STREAM_ERROR;
+	strm->total_in = strm->total_out = 0;
+	strm->msg = Z_NULL; /* use zfree if we ever allocate msg dynamically */
+	strm->data_type = Z_UNKNOWN;
+	
 	s = (nx_streamp) strm->state;
 	s->total_in = s->total_out = 0;
-	strm->total_in = strm->total_out = 0;	
-	strm->msg = Z_NULL;
-	strm->data_type = Z_UNKNOWN;
+	
+	if (s->wrap < 0) {
+	        s->wrap = -s->wrap; /* was made negative by deflate(..., Z_FINISH); */
+	}
+	if (s->wrap == 0)      s->status = NX_RAW_STATE;
+	else if (s->wrap == 1) s->status = NX_ZLIB_STATE;
+	else if (s->wrap == 2) s->status = NX_GZIP_STATE;
+	
+	s->len_out = nx_config.deflate_fifo_out_len;
+	
+	if (nx_deflate_method == 1)
+	        s->dhthandle = dht_begin(NULL, NULL);
+	
+	s->used_in = s->used_out = 0;
+	s->cur_in  = s->cur_out = 0;
+	s->tebc = 0;
+	s->is_final = 0;
+	
+	s->ddl_in = s->dde_in;
+	s->ddl_out = s->dde_out;
+	
+	s->crc32 = INIT_CRC;
+	s->adler32 = INIT_ADLER;
+	s->need_stored_block = 0;
+	
 	return Z_OK;
+}
+
+int nx_deflateReset(z_streamp strm)
+{
+	if (strm == Z_NULL)
+		return Z_STREAM_ERROR;
+
+	return nx_deflateResetKeep(strm);
 }
 
 int nx_deflateEnd(z_streamp strm)
@@ -1280,7 +1313,7 @@ restart:
 		/* nx_touch_pages( (void *)nxcmdp->crb.csb.fsaddr, 1, pgsz, 1); */
 		/* get64 does the endian conversion */
 
-		prt_warn(" pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n", 
+		prt_info(" pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n", 
 			pgfault_retries, bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
 		if (pgfault_retries == nx_pgfault_retries) {
 			/* try once with exact number of pages */
@@ -1326,7 +1359,7 @@ restart:
 
 		/* target buffer not large enough retry fewer pages  */		
 		bytes_in = NX_MAX( bytes_in/2, pgsz);
-		prt_warn("ERR_NX_TARGET_SPACE, retry with bytes_in %d\n", bytes_in);
+		prt_info("ERR_NX_TARGET_SPACE, retry with bytes_in %d\n", bytes_in);
 		goto restart;
 
 	case ERR_NX_TPBC_GT_SPBC:  
@@ -1583,7 +1616,7 @@ int nx_deflate(z_streamp strm, int flush)
 
 s1:
 	if (++loop_cnt == loop_max) {
-		prt_err("can not make progress, loop_cnt = %d\n", loop_cnt);
+		prt_err("can not make progress, loop_cnt = %ld\n", loop_cnt);
 		return Z_STREAM_ERROR;
 	}
 
@@ -1615,7 +1648,7 @@ s1:
 		}
 
 		print_dbg_info(s, __LINE__);
-		prt_info("s->zstrm->total_out %d s->status %d\n", s->zstrm->total_out, s->status);
+		prt_info("s->zstrm->total_out %ld s->status %ld\n", (long)s->zstrm->total_out, (long)s->status);
 		if (s->used_out == 0 && s->status == NX_TRAILER_STATE)
 			return Z_STREAM_END;
 		
@@ -1654,7 +1687,7 @@ s2:
 
 s3:
 	if (++loop_cnt == loop_max) {
-		prt_err("can not make progress on s3, loop_cnt = %d\n", loop_cnt);
+		prt_err("can not make progress on s3, loop_cnt = %ld\n", loop_cnt);
 		return Z_STREAM_ERROR;
 	}
 
@@ -1706,11 +1739,11 @@ s3:
 	} else if (s->strategy == Z_DEFAULT_STRATEGY) { /* dynamic huffman */
 		print_dbg_info(s, __LINE__);
 		if (s->invoke_cnt == 0) {
-			dht_lookup(cmdp, 0, s->dhthandle);
+			dht_lookup(cmdp, dht_default_req, s->dhthandle);
 			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 32*1024);
 		}
 		else {
-			dht_lookup(cmdp, 1, s->dhthandle);
+			dht_lookup(cmdp, dht_search_req, s->dhthandle);
 			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 0);
 		}
 		nx_compress_update_checksum(s, !combine_cksum);

@@ -103,6 +103,7 @@ int nx_inflateReset(z_streamp strm)
 	s->inf_state = 0;
 	s->resuming = 0;
 	s->history_len = 0;
+	s->is_final = 0;
 
 	s->nxcmdp  = &s->nxcmd0;
 
@@ -675,7 +676,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 
 copy_fifo_out_to_next_out:
 	if (++loop_cnt == loop_max) {
-		prt_err("cannot make progress; too many loops loop_cnt = %d\n", loop_cnt);
+		prt_err("cannot make progress; too many loops loop_cnt = %ld\n", (long)loop_cnt);
 		return Z_STREAM_END;
 	}
 
@@ -730,11 +731,15 @@ small_next_in:
 			update_stream_in(s, read_sz);
 			update_stream_in(s->zstrm, read_sz);
 			s->used_in = s->used_in + read_sz;
+			if (s->wrap == HEADER_ZLIB && s->is_final == 1 && s->used_in == 4)
+				/* TODO: four-byte Adler-32 checksum */
+				return Z_STREAM_END;
 		}
 		else {
-			/* should never come here */
-			prt_err("unexpected error\n");
-			return Z_STREAM_END;
+			/* should not come here, but it's not an error if reach here */
+			prt_warn("unexpected warning s->avail_in %d s->len_in %d s->cur_in %d s->used_in %d\n",
+				s->avail_in, s->len_in, s->cur_in, s->used_in);
+			return Z_OK;
 		}
 	}
 	else {
@@ -856,7 +861,7 @@ restart_nx:
 		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
 		/* get64 does the endian conversion */
 
-		prt_warn(" pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
+		prt_info(" pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
 			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz);
 
 		if (pgfault_retries == nx_config.retry_max) {
@@ -912,7 +917,7 @@ restart_nx:
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > s->history_len );
 		source_sz = ((source_sz - s->history_len + 2) / 2) + s->history_len;
-		prt_warn("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len);
+		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len);
 		nx_space_retries++;
 		goto restart_nx;
 
@@ -1100,7 +1105,14 @@ offsets_state:
 		s->used_in = 0;
 		if (s->used_out == 0) {
 			print_dbg_info(s, __LINE__);
-			return Z_STREAM_END;
+			if (s->avail_in == 4) {
+				/* TODO skip 4-byte ADLER32 checksum */
+				update_stream_in(s, 4);
+				update_stream_in(s->zstrm, 4);
+			}
+
+			if (s->is_final == 1) return Z_STREAM_END;
+			else return Z_OK;
 		}
 		else
 			goto copy_fifo_out_to_next_out;
@@ -1208,6 +1220,11 @@ int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, 
 	return cc;
 }
 
+int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLength)
+{
+        return Z_OK;
+}
+
 #ifdef ZLIB_API
 int inflateInit_(z_streamp strm, const char *version, int stream_size)
 {
@@ -1217,6 +1234,10 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 {
 	return nx_inflateInit2_(strm, windowBits, version, stream_size);
 }
+int inflateReset(z_streamp strm)
+{
+        return nx_inflateReset(strm);
+}
 int inflateEnd(z_streamp strm)
 {
 	return nx_inflateEnd(strm);
@@ -1224,6 +1245,10 @@ int inflateEnd(z_streamp strm)
 int inflate(z_streamp strm, int flush)
 {
 	return nx_inflate(strm, flush);
+}
+int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLength)
+{
+        return nx_inflateSetDictionary(strm, dictionary, dictLength);
 }
 #endif
 

@@ -320,16 +320,16 @@ typedef struct nx_stream_s *nx_streamp;
 
 #define print_dbg_info(s, line) \
 do { prt_info(\
-"== %d avail_in %d total_in %d \
-used_in %d cur_in %d \
-avail_out %d total_out %d \
-used_out %d cur_out %d \
-len_in %d len_out %d\n", line, \
-(s)->avail_in, (s)->total_in, \
-(s)->used_in, (s)->cur_in, \
-(s)->avail_out, (s)->total_out, \
-(s)->used_out, (s)->cur_out, \
-(s)->len_in, (s)->len_out);\
+"== %d avail_in %ld total_in %ld \
+used_in %ld cur_in %ld \
+avail_out %ld total_out %ld \
+used_out %ld cur_out %ld \
+len_in %ld len_out %ld\n", line, \
+(long)(s)->avail_in, (long)(s)->total_in,	\
+(long)(s)->used_in, (long)(s)->cur_in,		\
+(long)(s)->avail_out, (long)(s)->total_out,	\
+(long)(s)->used_out, (long)(s)->cur_out,	\
+(long)(s)->len_in, (long)(s)->len_out);		\
 } while (0)
 
 

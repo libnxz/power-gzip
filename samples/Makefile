@@ -1,8 +1,8 @@
 CFLAGS = -O3
 SRC =
 INC = ../inc_nx
-TESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test
-NXFLAGS = -DNXDBG  #-DNXDBG -DNXTIMER -DNX_MMAP
+TESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th
+NXFLAGS = #-DNXDBG  #-DNXDBG -DNXTIMER -DNX_MMAP
 DHT_O = gzip_nxdht.o gzip_vas.o nx_dht.o nx_dht_builtin.o nx_dhtgen.o
 FHT_O = gzip_nxfht.o gzip_vas.o
 GUN_O = gunzip_nx.o gzip_vas.o
@@ -43,5 +43,14 @@ gzip_nxdht_test: 	$(DHT_O)
 gunzip_nx_test: 	$(GUN_O)
 	gcc $(CFLAGS) -o gunzip_nx_test $(GUN_O)
 
+zpipe:
+	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe zpipe.c ../libnxz.a -lpthread
+
+compdecomp: 	compdecomp.c ../libnxz.a
+	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp compdecomp.c ../libnxz.a -lpthread
+
+compdecomp_th: compdecomp_th.c  ../libnxz.a
+	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp_th compdecomp_th.c ../libnxz.a -lpthread
+
 clean:
-	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~
+	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th

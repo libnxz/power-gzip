@@ -78,7 +78,6 @@ pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */
 struct zlib_stats zlib_stats;	/* global statistics */
 
 struct sigaction act;
-void *nx_fault_storage_address;
 void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 /* **************************************************************** */
 

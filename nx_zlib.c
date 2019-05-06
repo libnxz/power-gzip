@@ -71,7 +71,7 @@ int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x0;		/* no trace by default */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
-int nx_deflate_method = 0;             /* 0 is fixed huffman, 1 is dynamic huffman */
+int nx_deflate_method = 1;             /* 0 is fixed huffman, 1 is dynamic huffman */
 
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
 pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */

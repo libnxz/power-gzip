@@ -79,7 +79,7 @@ typedef struct dht_entry_t {
 
 typedef struct dht_tab_t {
 	/* put any locks here */
-	int last_builtin_idx;
+	int last_used_builtin_idx;
 	int last_cache_idx;
 	int clock;
 	int reused_count;

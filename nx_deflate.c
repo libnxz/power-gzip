@@ -1378,7 +1378,7 @@ restart:
 
 		// s->need_stored_block = bytes_in - histbytes;
 		rc = LIBNX_OK_BIG_TARGET;
-		prt_warn("ERR_NX_TPBC_GT_SPBC\n");
+		prt_info("ERR_NX_TPBC_GT_SPBC\n");
 		// FIXME: treat as ERR_NX_OK currently
 		// goto do_no_update; 
 		
@@ -1737,15 +1737,24 @@ s3:
 		nx_compress_update_checksum(s, !combine_cksum);
 
 	} else if (s->strategy == Z_DEFAULT_STRATEGY) { /* dynamic huffman */
+
 		print_dbg_info(s, __LINE__);
-		if (s->invoke_cnt == 0) {
+
+		if (s->invoke_cnt == 0)
 			dht_lookup(cmdp, dht_default_req, s->dhthandle);
-			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 32*1024);
-		}
-		else {
+		else
 			dht_lookup(cmdp, dht_search_req, s->dhthandle);
-			rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT, 0);
-		}
+
+		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, 0);
+
+		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
+                        /* compressed data has expanded; write a type0 block */
+                        s->need_stored_block = s->spbc;
+                        goto s3;
+                }
+                if (rc != LIBNX_OK)
+                        return Z_STREAM_ERROR;
+		
 		nx_compress_update_checksum(s, !combine_cksum);
         }
 

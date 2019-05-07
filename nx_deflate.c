@@ -1624,7 +1624,8 @@ s1:
 
 	/* when fifo_out has data copy it to output stream first */
 	if (s->used_out > 0) {
-		nx_copy_fifo_out_to_nxstrm_out(s);
+		if (LIBNX_OK == nx_copy_fifo_out_to_nxstrm_out(s))
+			loop_cnt = 0;
 		print_dbg_info(s, __LINE__);
 		/* TODO:
 		 * The logic is a little confused here. Like some patches to pass the test.
@@ -1709,6 +1710,7 @@ s3:
 			rc = nx_compress_block(s, GZIP_FC_WRAP, nx_stored_block_len);
 			if (rc != LIBNX_OK)
 				return Z_STREAM_ERROR;
+			loop_cnt = 0; /* update when making progress */
 		}
 		if (s->avail_in == 0 && s->used_in == 0 && flush == Z_FINISH ) {
 			s->status = NX_BFINAL_STATE;
@@ -1736,6 +1738,8 @@ s3:
 		if (rc != LIBNX_OK)
 			return Z_STREAM_ERROR;
 
+		loop_cnt = 0; /* update when making progress */
+		
 		nx_compress_update_checksum(s, !combine_cksum);
 
 	} else if (s->strategy == Z_DEFAULT_STRATEGY) { /* dynamic huffman */
@@ -1756,6 +1760,8 @@ s3:
                 }
                 if (rc != LIBNX_OK)
                         return Z_STREAM_ERROR;
+		
+		loop_cnt = 0; /* update when making progress */
 		
 		nx_compress_update_checksum(s, !combine_cksum);
         }

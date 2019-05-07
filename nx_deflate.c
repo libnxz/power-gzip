@@ -107,7 +107,7 @@ typedef int retlibnx_t;
 typedef int retz_t;
 typedef int retnx_t;
 
-extern int nx_deflate_method;
+extern int nx_strategy_override;
 
 /* **************************************************************** */
 #define LIBNX_OK              0x00
@@ -685,7 +685,7 @@ static int nx_deflateResetKeep(z_streamp strm)
 	
 	s->len_out = nx_config.deflate_fifo_out_len;
 	
-	if (nx_deflate_method == 1)
+	if (s->strategy == Z_DEFAULT_STRATEGY)
 	        s->dhthandle = dht_begin(NULL, NULL);
 	
 	s->used_in = s->used_out = 0;
@@ -699,6 +699,8 @@ static int nx_deflateResetKeep(z_streamp strm)
 	s->crc32 = INIT_CRC;
 	s->adler32 = INIT_ADLER;
 	s->need_stored_block = 0;
+
+	s->invoke_cnt = 0;
 	
 	return Z_OK;
 }
@@ -811,13 +813,22 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->windowBits = windowBits;
 	s->level      = level;
 	s->method     = method;
+
 	s->strategy   = strategy;
-	s->strategy   = Z_FIXED; /* only support Z_FIXED by default */
-	if (nx_deflate_method == 1) s->strategy = Z_DEFAULT_STRATEGY; /* dynamic huffman */
+	if (s->strategy == Z_FIXED || nx_strategy_override == 0) {
+		/* override by caller or by the library loader */
+		s->strategy = Z_FIXED;
+	}
+	else {
+		/* dynamic huffman */
+		s->strategy = Z_DEFAULT_STRATEGY;
+	}
+
 	s->zstrm      = strm; /* pointer to parent */
 	s->page_sz    = nx_config.page_sz;
 	s->nxdevp     = h;
 	s->gzhead     = NULL;
+
 	if (wrap == 0)      s->status = NX_RAW_STATE;
 	else if (wrap == 1) s->status = NX_ZLIB_STATE;
 	else if (wrap == 2) s->status = NX_GZIP_STATE;	
@@ -828,7 +839,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
 
-	if (nx_deflate_method == 1)
+	if (s->strategy == Z_DEFAULT_STRATEGY)		
 		s->dhthandle = dht_begin(NULL, NULL);
 
 	s->used_in = s->used_out = 0;
@@ -1570,7 +1581,6 @@ int nx_deflate(z_streamp strm, int flush)
 		pthread_mutex_unlock(&zlib_stats_mutex);
 	}
 
-
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 
 	/* sync nx_stream with z_stream */
@@ -1578,15 +1588,7 @@ int nx_deflate(z_streamp strm, int flush)
         s->next_out = s->zstrm->next_out;
         s->avail_in = s->zstrm->avail_in;
         s->avail_out = s->zstrm->avail_out;	
-/*
-        if (s->fifo_out == NULL) {
-                s->len_out = NX_MAX( nx_config.page_sz * 2, ((s->zstrm->avail_in * 20)/100)*2);
-                if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
-                        prt_err("nx_alloc_buffer\n");
-                        return Z_MEM_ERROR;
-                }
-        }
-*/
+
 	/* update flush status here */
 	s->flush = flush;
 

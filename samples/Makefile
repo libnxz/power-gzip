@@ -46,7 +46,7 @@ gzip_nxdht_test: 	$(DHT_O)
 gunzip_nx_test: 	$(GUN_O)
 	gcc $(CFLAGS) -o gunzip_nx_test $(GUN_O)
 
-zpipe:
+zpipe:	../libnxz.a zpipe.c
 	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe zpipe.c ../libnxz.a -lpthread
 
 compdecomp: 	compdecomp.c ../libnxz.a

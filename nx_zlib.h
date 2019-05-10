@@ -247,7 +247,7 @@ typedef struct nx_stream_s {
         /* nx command and parameter block; one command at a time per stream */
 	nx_gzip_crb_cpb_t *nxcmdp;  
         nx_gzip_crb_cpb_t nxcmd0;      
-        nx_gzip_crb_cpb_t nxcmd1;       /* two cpb blocks to parallelize 
+	/* nx_gzip_crb_cpb_t nxcmd1;       two cpb blocks to parallelize 
 					   lzcount processing */
         
         /* fifo_in is the saved amount from last deflate() call

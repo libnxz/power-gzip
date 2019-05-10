@@ -217,6 +217,8 @@ void *comp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: compressed %ld bytes to %ld bytes %ld times in %7.4g seconds\n",
 			tid, (long)inlen, (long)compdata_len, iterations, elapsed);
 
+	free(decompbuf);
+	free(compbuf);		
 	
 	return (void *) -1;	
 }
@@ -306,7 +308,9 @@ void *decomp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: uncompressed %ld bytes to %ld bytes %ld times in %7.4g seconds\n",
 			tid, (long)compdata_len, (long)decompdata_len, iterations, elapsed);
 
-	
+	free(decompbuf);
+	free(compbuf);		
+
 	return (void *) -1;	
 }
 

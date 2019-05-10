@@ -105,7 +105,7 @@ void *dht_begin5(char *ifile, char *ofile)
 		dht_tab->cache[i].accessed = 0;
 	}
 	dht_tab->builtin = get_builtin_table();
-	dht_tab->last_builtin_idx = -1;
+	dht_tab->last_used_builtin_idx = -1;
 	dht_tab->last_cache_idx = -1;
 	dht_tab->last_used_entry = NULL;	
 	dht_tab->nbytes_accumulated = 0;
@@ -346,7 +346,7 @@ static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_s
 	dht_entry_t *builtin = dht_tab->builtin;
 
 	/* speed up the search */	
-	sidx = dht_atomic_load( &dht_tab->last_builtin_idx );
+	sidx = dht_atomic_load( &dht_tab->last_used_builtin_idx );
 	sidx = (sidx < 0) ? 0 : sidx;
 	sidx = sidx % DHT_NUM_BUILTIN;
 	
@@ -362,7 +362,7 @@ static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_s
 			DHTPRT( fprintf(stderr, "dht_search_builtin: hit idx %d (litlen %d %d)\n", sidx, builtin[sidx].litlen[0], builtin[sidx].litlen[1] ) );
 			copy_dht_to_cpb(cmdp, &(builtin[sidx]));
 
-			dht_atomic_store( &dht_tab->last_builtin_idx, sidx );
+			dht_atomic_store( &dht_tab->last_used_builtin_idx, sidx );
 
 			dht_atomic_store( &dht_tab->last_used_entry, &(builtin[sidx]) );
 			
@@ -475,8 +475,8 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 
 		DHTPRT( fprintf(stderr, "dht_use_last: bytes accumulated so far %ld\n", dht_tab->nbytes_accumulated) );
 
-		/* if last dht is reused for greater or equal to
-		 * DHT_NUM_SRC_BYTES go to cache search */
+		/* if last dht has been reused many times, for greater or equal to
+		 * DHT_NUM_SRC_BYTES, then return early to refresh the dht */
 		if (source_bytes == 0 || (dht_atomic_load( &dht_tab->nbytes_accumulated ) >= DHT_NUM_SRC_BYTES)) {
 			dht_atomic_store( &dht_tab->last_used_entry, NULL );
 			dht_atomic_store( &dht_tab->nbytes_accumulated, source_bytes);
@@ -513,6 +513,7 @@ static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 	if (request == dht_default_req) {
 		/* first builtin entry is the default */
 		copy_dht_to_cpb(cmdp, &dht_tab->builtin[0]);
+		dht_atomic_store( &dht_tab->last_used_entry, &dht_tab->builtin[0] );
 		return 0;
 	}
 	else if (request == dht_gen_req)

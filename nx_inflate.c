@@ -171,12 +171,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	}
 
 	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
+	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
-
-	if (s == NULL) {
-		prt_err("nx_alloc_buffer\n");		
-		return Z_MEM_ERROR;
-	}
 
 	s->zstrm   = strm;
 	s->nxcmdp  = &s->nxcmd0;

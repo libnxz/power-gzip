@@ -685,7 +685,7 @@ static int nx_deflateResetKeep(z_streamp strm)
 	
 	s->len_out = nx_config.deflate_fifo_out_len;
 	
-	if (s->strategy == Z_DEFAULT_STRATEGY)
+	if (s->strategy == Z_DEFAULT_STRATEGY && s->dhthandle == NULL)
 	        s->dhthandle = dht_begin(NULL, NULL);
 	
 	s->used_in = s->used_out = 0;
@@ -815,14 +815,10 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->method     = method;
 
 	s->strategy   = strategy;
-	if (s->strategy == Z_FIXED || nx_strategy_override == 0) {
-		/* override by caller or by the library loader */
+	if (s->strategy == Z_FIXED || nx_strategy_override == 0)
 		s->strategy = Z_FIXED;
-	}
-	else {
-		/* dynamic huffman */
+	else
 		s->strategy = Z_DEFAULT_STRATEGY;
-	}
 
 	s->zstrm      = strm; /* pointer to parent */
 	s->page_sz    = nx_config.page_sz;
@@ -839,7 +835,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
 
-	if (s->strategy == Z_DEFAULT_STRATEGY)		
+	if (s->strategy == Z_DEFAULT_STRATEGY && s->dhthandle == NULL)		
 		s->dhthandle = dht_begin(NULL, NULL);
 
 	s->used_in = s->used_out = 0;

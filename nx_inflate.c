@@ -171,12 +171,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	}
 
 	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
+	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
-
-	if (s == NULL) {
-		prt_err("nx_alloc_buffer\n");		
-		return Z_MEM_ERROR;
-	}
 
 	s->zstrm   = strm;
 	s->nxcmdp  = &s->nxcmd0;
@@ -731,15 +727,11 @@ small_next_in:
 			update_stream_in(s, read_sz);
 			update_stream_in(s->zstrm, read_sz);
 			s->used_in = s->used_in + read_sz;
-			if (s->wrap == HEADER_ZLIB && s->is_final == 1 && s->used_in == 4)
-				/* TODO: four-byte Adler-32 checksum */
-				return Z_STREAM_END;
 		}
 		else {
-			/* should not come here, but it's not an error if reach here */
-			prt_warn("unexpected warning s->avail_in %d s->len_in %d s->cur_in %d s->used_in %d\n",
-				s->avail_in, s->len_in, s->cur_in, s->used_in);
-			return Z_OK;
+			/* should never come here */
+			prt_err("unexpected error\n");
+			return Z_STREAM_END;
 		}
 	}
 	else {
@@ -1105,14 +1097,7 @@ offsets_state:
 		s->used_in = 0;
 		if (s->used_out == 0) {
 			print_dbg_info(s, __LINE__);
-			if (s->avail_in == 4) {
-				/* TODO skip 4-byte ADLER32 checksum */
-				update_stream_in(s, 4);
-				update_stream_in(s->zstrm, 4);
-			}
-
-			if (s->is_final == 1) return Z_STREAM_END;
-			else return Z_OK;
+			return Z_STREAM_END;
 		}
 		else
 			goto copy_fifo_out_to_next_out;

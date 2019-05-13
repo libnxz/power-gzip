@@ -152,6 +152,85 @@ int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 	return 0;
 }
 
+#define FAST_ALIGN_ALLOC
+#ifdef FAST_ALIGN_ALLOC
+
+#define ROUND_UP(X,ALIGN) ((typeof(X)) ((((uint64_t)(X)+((uint64_t)(ALIGN)-1))/((uint64_t)(ALIGN)))*((uint64_t)(ALIGN))))
+typedef struct nx_alloc_header_t { void *allocated_addr; } nx_alloc_header_t; 
+
+/* allocate internal buffers and try mlock but ignore failed mlocks */
+void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
+{
+	char *buf;
+	nx_alloc_header_t h;
+
+	/* aligned_alloc library routine has a high overhead. We roll
+	   our own algorithm here: 1. Alloc more than the request
+	   amount by the alignment size plus a header. Header will
+	   hide the actual malloc address to be freed later 2. Advance
+	   the mallocated pointer by the header size to reserve room
+	   for the header. 3. Round up the advanced pointer to the
+	   alignment boundary. This is the aligned pointer that we
+	   will return to the caller.  4. Before returning subtract
+	   header size amount from the aligned pointer and write the
+	   header to this hidden address.  Later, when caller supplies
+	   to be freed address (aligned), subtract the header amount
+	   to get to the hidden address. */
+
+#ifdef NXTIMER
+	uint64_t ts, te;
+	ts = nx_get_time();
+#endif	
+
+	buf = malloc( len + alignment + sizeof(nx_alloc_header_t) );
+	if (buf == NULL)
+                return buf;
+
+	h.allocated_addr = (void *)buf; 
+
+	buf = ROUND_UP(buf + sizeof(nx_alloc_header_t), alignment);
+
+	/* save the hidden address behind buf, and return buf */	
+	*((nx_alloc_header_t *)(buf - sizeof(nx_alloc_header_t))) = h;
+
+#ifdef NXTIMER		
+	te = nx_get_time();
+	fprintf(stderr,"time %ld freq %ld, bytes %d alignment %ld, file %s line %d\n", te-ts, nx_get_freq(), len, alignment, __FILE__, __LINE__);
+	fflush(stderr);
+#endif
+	
+	if (lock) {
+		if (mlock(buf, len))
+			prt_err("mlock failed, errno= %d\n", errno);
+	}
+
+	return buf;
+}
+
+void nx_free_buffer(void *buf, uint32_t len, int unlock)
+{
+	nx_alloc_header_t *h;
+
+	if (buf == NULL)
+		return;
+
+	/* retrieve the hidden address which is the actuall address to
+	   be freed */
+	h = (nx_alloc_header_t *)((char *)buf - sizeof(nx_alloc_header_t));
+
+	buf = (void *) h->allocated_addr;
+
+	if (unlock) 
+		if (munlock(buf, len))
+			pr_err("munlock failed, errno= %d\n", errno);
+
+	free(buf);
+
+	return;
+}
+
+#else /* FAST_ALIGN_ALLOC */
+
 /* allocate internal buffers and try mlock but ignore failed mlocks */
 void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 {
@@ -179,6 +258,9 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 	free(buf);
 	return;
 }
+
+#endif /* FAST_ALIGN_ALLOC */
+
 
 /* 
    Adds an (address, len) pair to the list of ddes (ddl) and updates
@@ -743,7 +825,9 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 {
 	prt_err("%d: Got signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);
 
-	nx_fault_storage_address = info->si_addr;
-	exit(0);
+	fprintf(stderr, "%d: signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);	
+	fflush(stderr);
+	/* nx_fault_storage_address = info->si_addr; */
+	exit(-1);
 }
 

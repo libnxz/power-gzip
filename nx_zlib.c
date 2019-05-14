@@ -156,7 +156,8 @@ int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 #ifdef FAST_ALIGN_ALLOC
 
 #define ROUND_UP(X,ALIGN) ((typeof(X)) ((((uint64_t)(X)+((uint64_t)(ALIGN)-1))/((uint64_t)(ALIGN)))*((uint64_t)(ALIGN))))
-typedef struct nx_alloc_header_t { void *allocated_addr; } nx_alloc_header_t; 
+#define NX_MEM_ALLOC_CORRUPTED 0x1109ce98cedd7badUL
+typedef struct nx_alloc_header_t { uint64_t signature; void *allocated_addr; } nx_alloc_header_t; 
 
 /* allocate internal buffers and try mlock but ignore failed mlocks */
 void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
@@ -186,7 +187,8 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 	if (buf == NULL)
                 return buf;
 
-	h.allocated_addr = (void *)buf; 
+	h.allocated_addr = (void *)buf;
+	h.signature = NX_MEM_ALLOC_CORRUPTED;
 
 	buf = ROUND_UP(buf + sizeof(nx_alloc_header_t), alignment);
 
@@ -214,11 +216,16 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 	if (buf == NULL)
 		return;
 
-	/* retrieve the hidden address which is the actuall address to
+	/* retrieve the hidden address which is the actually address to
 	   be freed */
 	h = (nx_alloc_header_t *)((char *)buf - sizeof(nx_alloc_header_t));
 
 	buf = (void *) h->allocated_addr;
+
+	/* if signature is overwritten then indicates a double free or
+	   memory corruption */
+	assert( NX_MEM_ALLOC_CORRUPTED == h->signature );
+	h->signature = 0;
 
 	if (unlock) 
 		if (munlock(buf, len))

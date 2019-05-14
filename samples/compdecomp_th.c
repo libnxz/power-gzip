@@ -170,7 +170,7 @@ void *comp_file_multith(void *argsv)
 		return (void *) -1;
 	}	
 	if (tid == 0) /* print from one thread only to prevent crowding of output */
-		fprintf(stderr, "tid %d: compressed %ld to %ld bytes\n", tid, (long)inlen, (long)compdata_len);		
+		fprintf(stderr, "tid %d: compressed %ld to %ld bytes\n", tid, (long)inlen, (long)compdata_len);
 
 	/* wait all threads to finish their first runs; want this for pretty printing */	
 	pthread_barrier_wait(&barr);
@@ -341,7 +341,7 @@ int main(int argc, char **argv)
 	/* need this for pretty print */
 	pthread_barrier_init(&barr, NULL, num_threads);
 
-	iterations = 10;
+	iterations = 100000;
 
 	fprintf(stderr, "starting %d compress threads %ld iterations\n", num_threads, iterations);
 	for (i = 0; i < num_threads; i++) {

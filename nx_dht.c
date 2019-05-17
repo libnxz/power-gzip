@@ -90,6 +90,8 @@ const int dsts = 1;
 
 extern dht_entry_t *get_builtin_table();
 
+int nx_dht_config = 0; 
+
 /* One time setup of the tables. Returns a handle.  ifile ofile
    unused */
 void *dht_begin5(char *ifile, char *ofile)
@@ -130,8 +132,15 @@ void *dht_begin(char *ifile, char *ofile)
 static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 {
 	int i;
+	int llscan;
 	uint32_t *lzcount;
 	top_sym_t top[1];
+
+	/* where to look for the top search keys */
+	if ( (nx_dht_config & 0x1) == 0x1 )
+		llscan = LLSZ;   /* scan literals and lengths */
+	else 
+		llscan = NUMLIT; /* scan literals only */
 	
 	/* init */
 	top[llns].sorted[0].lzcnt = 0;
@@ -153,10 +162,7 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 		DHTPRT( fprintf(stderr, "dht_sort: lzcounts endian ok\n") );
 	}
 
-	/* Keying with literals only, no lengths, compresses genomic data better.
-	   We need to explore this more. Possibly replace NUMLIT with a variable
-	   which choose between 256 and 286 */
-	for (i = 0; i < NUMLIT /* LLSZ */; i++) { /* Literals and Lengths */
+	for (i = 0; i < llscan; i++) { /* Look for the top keys */
 		uint32_t c = lzcount[i];
 
 		DHTPRT( fprintf(stderr, "%d %d, ", i, lzcount[i] ) );

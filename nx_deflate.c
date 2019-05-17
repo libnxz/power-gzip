@@ -98,8 +98,6 @@ static uint32_t nx_max_byte_count_low = (1UL<<30);
 static uint32_t nx_max_byte_count_high = (1UL<<30);
 static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
-static uint32_t nx_per_job_len = (512 * 1024);     /* less than suspend limit */
-static uint32_t nx_soft_copy_threshold = 1024;      /* choose memcpy or hwcopy */
 static uint32_t nx_compress_threshold = (10*1024);  /* collect as much input */
 static int      nx_pgfault_retries = 50;         
 
@@ -1723,16 +1721,20 @@ s3:
 
 	} else if (s->strategy == Z_FIXED) {
 
-		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_FHT, 0);
 		print_dbg_info(s, __LINE__);
+
+		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_FHT, nx_config.per_job_len);
 		
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
 			/* compressed data has expanded; write a type0 block */
 			s->need_stored_block = s->spbc;
+			prt_info("need stored block, goto s3, %d\n",__LINE__);
 			goto s3;
 		}
-		if (rc != LIBNX_OK)
+		if (rc != LIBNX_OK) {
+			prt_warn("nx_compress_block returned %d, %d\n", rc, __LINE__);
 			return Z_STREAM_ERROR;
+		}
 
 		loop_cnt = 0; /* update when making progress */
 		
@@ -1747,7 +1749,7 @@ s3:
 		else
 			dht_lookup(cmdp, dht_search_req, s->dhthandle);
 
-		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, 512*1024);
+		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, nx_config.per_job_len);
 
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
                         /* compressed data has expanded; write a type0 block */
@@ -1763,7 +1765,6 @@ s3:
 		loop_cnt = 0; /* update when making progress */
 		
 		nx_compress_update_checksum(s, !combine_cksum);
-		prt_info("update_checksum_ complete, %d\n",__LINE__);		
         }
 
 	print_dbg_info(s, __LINE__);
@@ -1780,7 +1781,7 @@ s3:
 		else
 			return Z_OK; /* more data may come */
 		break;
-	case 0b0001: /* no output space */ 
+	case 0b0001: /* no output space and various input combinations */ 
 	case 0b0010:
 	case 0b0011:
 	case 0b0100: 
@@ -1795,22 +1796,14 @@ s3:
 	case 0b1100: /* have output space, have fifo_out data */
 	case 0b1101: /* have output space, have fifo_out data, have fifo_in data */
 	case 0b1110: /* have output space, have fifo_out data, have input data */
-	case 0b1111: /* have output space, have fifo_out data, have input data, have fifo_in data */		
+	case 0b1111: /* have output space, have fifo_out data, have input data, have fifo_in data */
+		/* since we have fifo_out data, go to s1 which will move it to user stream buffer */
 		goto s1; break;
 	}
 		
-	if ((s->flush == Z_SYNC_FLUSH) ||
-	   (s->flush == Z_PARTIAL_FLUSH) ||
-	   (s->flush == Z_FULL_FLUSH))
-		if ((s->avail_in == 0)  && (s->used_in == 0) && (s->used_out == 0))
-			return Z_STREAM_END;
-
-	if (s->flush == Z_FINISH) {
-		if ((s->avail_in > 0) && (s->avail_out > 0)) goto s1;
-		if ((s->status == NX_BFINAL_STATE) && (s->avail_out > 0)) goto s1;
-	}
-
-	return Z_OK;
+	assert(!"nx_deflate should not get here");
+	
+	return Z_STREAM_ERROR;
 }
 
 unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)

@@ -151,8 +151,11 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 		DHTPRT( fprintf(stderr, "dht_sort: lzcounts endian ok\n") );
 	}
 
-	for (i = 0; i < LLSZ; i++) { /* Literals and Lengths */
+	for (i = 0; i < 256 /* LLSZ */; i++) { /* Literals and Lengths */
 		uint32_t c = lzcount[i];
+
+		DHTPRT( fprintf(stderr, "%d %d, ", i, lzcount[i] ) );
+		
 		if ( DHT_GT(c, top[llns].sorted[0].lzcnt) ) {
 			/* count greater than the top count */
 #if !defined(DHT_ONE_KEY)
@@ -181,7 +184,7 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 	
 	/* Will not use distances as cache keys */
 
-	/* DHTPRT( fprintf(stderr, "top litlens %d %d %d\n", top[llns].sorted[0].sym, top[llns].sorted[1].sym, top[llns].sorted[2].sym) ); */
+	DHTPRT( fprintf(stderr, "top litlens %d %d %d\n", top[llns].sorted[0].sym, top[llns].sorted[1].sym, top[llns].sorted[2].sym) );
 
 	return 0;
 }

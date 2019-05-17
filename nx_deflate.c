@@ -1747,23 +1747,58 @@ s3:
 		else
 			dht_lookup(cmdp, dht_search_req, s->dhthandle);
 
-		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, 0);
+		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, 512*1024);
 
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
                         /* compressed data has expanded; write a type0 block */
                         s->need_stored_block = s->spbc;
+			prt_info("need stored block, goto s3, %d\n",__LINE__);
                         goto s3;
                 }
-                if (rc != LIBNX_OK)
+                if (rc != LIBNX_OK) {
+			prt_warn("nx_compress_block returned %d, %d\n", rc, __LINE__);
                         return Z_STREAM_ERROR;
+		}
 		
 		loop_cnt = 0; /* update when making progress */
 		
 		nx_compress_update_checksum(s, !combine_cksum);
+		prt_info("update_checksum_ complete, %d\n",__LINE__);		
         }
 
 	print_dbg_info(s, __LINE__);
 
+	int buffer_state = (s->avail_out > 0)<<3 | (s->used_out > 0)<<2 | (s->avail_in > 0)<<1 | (s->used_in > 0);
+
+	prt_info("buffer state %d\n", buffer_state);
+	
+	switch (buffer_state) {
+	case 0b0000: /* no output space and no input data */
+	case 0b1000: /* have output space, no inputs */		
+		if (s->flush == Z_FINISH)
+			return Z_STREAM_END;
+		else
+			return Z_OK; /* more data may come */
+		break;
+	case 0b0001: /* no output space */ 
+	case 0b0010:
+	case 0b0011:
+	case 0b0100: 
+	case 0b0101:
+	case 0b0110:
+	case 0b0111: /* no output space, have fifo_out data */
+		return Z_OK; break;
+	case 0b1001: /* have output space; have fifo_in data */
+	case 0b1010: /* have output space; have input data */
+	case 0b1011: /* have output space; have input data; have fifo_in data */		
+		goto s2; break;
+	case 0b1100: /* have output space, have fifo_out data */
+	case 0b1101: /* have output space, have fifo_out data, have fifo_in data */
+	case 0b1110: /* have output space, have fifo_out data, have input data */
+	case 0b1111: /* have output space, have fifo_out data, have input data, have fifo_in data */		
+		goto s1; break;
+	}
+		
 	if ((s->flush == Z_SYNC_FLUSH) ||
 	   (s->flush == Z_PARTIAL_FLUSH) ||
 	   (s->flush == Z_FULL_FLUSH))

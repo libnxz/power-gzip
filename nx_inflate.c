@@ -808,18 +808,20 @@ decomp_state:
 	/*
 	 * NX source buffers
 	 */
-	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in); /* history */
-	nx_append_dde(ddl_in, s->next_in, s->avail_in); /* limitation here? */
-	source_sz = getp32(ddl_in, ddebc); /* accounts for history too */
+	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in); /* prepend history */
+	nx_append_dde(ddl_in, s->next_in, s->avail_in); /* add user data */
+	source_sz = getp32(ddl_in, ddebc); /* total bytes going in to engine */
 	ASSERT( source_sz > s->history_len );
 
 	/*
 	 * NX target buffers
 	 */
 	assert(s->used_out == 0);
-	int len_next_out = s->avail_out; /* should we have a limitation here? */
-	nx_append_dde(ddl_out, s->next_out, len_next_out);
-	/* used_out == 0 required by definition, +used_out below is unnecessary */
+
+	int len_next_out = s->avail_out;
+	nx_append_dde(ddl_out, s->next_out, len_next_out); /* decomp in to user buffer */
+
+	/* overflow, used_out == 0 required by definition, +used_out below is unnecessary */
 	nx_append_dde(ddl_out, s->fifo_out + s->cur_out + s->used_out, s->len_out - s->cur_out - s->used_out);
 	target_sz = len_next_out + s->len_out - s->cur_out - s->used_out;
 
@@ -829,7 +831,7 @@ decomp_state:
 	/* We want exactly the History size amount of 32KB to overflow
 	   in to fifo_out.  If overflow is less, the history spans
 	   next_out and fifo_out and must be copied in to fifo_out to
-	   setup history for the next job and the fifo_out fraction is
+	   setup history for the next job, and the fifo_out fraction is
 	   also copied back to user's next_out before the next job.
 	   If overflow is more, all the overflow must be copied back
 	   to user's next_out before the next job. We want to minimize
@@ -837,28 +839,28 @@ decomp_state:
 	   heuristic here will estimate the source size for the
 	   desired target size */
 
-	/* avail_out plus 32 KB plus a bit of overhead */
-	int target_sz_desired = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
+	/* avail_out plus 32 KB history plus a bit of overhead */
+	int target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
+
 	/* e.g. if we want 100KB at the output and if the compression
 	   ratio is 10% we want 10KB if input */
-	int source_sz_estimate = (int)(((uint64_t)target_sz_desired * s->last_comp_ratio)/1000UL);
+	int source_sz_estimate = (int)(((uint64_t)target_sz_expected * s->last_comp_ratio)/1000UL);
 
 	/* do not include input side history in the estimation */
 	source_sz = source_sz - s->history_len;
-	
-	if (source_sz_estimate < source_sz) {
-		/* limiting the source data size to limit overflow */
-		source_sz = source_sz_estimate;
-	}
-	else {
-		/* actual source size is smaller than calculated
-		   amount; limit the target size to reduce unnecessary
-		   page touches */
-		//target_sz_desired = ((uint64_t)source_sz * 1000UL) / (s->last_comp_ratio + 1);
-		source_sz_estimate = source_sz;
-	}
 
-	/* before the source history will be input too */
+	/* limiting the source data size to limit overflow */
+	source_sz = NX_MIN(source_sz, source_sz_estimate);
+	/* submit very large jobs in small chunks */
+	source_sz = NX_MIN(source_sz, nx_config.per_job_len);
+	
+	/* to reduce unnecessary page touches; if we didn't touch
+	   enough case ERR_NX_TRANSLATION will cut down source size
+	   and retry */
+	target_sz_expected = ((uint64_t)source_sz * 1000UL) / (s->last_comp_ratio + 1);
+	target_sz_expected = NX_MIN(target_sz_expected, target_sz);
+
+	/* add the history back */
 	source_sz = source_sz + s->history_len;
 	
 	/* Some NX condition codes require submitting the NX job

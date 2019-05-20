@@ -95,7 +95,10 @@ static int get_flush_type(int n)
     else             return Z_ERRNO;
 }
 static const char flush_type_str[] = "no_flush: 0, sync_flush: 1, partial_flush: 2, full_flush: 3";
-    
+
+unsigned char in[CHUNK];
+unsigned char out[CHUNK];
+
 
 /* Compress from file source to file dest until EOF on source.
    def() returns Z_OK on success, Z_MEM_ERROR if memory could not be
@@ -108,8 +111,6 @@ int def(FILE *source, FILE *dest, int level, gzcfg_t *cf)
     int ret, flush;
     unsigned have;
     z_stream strm;
-    unsigned char in[CHUNK];
-    unsigned char out[CHUNK];
 
     /* allocate deflate state */
     strm.zalloc = Z_NULL;
@@ -154,10 +155,6 @@ int def(FILE *source, FILE *dest, int level, gzcfg_t *cf)
                 (void)deflateEnd(&strm);
                 return Z_ERRNO;
             }
-#ifdef INSERT_STORED_BLOCKS	    
-	    toggle ++;
-	    deflateParams( &strm, ((toggle % 2) ? Z_NO_COMPRESSION : Z_DEFAULT_COMPRESSION), cf->z_strategy );
-#endif	    
         } while (strm.avail_out == 0);
         assert(strm.avail_in == 0);     /* all input will be used */
 
@@ -181,8 +178,6 @@ int inf(FILE *source, FILE *dest, gzcfg_t *cf)
     int ret;
     unsigned have;
     z_stream strm;
-    unsigned char in[CHUNK];
-    unsigned char out[CHUNK];
 
     /* allocate inflate state */
     strm.zalloc = Z_NULL;

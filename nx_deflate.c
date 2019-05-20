@@ -1100,7 +1100,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	else
 		s->tebc = (int) getnn(s->nxcmdp->cpb, out_tebc); 
 
-	s->last_ratio = ((long)tpbc * 1000) / ((long)spbc + 1);
+	/* s->last_ratio = ((long)tpbc * 1000) / ((long)spbc + 1); */
 	
 	prt_info("     spbc %d tpbc %d tebc %d histbytes %d\n", spbc, tpbc, tebc, histbytes);
 	/* 
@@ -1288,10 +1288,13 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 
 	/* limit the input size; mainly for sampling LZcounts */
 	if (limit) bytes_in = NX_MIN(bytes_in, limit);
+
 	/* initial checksums. TODO arch independent endianness */
 	put32(nxcmdp->cpb, in_crc, s->crc32);
 	put32(nxcmdp->cpb, in_adler, s->adler32); 	
 
+	prt_info("nx_compress_block input cksums crc32 %08x adler32 %08x\n", s->crc32, s->adler32);
+	
 restart:
 	/* If indirect DDEbc is <= the sum of all the direct DDEbc
 	   values, the accelerator will process only indirect DDEbc
@@ -1416,6 +1419,8 @@ err_exit:
  */
 static int nx_deflate_add_header(nx_streamp s)
 {
+	assert( s->status == NX_ZLIB_STATE || s->status == NX_GZIP_STATE );
+	
 	if (s->status == NX_ZLIB_STATE) {
 		/* zlib header */
 		uInt header = (Z_DEFLATED + ((s->windowBits-8)<<4)) << 8;
@@ -1431,9 +1436,12 @@ static int nx_deflate_add_header(nx_streamp s)
 		header += 31 - (header % 31);
 		
 		put_short_msb(s, header);
-		
-		s->adler = s->adler32 = INIT_ADLER;
+
+		/* adler contains either crc32 or adler32 in the zlib
+		   z_stream structure */
+		s->adler = s->adler32;
 		s->status = NX_INIT_STATE;
+
 	} else if (s->status == NX_GZIP_STATE) {
                 /* gzip header */
 
@@ -1453,7 +1461,6 @@ static int nx_deflate_add_header(nx_streamp s)
                         int k;
                         uint8_t flg;
 
-                        s->adler = s->crc32 = INIT_CRC;
                         /* k = 0; */
                         nx_put_byte(s, 0x1f); /* ID1 */
                         nx_put_byte(s, 0x8b); /* ID2 */
@@ -1516,10 +1523,9 @@ static int nx_deflate_add_header(nx_streamp s)
                         if (s->gzhead->hcrc) {
                                 /* TODO */
                         }
-			
-			s->adler = s->adler32 = INIT_ADLER;
-			s->status = NX_INIT_STATE;
                 }
+		s->adler = s->crc32;
+		s->status = NX_INIT_STATE;
 	}
 
 	return Z_OK;
@@ -1540,6 +1546,7 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 		s->adler32 = get32(nxcmdp->cpb, out_adler );
 		s->crc32   = get32(nxcmdp->cpb, out_crc );
 	}
+	prt_info("nx_compress_update_checksum crc32 %08x adler32 %08x\n", s->crc32, s->adler32);	
 }
 
 /* deflate interface */
@@ -1598,6 +1605,7 @@ int nx_deflate(z_streamp strm, int flush)
 
 	/* Generate a header */
 	if ((s->status & (NX_ZLIB_STATE | NX_GZIP_STATE)) != 0) {
+		prt_info("nx_deflate_add_header s->flush %d s->status %d \n", s->flush, s->status);
 		nx_deflate_add_header(s); // status is NX_INIT_STATE here
 	}
 
@@ -1771,13 +1779,13 @@ s3:
 
 	int buffer_state = (s->avail_out > 0)<<3 | (s->used_out > 0)<<2 | (s->avail_in > 0)<<1 | (s->used_in > 0);
 
-	prt_info("buffer state %d\n", buffer_state);
+	prt_info("buffer state %d flush %d\n", buffer_state, s->flush);
 	
 	switch (buffer_state) {
 	case 0b0000: /* no output space and no input data */
 	case 0b1000: /* have output space, no inputs */		
 		if (s->flush == Z_FINISH)
-			return Z_STREAM_END;
+			goto s1; /* we need to append the trailer then return Z_STREAM_END */
 		else
 			return Z_OK; /* more data may come */
 		break;

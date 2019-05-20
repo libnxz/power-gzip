@@ -474,10 +474,6 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 	cmdp->cpb.out_spbc_comp_with_count = 0;
 	cmdp->cpb.out_spbc_decomp = 0;
 
-	/* clear output */
-	put32(cmdp->cpb, out_crc, INIT_CRC );
-	put32(cmdp->cpb, out_adler, INIT_ADLER);
-
 	if (nx_gzip_trace_enabled()) {
 		nx_print_dde(src, "source");
 		nx_print_dde(dst, "target");

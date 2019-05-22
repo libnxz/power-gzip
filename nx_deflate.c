@@ -390,9 +390,9 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 {
 	int k;
 	if (s->wrap == HEADER_GZIP) {
-		prt_info("s->total_out %ld\n", s->total_out);
 		uint32_t isize = s->total_in & ((1ULL<<32)-1);
 		uint32_t cksum = s->crc32;
+		prt_info("append gzip trailer crc32 %08x adler32 %08x, s->total_out %ld\n", s->crc32, s->adler32, s->total_out);
 		/* TODO hto32le */
 		/* TODO Edelsohn says unaligned load/store ok
 		   if not crossing page boundary */
@@ -413,6 +413,7 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 	}
 	else if (s->wrap == HEADER_ZLIB) {
 		uint32_t cksum = s->adler32;
+		prt_info("append zlib trailer crc32 %08x adler32 %08x, s->total_out %ld\n", s->crc32, s->adler32, s->total_out);		
 		/* TODO hto32le */
 		k=0;
 		while (k++ < 4) {
@@ -420,6 +421,9 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 			cksum = cksum << 8;
 		}
 		return k;
+	}
+	else if (s->wrap == HEADER_RAW) {
+		prt_info("raw format, no trailer, crc32 %08x adler32 %08x, s->total_out %ld\n", s->crc32, s->adler32, s->total_out);
 	}
 	return 0;
 }
@@ -1419,7 +1423,9 @@ err_exit:
  */
 static int nx_deflate_add_header(nx_streamp s)
 {
-	assert( s->status == NX_ZLIB_STATE || s->status == NX_GZIP_STATE );
+	assert( s->status == NX_ZLIB_STATE ||
+		s->status == NX_GZIP_STATE ||
+		s->status == NX_RAW_STATE);
 	
 	if (s->status == NX_ZLIB_STATE) {
 		/* zlib header */
@@ -1442,7 +1448,8 @@ static int nx_deflate_add_header(nx_streamp s)
 		s->adler = s->adler32;
 		s->status = NX_INIT_STATE;
 
-	} else if (s->status == NX_GZIP_STATE) {
+	}
+	else if (s->status == NX_GZIP_STATE) {
                 /* gzip header */
 
                 if (s->gzhead == NULL) {
@@ -1527,7 +1534,10 @@ static int nx_deflate_add_header(nx_streamp s)
 		s->adler = s->crc32;
 		s->status = NX_INIT_STATE;
 	}
-
+	else if (s->status == NX_RAW_STATE) {
+		s->adler = s->adler32; /* let's store adler anyway */
+		s->status = NX_INIT_STATE;
+	}
 	return Z_OK;
 }
 
@@ -1604,9 +1614,9 @@ int nx_deflate(z_streamp strm, int flush)
 	}
 
 	/* Generate a header */
-	if ((s->status & (NX_ZLIB_STATE | NX_GZIP_STATE)) != 0) {
+	if ((s->status & (NX_ZLIB_STATE | NX_GZIP_STATE | NX_RAW_STATE)) != 0) {
 		prt_info("nx_deflate_add_header s->flush %d s->status %d \n", s->flush, s->status);
-		nx_deflate_add_header(s); // status is NX_INIT_STATE here
+		nx_deflate_add_header(s); /* status becomes NX_INIT_STATE here */
 	}
 
 	/* if status is NX_BFINAL_STATE, flush should be Z_FINISH */

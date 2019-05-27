@@ -408,12 +408,12 @@ int main(int argc, char **argv)
 	}
 
 	/* report results */
-	//fprintf(stderr, "Uncompress individual threads throughput GB/s:\n");
+	fprintf(stderr, "Uncompress individual threads throughput GB/s:\n");
 	sum = 0;
 	for (i=0; i < num_threads; i++) {
 		double gbps = (double)th_args[i].inlen * (double)th_args[i].iterations /
 			(double)th_args[i].elapsed_time / 1.0e9;
-		// fprintf(stderr, "%6.4g ", gbps);
+		fprintf(stderr, "%6.4g ", gbps);
 		sum += gbps;
 	}
 	fprintf(stderr, "\nTotal uncompress throughput GB/s %7.4g, bytes %ld, iterations %ld, threads %d\n\n",

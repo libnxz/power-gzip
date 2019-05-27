@@ -75,6 +75,9 @@
 #define SECOND_KEY(X) (!!1) /* always TRUE */
 #endif
 
+#define NUMLIT 256  /* literals count in deflate */
+#define EOB 256     /* end of block symbol */
+
 typedef struct top_sym_t {
 	struct { 
 		uint32_t lzcnt;
@@ -84,9 +87,10 @@ typedef struct top_sym_t {
 
 const int llns = 0;
 const int dsts = 1;
-const int64_t large_int = 1<<30;
 
 extern dht_entry_t *get_builtin_table();
+
+int nx_dht_config = 0; 
 
 /* One time setup of the tables. Returns a handle.  ifile ofile
    unused */
@@ -128,8 +132,15 @@ void *dht_begin(char *ifile, char *ofile)
 static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 {
 	int i;
+	int llscan;
 	uint32_t *lzcount;
 	top_sym_t top[1];
+
+	/* where to look for the top search keys */
+	if ( (nx_dht_config & 0x1) == 0x1 )
+		llscan = LLSZ;   /* scan literals and lengths */
+	else 
+		llscan = NUMLIT; /* scan literals only */
 	
 	/* init */
 	top[llns].sorted[0].lzcnt = 0;
@@ -141,18 +152,21 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 
 	/* EOB symbol decimal 256 comes out with a count of 1 which we
 	   use as an endian detector */
-	if (1 != lzcount[256]) {
+	if (1 != lzcount[EOB]) {
 		for (i = 0; i < LLSZ+DSZ; i++) 
 			lzcount[i] = be32toh(lzcount[i]);
-		lzcount[256] = 1;
+		lzcount[EOB] = 1;
 		DHTPRT( fprintf(stderr, "dht_sort: lzcounts endian corrected\n") );
 	} 
 	else {
 		DHTPRT( fprintf(stderr, "dht_sort: lzcounts endian ok\n") );
 	}
 
-	for (i = 0; i < LLSZ; i++) { /* Literals and Lengths */
+	for (i = 0; i < llscan; i++) { /* Look for the top keys */
 		uint32_t c = lzcount[i];
+
+		DHTPRT( fprintf(stderr, "%d %d, ", i, lzcount[i] ) );
+		
 		if ( DHT_GT(c, top[llns].sorted[0].lzcnt) ) {
 			/* count greater than the top count */
 #if !defined(DHT_ONE_KEY)
@@ -181,7 +195,7 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 	
 	/* Will not use distances as cache keys */
 
-	/* DHTPRT( fprintf(stderr, "top litlens %d %d %d\n", top[llns].sorted[0].sym, top[llns].sorted[1].sym, top[llns].sorted[2].sym) ); */
+	DHTPRT( fprintf(stderr, "top litlens %d %d %d\n", top[llns].sorted[0].sym, top[llns].sorted[1].sym, top[llns].sorted[2].sym) );
 
 	return 0;
 }
@@ -214,25 +228,32 @@ static inline int copy_dht_to_cpb(nx_gzip_crb_cpb_t *cmdp, dht_entry_t *d)
 #define DHT_LOCK_RETRY 384
 
 #if defined(DHT_ATOMICS)
+/* libnxz is single threaded; doesn't need this; only special apps
+   that share the dht structures here may need atomic ops */
+
 #define dht_atomic_load(P)         __atomic_load_n((P), __ATOMIC_RELAXED)
 #define dht_atomic_store(P,V)      __atomic_store_n((P), (V), __ATOMIC_RELAXED)
 #define dht_atomic_fetch_add(P,V)  __atomic_fetch_add((P), (V), __ATOMIC_RELAXED)
 #define dht_atomic_fetch_sub(P,V)  __atomic_fetch_sub((P), (V), __ATOMIC_RELAXED)	
+
 #else /* defined(DHT_ATOMICS) */
 
 #define dht_atomic_load(P)  (*(P))
 #define dht_atomic_store(P,V)  do { *(P) = (V); } while(0)
 #define dht_atomic_fetch_add(P,V)  ({typeof(*(P)) tmp = *(P); *(P) = tmp + (V); tmp;})
 #define dht_atomic_fetch_sub(P,V)  ({typeof(*(P)) tmp = *(P); *(P) = tmp - (V); tmp;})	
+
 #endif /* defined(DHT_ATOMICS) */
 
 #if !defined(DHT_ATOMICS)  /* non-atomic case */
+
 #define read_lock(P)     1
 #define read_unlock(P)   1	
 #define write_lock(P)    1
 #define write_unlock(P)  1	
 
 #else /* !defined(DHT_ATOMICS) */
+
 static int inline read_lock(int *ref_count)
 {
 	/* 
@@ -337,6 +358,7 @@ static int inline write_unlock(int *ref_count)
 	}
 	return 0;
 }
+
 #endif	/* !defined(DHT_ATOMICS) */
 		      
 /* search nx_dht_builtin.c */

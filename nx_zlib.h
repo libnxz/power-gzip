@@ -117,6 +117,8 @@ struct nx_config_t {
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;
 
+extern int nx_dht_config;
+
 /* NX device handle */
 struct nx_dev_t {
 	int lock;       /* crb serializer */

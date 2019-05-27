@@ -328,8 +328,8 @@ int main(int argc, char **argv)
 	long iterations;
 	double sum;
 	
-	if (argc != 3) {
-		fprintf(stderr, "usage: %s <fname> <thread_count>\n", argv[0]);
+	if (argc != 3 && argc != 4) {
+		fprintf(stderr, "usage: %s <fname> <thread_count> [<iterations>]\n", argv[0]);
 		exit(-1);
 	}
 	assert( (num_threads = atoi(argv[2])) <= MAX_THREADS);
@@ -341,7 +341,10 @@ int main(int argc, char **argv)
 	/* need this for pretty print */
 	pthread_barrier_init(&barr, NULL, num_threads);
 
-	iterations = 10;
+	if (argc == 4)
+		iterations = atoi(argv[3]);
+	else
+		iterations = 100;
 
 	fprintf(stderr, "starting %d compress threads %ld iterations\n", num_threads, iterations);
 	for (i = 0; i < num_threads; i++) {

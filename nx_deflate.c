@@ -98,8 +98,6 @@ static uint32_t nx_max_byte_count_low = (1UL<<30);
 static uint32_t nx_max_byte_count_high = (1UL<<30);
 static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
-static uint32_t nx_per_job_len = (512 * 1024);     /* less than suspend limit */
-static uint32_t nx_soft_copy_threshold = 1024;      /* choose memcpy or hwcopy */
 static uint32_t nx_compress_threshold = (10*1024);  /* collect as much input */
 static int      nx_pgfault_retries = 50;         
 
@@ -392,9 +390,9 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 {
 	int k;
 	if (s->wrap == HEADER_GZIP) {
-		prt_info("s->total_out %ld\n", s->total_out);
 		uint32_t isize = s->total_in & ((1ULL<<32)-1);
 		uint32_t cksum = s->crc32;
+		prt_info("append gzip trailer crc32 %08x adler32 %08x, s->total_out %ld\n", s->crc32, s->adler32, s->total_out);
 		/* TODO hto32le */
 		/* TODO Edelsohn says unaligned load/store ok
 		   if not crossing page boundary */
@@ -415,6 +413,7 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 	}
 	else if (s->wrap == HEADER_ZLIB) {
 		uint32_t cksum = s->adler32;
+		prt_info("append zlib trailer crc32 %08x adler32 %08x, s->total_out %ld\n", s->crc32, s->adler32, s->total_out);		
 		/* TODO hto32le */
 		k=0;
 		while (k++ < 4) {
@@ -422,6 +421,9 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 			cksum = cksum << 8;
 		}
 		return k;
+	}
+	else if (s->wrap == HEADER_RAW) {
+		prt_info("raw format, no trailer, crc32 %08x adler32 %08x, s->total_out %ld\n", s->crc32, s->adler32, s->total_out);
 	}
 	return 0;
 }
@@ -1102,7 +1104,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	else
 		s->tebc = (int) getnn(s->nxcmdp->cpb, out_tebc); 
 
-	s->last_ratio = ((long)tpbc * 1000) / ((long)spbc + 1);
+	/* s->last_ratio = ((long)tpbc * 1000) / ((long)spbc + 1); */
 	
 	prt_info("     spbc %d tpbc %d tebc %d histbytes %d\n", spbc, tpbc, tebc, histbytes);
 	/* 
@@ -1290,10 +1292,13 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 
 	/* limit the input size; mainly for sampling LZcounts */
 	if (limit) bytes_in = NX_MIN(bytes_in, limit);
+
 	/* initial checksums. TODO arch independent endianness */
 	put32(nxcmdp->cpb, in_crc, s->crc32);
 	put32(nxcmdp->cpb, in_adler, s->adler32); 	
 
+	prt_info("nx_compress_block input cksums crc32 %08x adler32 %08x\n", s->crc32, s->adler32);
+	
 restart:
 	/* If indirect DDEbc is <= the sum of all the direct DDEbc
 	   values, the accelerator will process only indirect DDEbc
@@ -1418,6 +1423,10 @@ err_exit:
  */
 static int nx_deflate_add_header(nx_streamp s)
 {
+	assert( s->status == NX_ZLIB_STATE ||
+		s->status == NX_GZIP_STATE ||
+		s->status == NX_RAW_STATE);
+	
 	if (s->status == NX_ZLIB_STATE) {
 		/* zlib header */
 		uInt header = (Z_DEFLATED + ((s->windowBits-8)<<4)) << 8;
@@ -1433,10 +1442,14 @@ static int nx_deflate_add_header(nx_streamp s)
 		header += 31 - (header % 31);
 		
 		put_short_msb(s, header);
-		
-		s->adler = s->adler32 = INIT_ADLER;
+
+		/* adler contains either crc32 or adler32 in the zlib
+		   z_stream structure */
+		s->adler = s->adler32;
 		s->status = NX_INIT_STATE;
-	} else if (s->status == NX_GZIP_STATE) {
+
+	}
+	else if (s->status == NX_GZIP_STATE) {
                 /* gzip header */
 
                 if (s->gzhead == NULL) {
@@ -1455,7 +1468,6 @@ static int nx_deflate_add_header(nx_streamp s)
                         int k;
                         uint8_t flg;
 
-                        s->adler = s->crc32 = INIT_CRC;
                         /* k = 0; */
                         nx_put_byte(s, 0x1f); /* ID1 */
                         nx_put_byte(s, 0x8b); /* ID2 */
@@ -1518,12 +1530,14 @@ static int nx_deflate_add_header(nx_streamp s)
                         if (s->gzhead->hcrc) {
                                 /* TODO */
                         }
-			
-			s->adler = s->adler32 = INIT_ADLER;
-			s->status = NX_INIT_STATE;
                 }
+		s->adler = s->crc32;
+		s->status = NX_INIT_STATE;
 	}
-
+	else if (s->status == NX_RAW_STATE) {
+		s->adler = s->adler32; /* let's store adler anyway */
+		s->status = NX_INIT_STATE;
+	}
 	return Z_OK;
 }
 
@@ -1542,6 +1556,7 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 		s->adler32 = get32(nxcmdp->cpb, out_adler );
 		s->crc32   = get32(nxcmdp->cpb, out_crc );
 	}
+	prt_info("nx_compress_update_checksum crc32 %08x adler32 %08x\n", s->crc32, s->adler32);	
 }
 
 /* deflate interface */
@@ -1599,8 +1614,9 @@ int nx_deflate(z_streamp strm, int flush)
 	}
 
 	/* Generate a header */
-	if ((s->status & (NX_ZLIB_STATE | NX_GZIP_STATE)) != 0) {
-		nx_deflate_add_header(s); // status is NX_INIT_STATE here
+	if ((s->status & (NX_ZLIB_STATE | NX_GZIP_STATE | NX_RAW_STATE)) != 0) {
+		prt_info("nx_deflate_add_header s->flush %d s->status %d \n", s->flush, s->status);
+		nx_deflate_add_header(s); /* status becomes NX_INIT_STATE here */
 	}
 
 	/* if status is NX_BFINAL_STATE, flush should be Z_FINISH */
@@ -1723,16 +1739,20 @@ s3:
 
 	} else if (s->strategy == Z_FIXED) {
 
-		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_FHT, 0);
 		print_dbg_info(s, __LINE__);
+
+		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_FHT, nx_config.per_job_len);
 		
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
 			/* compressed data has expanded; write a type0 block */
 			s->need_stored_block = s->spbc;
+			prt_info("need stored block, goto s3, %d\n",__LINE__);
 			goto s3;
 		}
-		if (rc != LIBNX_OK)
+		if (rc != LIBNX_OK) {
+			prt_warn("nx_compress_block returned %d, %d\n", rc, __LINE__);
 			return Z_STREAM_ERROR;
+		}
 
 		loop_cnt = 0; /* update when making progress */
 		
@@ -1747,15 +1767,18 @@ s3:
 		else
 			dht_lookup(cmdp, dht_search_req, s->dhthandle);
 
-		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, 0);
+		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, nx_config.per_job_len);
 
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
                         /* compressed data has expanded; write a type0 block */
                         s->need_stored_block = s->spbc;
+			prt_info("need stored block, goto s3, %d\n",__LINE__);
                         goto s3;
                 }
-                if (rc != LIBNX_OK)
+                if (rc != LIBNX_OK) {
+			prt_warn("nx_compress_block returned %d, %d\n", rc, __LINE__);
                         return Z_STREAM_ERROR;
+		}
 		
 		loop_cnt = 0; /* update when making progress */
 		
@@ -1764,18 +1787,41 @@ s3:
 
 	print_dbg_info(s, __LINE__);
 
-	if ((s->flush == Z_SYNC_FLUSH) ||
-	   (s->flush == Z_PARTIAL_FLUSH) ||
-	   (s->flush == Z_FULL_FLUSH))
-		if ((s->avail_in == 0)  && (s->used_in == 0) && (s->used_out == 0))
-			return Z_STREAM_END;
+	int buffer_state = (s->avail_out > 0)<<3 | (s->used_out > 0)<<2 | (s->avail_in > 0)<<1 | (s->used_in > 0);
 
-	if (s->flush == Z_FINISH) {
-		if ((s->avail_in > 0) && (s->avail_out > 0)) goto s1;
-		if ((s->status == NX_BFINAL_STATE) && (s->avail_out > 0)) goto s1;
+	prt_info("buffer state %d flush %d\n", buffer_state, s->flush);
+	
+	switch (buffer_state) {
+	case 0b0000: /* no output space and no input data */
+	case 0b1000: /* have output space, no inputs */		
+		if (s->flush == Z_FINISH)
+			goto s1; /* we need to append the trailer then return Z_STREAM_END */
+		else
+			return Z_OK; /* more data may come */
+		break;
+	case 0b0001: /* no output space and various input combinations */ 
+	case 0b0010:
+	case 0b0011:
+	case 0b0100: 
+	case 0b0101:
+	case 0b0110:
+	case 0b0111: /* no output space, have fifo_out data */
+		return Z_OK; break;
+	case 0b1001: /* have output space; have fifo_in data */
+	case 0b1010: /* have output space; have input data */
+	case 0b1011: /* have output space; have input data; have fifo_in data */		
+		goto s2; break;
+	case 0b1100: /* have output space, have fifo_out data */
+	case 0b1101: /* have output space, have fifo_out data, have fifo_in data */
+	case 0b1110: /* have output space, have fifo_out data, have input data */
+	case 0b1111: /* have output space, have fifo_out data, have input data, have fifo_in data */
+		/* since we have fifo_out data, go to s1 which will move it to user stream buffer */
+		goto s1; break;
 	}
-
-	return Z_OK;
+		
+	assert(!"nx_deflate should not get here");
+	
+	return Z_STREAM_ERROR;
 }
 
 unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)

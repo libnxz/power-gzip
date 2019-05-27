@@ -7,7 +7,7 @@ endif
 FLG = -std=gnu11
 SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
 ZLIB = -DZLIB_API
-CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) #-DNXTIMER
+CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) -mcpu=power9 #-DNXTIMER
 
 SRCS = nx_inflate.c nx_deflate.c nx_zlib.c nx_crc.c nx_dht.c nx_dhtgen.c nx_dht_builtin.c \
        nx_adler_combine.c gzip_vas.c nx_compress.c nx_uncompr.c

@@ -7,7 +7,7 @@ DHT_O = gzip_nxdht.o gzip_vas.o nx_dht.o nx_dht_builtin.o nx_dhtgen.o
 FHT_O = gzip_nxfht.o gzip_vas.o
 GUN_O = gunzip_nx.o gzip_vas.o
 
-all:	$(TESTS)
+all:	$(TESTS) zpipe gzm
 
 gzip_vas.o:	../gzip_vas.c
 	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../gzip_vas.c
@@ -48,6 +48,9 @@ gunzip_nx_test: 	$(GUN_O)
 
 zpipe:	../libnxz.a zpipe.c
 	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe zpipe.c ../libnxz.a -lpthread
+
+gzm:	../libnxz.a gzm.c
+	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o gzm gzm.c ../libnxz.a -lpthread
 
 compdecomp: 	compdecomp.c ../libnxz.a
 	gcc $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp compdecomp.c ../libnxz.a -lpthread

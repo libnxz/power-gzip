@@ -59,12 +59,16 @@
 #include "nx_dbg.h"
 
 #define INF_HIS_LEN (1<<15) /* Fixed 32K history length */
-#define fifo_out_len_check(s) \
+
+/* move the overflow from the current fifo head-32KB to the fifo_out
+   buffer beginning. Fifo_out starts with 32KB history then */
+#define fifo_out_len_check(s)		  \
 do { if ((s)->cur_out > (s)->len_out/2) { \
 	memmove((s)->fifo_out, (s)->fifo_out + (s)->cur_out - INF_HIS_LEN, INF_HIS_LEN + (s)->used_out); \
 	(s)->cur_out = INF_HIS_LEN; } \
 } while(0)
-#define fifo_in_len_check(s) \
+
+#define fifo_in_len_check(s)		\
 do { if ((s)->cur_in > (s)->len_in/2) { \
 	memmove((s)->fifo_in, (s)->fifo_in + (s)->cur_in, (s)->used_in); \
 	(s)->cur_in = 0; } \
@@ -260,7 +264,10 @@ int nx_inflate(z_streamp strm, int flush)
 
 	if (s->fifo_out == NULL) {
 		/* overflow buffer is about 40% of s->avail_in */
+		/* not the best way: what if avail_in is very small
+		 * once at the beginning; let's put a lower bound */
 		s->len_out = (INF_HIS_LEN*2 + (s->zstrm->avail_in * 40)/100);
+		s->len_out = NX_MAX( INF_HIS_LEN << 3, s->len_out );
 		if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
 			prt_err("nx_alloc_buffer for inflate fifo_out\n");
 			return Z_MEM_ERROR;
@@ -645,7 +652,6 @@ static int nx_inflate_(nx_streamp s, int flush)
 	/* queuing, file ops, byte counting */
 	int read_sz, n;
 	int write_sz, free_space, copy_sz, source_sz, target_sz;
-	uint64_t last_comp_ratio; /* 1000 max */
 	uint64_t total_out;
 	int is_final = 0, is_eof;
 	int cnt = 0;
@@ -654,11 +660,11 @@ static int nx_inflate_(nx_streamp s, int flush)
 	
 	/* nx hardware */
 	int sfbt, subc, spbc, tpbc, nx_ce, fc, resuming = 0;
-	int history_len = 0;
+	//int history_len = 0;
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
         nx_dde_t *ddl_in = s->ddl_in;
         nx_dde_t *ddl_out = s->ddl_out;
-	int pgfault_retries, nx_space_retries;
+	int pgfault_retries, target_space_retries;
 	int cc, rc;
 
 	print_dbg_info(s, __LINE__);
@@ -802,28 +808,66 @@ decomp_state:
 	/*
 	 * NX source buffers
 	 */
-	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
-	nx_append_dde(ddl_in, s->next_in, s->avail_in); /* limitation here? */
-	source_sz = getp32(ddl_in, ddebc);
+	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in); /* prepend history */
+	nx_append_dde(ddl_in, s->next_in, s->avail_in); /* add user data */
+	source_sz = getp32(ddl_in, ddebc); /* total bytes going in to engine */
 	ASSERT( source_sz > s->history_len );
 
 	/*
 	 * NX target buffers
 	 */
 	assert(s->used_out == 0);
-	int len_next_out = s->avail_out; /* should we have a limitation here? */
-	nx_append_dde(ddl_out, s->next_out, len_next_out);
+
+	int len_next_out = s->avail_out;
+	nx_append_dde(ddl_out, s->next_out, len_next_out); /* decomp in to user buffer */
+
+	/* overflow, used_out == 0 required by definition, +used_out below is unnecessary */
 	nx_append_dde(ddl_out, s->fifo_out + s->cur_out + s->used_out, s->len_out - s->cur_out - s->used_out);
 	target_sz = len_next_out + s->len_out - s->cur_out - s->used_out;
 
 	prt_info("len_next_out %d len_out %d cur_out %d used_out %d source_sz %d history_len %d\n",
 		len_next_out, s->len_out, s->cur_out, s->used_out, source_sz, s->history_len);
 
+	/* We want exactly the History size amount of 32KB to overflow
+	   in to fifo_out.  If overflow is less, the history spans
+	   next_out and fifo_out and must be copied in to fifo_out to
+	   setup history for the next job, and the fifo_out fraction is
+	   also copied back to user's next_out before the next job.
+	   If overflow is more, all the overflow must be copied back
+	   to user's next_out before the next job. We want to minimize
+	   these copies (memcpy) for performance. Therefore, the
+	   heuristic here will estimate the source size for the
+	   desired target size */
+
+	/* avail_out plus 32 KB history plus a bit of overhead */
+	int target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
+
+	/* e.g. if we want 100KB at the output and if the compression
+	   ratio is 10% we want 10KB if input */
+	int source_sz_estimate = (int)(((uint64_t)target_sz_expected * s->last_comp_ratio)/1000UL);
+
+	/* do not include input side history in the estimation */
+	source_sz = source_sz - s->history_len;
+
+	/* limiting the source data size to limit overflow */
+	source_sz = NX_MIN(source_sz, source_sz_estimate);
+	/* submit very large jobs in small chunks */
+	source_sz = NX_MIN(source_sz, nx_config.per_job_len);
+	
+	/* to reduce unnecessary page touches; if we didn't touch
+	   enough case ERR_NX_TRANSLATION will cut down source size
+	   and retry */
+	target_sz_expected = ((uint64_t)source_sz * 1000UL) / (s->last_comp_ratio + 1);
+	target_sz_expected = NX_MIN(target_sz_expected, target_sz);
+
+	/* add the history back */
+	source_sz = source_sz + s->history_len;
+	
 	/* Some NX condition codes require submitting the NX job
-	  again.  Kernel doesn't fault-in NX page faults. Expects user
+	  again. Kernel doesn't fault-in NX page faults. Expects user
 	  code to touch pages */
 	pgfault_retries = nx_config.retry_max;
-	nx_space_retries = 0;
+	target_space_retries = 0;
 
 restart_nx:
 
@@ -910,7 +954,7 @@ restart_nx:
 		ASSERT( source_sz > s->history_len );
 		source_sz = ((source_sz - s->history_len + 2) / 2) + s->history_len;
 		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len);
-		nx_space_retries++;
+		target_space_retries++;
 		goto restart_nx;
 
 	case ERR_NX_OK:
@@ -1052,6 +1096,12 @@ offsets_state:
 	if (overflow_len <= 0) { /* there is no overflow */
 		assert(s->used_out == 0);
 		int need_len = NX_MIN(INF_HIS_LEN, tpbc);
+		/* Copy the tail of data in next_out as the history to
+		   the current head of fifo_out. Size is 32KB commonly
+		   but can be less if the engine produce less than
+		   32KB.  Note that cur_out-32KB already contains the
+		   history of the previous operation. The new history
+		   is appended after the old history */
 		memcpy(s->fifo_out + s->cur_out, s->next_out + tpbc - need_len, need_len);
 		s->cur_out += need_len;
 		fifo_out_len_check(s);
@@ -1062,13 +1112,23 @@ offsets_state:
 		int need_len = INF_HIS_LEN - overflow_len;
 		need_len = NX_MIN(need_len, len_next_out);
 		int len;
+		/* When overflow is less than the history len e.g. the
+		   history is now spanning next_out and fifo_out */
 		if (len_next_out + overflow_len > INF_HIS_LEN) {
 			len = INF_HIS_LEN - overflow_len;
 			memcpy(s->fifo_out + s->cur_out - len, s->next_out + len_next_out - len, len);
 		}
 		else {
 			len = INF_HIS_LEN - (len_next_out + overflow_len);
+			/* len_next_out is the amount engine wrote next_out. */
+			/* Shifts fifo_out contents backwards towards
+			   the beginning. TODO check the logic for
+			   correctness when source and destination
+			   overlap; backward memcpy may be OK when
+			   overlapped? */
 			memcpy(s->fifo_out + s->cur_out - len_next_out - len, s->fifo_out + s->cur_out - len, len);
+			/* copies from next_out to the gap opened in
+			   fifo_out as a result of previous memcpy */
 			memcpy(s->fifo_out + s->cur_out - len_next_out, s->next_out, len_next_out);
 		}
 			
@@ -1076,7 +1136,7 @@ offsets_state:
 		update_stream_out(s, len_next_out);
 		update_stream_out(s->zstrm, len_next_out);
 	}
-	else {/* overflow_len > 1<<15 */
+	else { /* overflow_len > 1<<15 */
 		s->used_out += overflow_len;
 		update_stream_out(s, len_next_out);
 		update_stream_out(s->zstrm, len_next_out);
@@ -1085,7 +1145,7 @@ offsets_state:
 	s->history_len = (s->total_out + s->used_out > nx_config.window_max) ? nx_config.window_max : (s->total_out + s->used_out);
 
 	s->last_comp_ratio = (1000UL * ((uint64_t)source_sz + 1)) / ((uint64_t)tpbc + 1);
-	last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 1 );
+	s->last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 1 ); /* bounds check */
 
 	s->resuming = 1;
 
@@ -1107,7 +1167,7 @@ offsets_state:
 		goto copy_fifo_out_to_next_out;
 	}
 	
-	if (s->used_in > 1 && s->avail_out > 0 && nx_space_retries > 0) {
+	if (s->used_in > 1 && s->avail_out > 0 && target_space_retries > 0) {
 		goto copy_fifo_out_to_next_out;
 	}
 

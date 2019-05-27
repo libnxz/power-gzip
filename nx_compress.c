@@ -40,11 +40,11 @@
 int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level)
 {
     z_stream stream;
-    int err;
-    const uInt max = 1<<26; /* issue #45 workaround; not the best place to chunk input */
-    uLong left;
+    int rc;
+    const uInt max = 1<<30;
+    uLong remaining;
 
-    left = *destLen;
+    remaining = *destLen;
     *destLen = 0;
 
     stream.zalloc = (alloc_func)0;
@@ -53,8 +53,8 @@ int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong source
 
     prt_info("nx_compress2 begin: sourceLen %ld\n", sourceLen);
 
-    err = nx_deflateInit(&stream, level);
-    if (err != Z_OK) return err;
+    rc = nx_deflateInit(&stream, level);
+    if (rc != Z_OK) return rc;
 
     stream.next_out = dest;
     stream.avail_out = 0;
@@ -62,22 +62,22 @@ int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong source
     stream.avail_in = 0;
     do {
         if (stream.avail_out == 0) {
-            stream.avail_out = left > (uLong)max ? max : (uInt)left;
-            left -= stream.avail_out;
+            stream.avail_out = remaining > (uLong)max ? max : (uInt)remaining;
+            remaining -= stream.avail_out;
         }
         if (stream.avail_in == 0) {
             stream.avail_in = sourceLen > (uLong)max ? max : (uInt)sourceLen;
             sourceLen -= stream.avail_in;
         }
-        err = nx_deflate(&stream, sourceLen ? Z_NO_FLUSH : Z_FINISH);
-	prt_info("     err %d\n", err);
-    } while (err == Z_OK);
+        rc = nx_deflate(&stream, sourceLen ? Z_NO_FLUSH : Z_FINISH);
+	prt_info("     err %d\n", rc);
+    } while (rc == Z_OK);
 
     *destLen = stream.total_out;
     nx_deflateEnd(&stream);
 
     prt_info("nx_compress2 end: destLen %ld\n", *destLen);
-    return err == Z_STREAM_END ? Z_OK : err;
+    return rc == Z_STREAM_END ? Z_OK : rc;
 }
 
 int nx_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)

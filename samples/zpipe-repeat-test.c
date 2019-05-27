@@ -106,7 +106,7 @@ int inf(FILE *source, FILE *dest)
     unsigned char out[CHUNK];
     int i;
 
-    for (i=0; i<10000000; i++) {    
+    for (i=0; i<1000000; i++) {    
 	/* allocate inflate state */
 	strm.zalloc = Z_NULL;
 	strm.zfree = Z_NULL;

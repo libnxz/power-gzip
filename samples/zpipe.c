@@ -25,7 +25,10 @@
 #  define SET_BINARY_MODE(file)
 #endif
 
-#define CHUNK (256*1024)
+#define CHUNK (1024*1024)
+
+unsigned char in[CHUNK];
+unsigned char out[CHUNK];
 
 /* Compress from file source to file dest until EOF on source.
    def() returns Z_OK on success, Z_MEM_ERROR if memory could not be
@@ -38,8 +41,6 @@ int def(FILE *source, FILE *dest, int level)
     int ret, flush;
     unsigned have;
     z_stream strm;
-    unsigned char in[CHUNK];
-    unsigned char out[CHUNK];
 
     /* allocate deflate state */
     strm.zalloc = Z_NULL;
@@ -94,8 +95,6 @@ int inf(FILE *source, FILE *dest)
     int ret;
     unsigned have;
     z_stream strm;
-    unsigned char in[CHUNK];
-    unsigned char out[CHUNK];
 
     /* allocate inflate state */
     strm.zalloc = Z_NULL;

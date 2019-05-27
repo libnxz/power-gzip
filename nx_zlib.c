@@ -156,7 +156,8 @@ int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 #ifdef FAST_ALIGN_ALLOC
 
 #define ROUND_UP(X,ALIGN) ((typeof(X)) ((((uint64_t)(X)+((uint64_t)(ALIGN)-1))/((uint64_t)(ALIGN)))*((uint64_t)(ALIGN))))
-typedef struct nx_alloc_header_t { void *allocated_addr; } nx_alloc_header_t; 
+#define NX_MEM_ALLOC_CORRUPTED 0x1109ce98cedd7badUL
+typedef struct nx_alloc_header_t { uint64_t signature; void *allocated_addr; } nx_alloc_header_t; 
 
 /* allocate internal buffers and try mlock but ignore failed mlocks */
 void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
@@ -186,7 +187,8 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 	if (buf == NULL)
                 return buf;
 
-	h.allocated_addr = (void *)buf; 
+	h.allocated_addr = (void *)buf;
+	h.signature = NX_MEM_ALLOC_CORRUPTED;
 
 	buf = ROUND_UP(buf + sizeof(nx_alloc_header_t), alignment);
 
@@ -214,11 +216,16 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 	if (buf == NULL)
 		return;
 
-	/* retrieve the hidden address which is the actuall address to
+	/* retrieve the hidden address which is the actually address to
 	   be freed */
 	h = (nx_alloc_header_t *)((char *)buf - sizeof(nx_alloc_header_t));
 
 	buf = (void *) h->allocated_addr;
+
+	/* if signature is overwritten then indicates a double free or
+	   memory corruption */
+	assert( NX_MEM_ALLOC_CORRUPTED == h->signature );
+	h->signature = 0;
 
 	if (unlock) 
 		if (munlock(buf, len))
@@ -467,10 +474,6 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 	cmdp->cpb.out_spbc_comp_with_count = 0;
 	cmdp->cpb.out_spbc_decomp = 0;
 
-	/* clear output */
-	put32(cmdp->cpb, out_crc, INIT_CRC );
-	put32(cmdp->cpb, out_adler, INIT_ADLER);
-
 	if (nx_gzip_trace_enabled()) {
 		nx_print_dde(src, "source");
 		nx_print_dde(dst, "target");
@@ -676,10 +679,11 @@ void nx_hw_init(void)
 	char *inf_bufsz  = getenv("NX_GZIP_INF_BUF_SIZE"); /* KiB MiB GiB suffix */	
 	char *logfile    = getenv("NX_GZIP_LOGFILE");
 	char *trace_s    = getenv("NX_GZIP_TRACE");
+	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");  /* default 0 is using literals only, odd is lit and lens */
 	char *strategy_ovrd  = getenv("NX_GZIP_DEFLATE");
 	strategy_ovrd = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
 
-	/* Init nx_config a defalut value firstly */
+	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
 	nx_config.line_sz = 128;
 	nx_config.stored_block_len = (1<<15);
@@ -695,7 +699,7 @@ void nx_hw_init(void)
 	nx_config.compress_threshold = (10*1024); /* collect as much input */
 	nx_config.inflate_fifo_in_len = ((1<<16)*2); /* default 128K, half used */
 	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
-	nx_config.deflate_fifo_in_len = ((1<<20)*2); /* default 8M, half used */
+	nx_config.deflate_fifo_in_len = 1<<17; /* ((1<<20)*2); /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.retry_max = 50;	
 	nx_config.window_max = (1<<15);
@@ -764,11 +768,14 @@ void nx_hw_init(void)
 		}
 	}
 
+	if (dht_config != NULL) {
+		nx_dht_config = str_to_num(dht_config);		
+		prt_info("DHT config set to 0x%x\n", nx_dht_config);
+	}
+	
 	/* revalue the fifo_in and fifo_out */	
-	nx_config.inflate_fifo_in_len = (nx_config.strm_inf_bufsz * 2);
+	nx_config.inflate_fifo_in_len  = (nx_config.strm_inf_bufsz * 2);
 	nx_config.inflate_fifo_out_len = (nx_config.strm_inf_bufsz * 2);
-	// nx_config.deflate_fifo_in_len = (nx_config.strm_def_bufsz);
-	nx_config.deflate_fifo_in_len = (64*1024);
 	nx_config.deflate_fifo_out_len = (nx_config.strm_def_bufsz * 2);
 	
 	/* If user is asking for a specific accelerator. Otherwise we

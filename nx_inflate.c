@@ -400,7 +400,7 @@ inf_forever:
 		if (s->gzhead != NULL){
 			while( s->inf_held < 4) { /* need 4 bytes for MTIME */
 				nx_inflate_get_byte(s, c);
-				s->gzhead->time = s->gzhead->time << 8 | c;
+				s->gzhead->time = c << (8 * s->inf_held) | s->gzhead->time;
 				++ s->inf_held;
 			}
 			s->inf_held = 0;

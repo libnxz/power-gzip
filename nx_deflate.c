@@ -1119,7 +1119,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	   (minus histbytes)
 	   remainder is the amount used from next_in  */
 	
-	ASSERT(spbc <= s->avail_in);
+	/* ASSERT(spbc <= s->avail_in); issue 71 do we really require this? */
 	update_stream_in(s, spbc);
 	update_stream_in(s->zstrm, spbc);
 		
@@ -1292,7 +1292,7 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 
 	/* limit the input size; mainly for sampling LZcounts */
 	if (limit) bytes_in = NX_MIN(bytes_in, limit);
-
+	
 	/* initial checksums. TODO arch independent endianness */
 	put32(nxcmdp->cpb, in_crc, s->crc32);
 	put32(nxcmdp->cpb, in_adler, s->adler32); 	
@@ -1335,7 +1335,8 @@ restart:
 		else if (pgfault_retries > 0) {
 			/* try fewer input pages assuming memory has pressure 
 			   this will do one page per call at the limit */
-			bytes_in = NX_MAX( bytes_in/2, pgsz); 
+			if (bytes_in > pgsz)
+				bytes_in = NX_MAX(bytes_in/2, pgsz);
 			--pgfault_retries;
 			goto restart;
 		}
@@ -1369,8 +1370,9 @@ restart:
 		
 	case ERR_NX_TARGET_SPACE:
 
-		/* target buffer not large enough retry fewer pages  */		
-		bytes_in = NX_MAX( bytes_in/2, pgsz);
+		/* target buffer not large enough retry fewer pages  */
+		if (bytes_in > pgsz)
+			bytes_in = NX_MAX(bytes_in/2, pgsz);		
 		prt_info("ERR_NX_TARGET_SPACE, retry with bytes_in %d\n", bytes_in);
 		goto restart;
 

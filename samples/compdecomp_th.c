@@ -75,6 +75,11 @@
 #include <pthread.h>
 #include "zlib.h"
 
+
+#ifdef SIMPLE_CHECKSUM
+unsigned long nx_crc32( unsigned long crc, const unsigned char *buf, uint64_t len);
+#endif
+
 /* Caller must free the allocated buffer 
    return nonzero on error */
 int read_alloc_input_file(char *fname, char **buf, size_t *bufsize)
@@ -127,6 +132,7 @@ typedef struct thread_args_t {
 	size_t inlen;
         long iterations;
 	double elapsed_time;
+	uint64_t checksum;
 } thread_args_t;
 
 #define TPRT fprintf(stderr,"tid %d: ", argsp->my_id)
@@ -308,6 +314,12 @@ void *decomp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: uncompressed to %ld bytes %ld times in %7.4g seconds\n",
 			tid, (long)decompdata_len, iterations, elapsed);
 
+	unsigned long cksum = 1;
+#ifdef SIMPLE_CHECKSUM
+	cksum = nx_crc32(cksum, decompbuf, decompdata_len);
+	assert( cksum == argsp->checksum );
+#endif
+	
 	free(decompbuf);
 	free(compbuf);		
 
@@ -346,10 +358,17 @@ int main(int argc, char **argv)
 	else
 		iterations = 100;
 
+	unsigned long cksum = 1;	
+#ifdef SIMPLE_CHECKSUM
+	cksum = nx_crc32(cksum, inbuf, inlen);	
+	fprintf(stderr, "source checksum %016lx\n", cksum);
+#endif
+	
 	fprintf(stderr, "starting %d compress threads %ld iterations\n", num_threads, iterations);
 	for (i = 0; i < num_threads; i++) {
 		th_args[i].inbuf = inbuf;
-		th_args[i].inlen = inlen;		
+		th_args[i].inlen = inlen;
+		th_args[i].checksum = cksum;				
 		th_args[i].my_id = i;
 		th_args[i].iterations = iterations;
 
@@ -386,7 +405,8 @@ int main(int argc, char **argv)
 	fprintf(stderr, "starting %d uncompress threads\n", num_threads);
 	for (i = 0; i < num_threads; i++) {
 		th_args[i].inbuf = inbuf;
-		th_args[i].inlen = inlen;		
+		th_args[i].inlen = inlen;
+		th_args[i].checksum = cksum;						
 		th_args[i].my_id = i;
 		th_args[i].iterations = iterations;
 

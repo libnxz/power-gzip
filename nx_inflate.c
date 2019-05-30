@@ -657,6 +657,9 @@ static int nx_inflate_(nx_streamp s, int flush)
 	int cnt = 0;
 	void* fsa;
 	long loop_cnt = 0, loop_max = 0xffff;
+
+	/* inflate benefits from large jobs; memcopies must be amortized */
+	uint32_t inflate_per_job_len = 64 * nx_config.per_job_len;
 	
 	/* nx hardware */
 	int sfbt, subc, spbc, tpbc, nx_ce, fc, resuming = 0;
@@ -818,7 +821,7 @@ decomp_state:
 	 */
 	assert(s->used_out == 0);
 
-	int len_next_out = s->avail_out;
+	uint32_t len_next_out = s->avail_out;
 	nx_append_dde(ddl_out, s->next_out, len_next_out); /* decomp in to user buffer */
 
 	/* overflow, used_out == 0 required by definition, +used_out below is unnecessary */
@@ -840,24 +843,19 @@ decomp_state:
 	   desired target size */
 
 	/* avail_out plus 32 KB history plus a bit of overhead */
-	int target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
+	uint32_t target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
 
+	target_sz_expected = NX_MIN(target_sz_expected, inflate_per_job_len);
+	
 	/* e.g. if we want 100KB at the output and if the compression
 	   ratio is 10% we want 10KB if input */
-	int source_sz_estimate = (int)(((uint64_t)target_sz_expected * s->last_comp_ratio)/1000UL);
+	uint32_t source_sz_expected = (uint32_t)(((uint64_t)target_sz_expected * s->last_comp_ratio + 1000L)/1000UL);
 
 	/* do not include input side history in the estimation */
 	source_sz = source_sz - s->history_len;
 
-	/* limiting the source data size to limit overflow */
-	source_sz = NX_MIN(source_sz, source_sz_estimate);
-	/* submit very large jobs in small chunks */
-	source_sz = NX_MIN(source_sz, nx_config.per_job_len);
-	
-	/* to reduce unnecessary page touches; if we didn't touch
-	   enough case ERR_NX_TRANSLATION will cut down source size
-	   and retry */
-	target_sz_expected = ((uint64_t)source_sz * 1000UL) / (s->last_comp_ratio + 1);
+	source_sz = NX_MIN(source_sz, source_sz_expected);
+
 	target_sz_expected = NX_MIN(target_sz_expected, target_sz);
 
 	/* add the history back */

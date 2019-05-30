@@ -802,7 +802,7 @@ decomp_state:
 		   sizes. If we give too much input, the target buffer
 		   overflows and NX cycles are wasted, and then we
 		   must retry with smaller input size. 1000 is 100%  */
-		s->last_comp_ratio = 100UL;
+		s->last_comp_ratio = 1000UL;
 	}
 	/* clear then copy fc to the crb */
 	cmdp->crb.gzip_fc = 0; 
@@ -1093,16 +1093,18 @@ offsets_state:
 	int overflow_len = tpbc - len_next_out;
 	if (overflow_len <= 0) { /* there is no overflow */
 		assert(s->used_out == 0);
-		int need_len = NX_MIN(INF_HIS_LEN, tpbc);
-		/* Copy the tail of data in next_out as the history to
-		   the current head of fifo_out. Size is 32KB commonly
-		   but can be less if the engine produce less than
-		   32KB.  Note that cur_out-32KB already contains the
-		   history of the previous operation. The new history
-		   is appended after the old history */
-		memcpy(s->fifo_out + s->cur_out, s->next_out + tpbc - need_len, need_len);
-		s->cur_out += need_len;
-		fifo_out_len_check(s);
+		if (s->is_final == 0) {
+			int need_len = NX_MIN(INF_HIS_LEN, tpbc);
+			/* Copy the tail of data in next_out as the history to
+			   the current head of fifo_out. Size is 32KB commonly
+			   but can be less if the engine produce less than
+			   32KB.  Note that cur_out-32KB already contains the
+			   history of the previous operation. The new history
+			   is appended after the old history */
+			memcpy(s->fifo_out + s->cur_out, s->next_out + tpbc - need_len, need_len);
+			s->cur_out += need_len;
+			fifo_out_len_check(s);
+		}
 		update_stream_out(s, tpbc);
 		update_stream_out(s->zstrm, tpbc);
 	}

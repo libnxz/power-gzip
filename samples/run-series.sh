@@ -1,8 +1,8 @@
 #!/bin/bash
 
-plotfn=plot.$1
+plotfn=log.log
 
-for th in 1 2 #4 8 16 32 64 80
+for th in 1 2 4 8 16 32 64 80
 do
     for a in `seq 0 20`  # size
     do

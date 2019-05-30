@@ -3,6 +3,7 @@ set output 'compress.png'
 set logscale x 2 ; set format x '2^{%L}';
 set ylabel 'Total compress throughput (GB/s)'
 set xlabel 'Source data size (KB)'
+set key right bottom
 plot '<(grep "Total compress" log.log | grep "threads 1,")' using 7:5 title '1 thread' with linespoints,\
      '<(grep "Total compress" log.log | grep "threads 2,")' using 7:5 title '2 thread' with linespoints,\
      '<(grep "Total compress" log.log | grep "threads 4,")' using 7:5 title '4 thread' with linespoints,\
@@ -16,6 +17,7 @@ set output 'uncompress.png'
 set logscale x 2 ; set format x '2^{%L}';
 set ylabel 'Total uncompress throughput (GB/s)'
 set xlabel 'Uncompressed data size (KB)'
+set key right bottom
 plot '<(grep "Total uncompress" log.log | grep "threads 1,")' using 7:5 title '1 thread' with linespoints,\
      '<(grep "Total uncompress" log.log | grep "threads 2,")' using 7:5 title '2 thread' with linespoints,\
      '<(grep "Total uncompress" log.log | grep "threads 4,")' using 7:5 title '4 thread' with linespoints,\

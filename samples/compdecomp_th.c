@@ -192,7 +192,7 @@ void *comp_file_multith(void *argsv)
 	//if (tid == 0)
 	//fprintf(stderr, "tid %d: uncompressed %ld to %ld bytes\n", tid, (long)compdata_len, (long)decompdata_len);		
 	
-	/* wait all threads to finish their first runs; want this for pretty printing */		
+	/* wait all threads to finish their first runs; */		
 	pthread_barrier_wait(&barr);
 	
 	/* TIMING RUNS start here; when we report bandwidth it's the
@@ -200,8 +200,8 @@ void *comp_file_multith(void *argsv)
 	   size divided by time for decompress it is output size
 	   divided by time */
 
-	if (tid == 0)
-		fprintf(stderr, "tid %d: begin compressing %ld bytes %ld times\n", tid, (long)inlen, iterations);
+	//if (tid == 0)
+	// fprintf(stderr, "tid %d: begin compressing %ld bytes %ld times\n", tid, (long)inlen, iterations);
 
 	gettimeofday(&ts, NULL);
 
@@ -212,6 +212,9 @@ void *comp_file_multith(void *argsv)
 			return (void *) -1;					
 		}
 	}
+
+	/* wait all threads to finish; min max not useful anymore since timer is after this barrier */	
+	pthread_barrier_wait(&barr);	
 
 	gettimeofday(&te, NULL);
 
@@ -281,7 +284,7 @@ void *decomp_file_multith(void *argsv)
 	//if (tid == 0)
 	//fprintf(stderr, "tid %d: uncompressed %ld to %ld bytes\n", tid, (long)compdata_len, (long)decompdata_len);		
 
-	/* wait all threads to finish their first runs; want this for pretty printing */	
+	/* wait all threads to finish their first runs; */	
 	pthread_barrier_wait(&barr);
 	
 	/* TIMING RUNS start here; when we report bandwidth it's the
@@ -304,6 +307,9 @@ void *decomp_file_multith(void *argsv)
 		}
 	}
 
+	/* wait all threads to finish; min max not useful anymore since timer is after this barrier */
+	pthread_barrier_wait(&barr);
+	
 	gettimeofday(&te, NULL);
 
 	elapsed = ((double) te.tv_sec + (double)te.tv_usec/1.0e6)

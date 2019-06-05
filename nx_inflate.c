@@ -650,8 +650,7 @@ inf_return:
 static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
-	int read_sz;
-	uint32_t write_sz, free_space, source_sz, target_sz;
+	uint32_t read_sz, write_sz, free_space, source_sz, target_sz;
 	long loop_cnt = 0, loop_max = 0xffff;
 
 	/* inflate benefits from large jobs; memcopies must be amortized */

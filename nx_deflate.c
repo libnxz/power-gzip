@@ -148,10 +148,10 @@ static inline void set_bfinal(void *buf, int bfinal, int offset)
    rewind buf by one byte to fill those free bits.  Returns number of
    appended bytes. Any fractional bits in buf-1 are not included in the
    byte count.  Set block_len=0 for sync or full flush empty blocks.  */
-static inline int append_btype00_header(char *buf, int tebc, int final, int block_len)
+static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int block_len)
 {
 	uint64_t flush, blen;
-	int shift = (tebc & 0x7);
+	uint32_t shift = (tebc & 0x7);
 	ASSERT(!!buf && tebc < 8);
 	ASSERT(block_len < 0x10000);
 	if (tebc > 0) {
@@ -189,10 +189,10 @@ static inline int append_btype00_header(char *buf, int tebc, int final, int bloc
  * closed. sync and full flush blocks are identical; treatment
  * of the history are different
 */
-static int inline append_sync_flush(char *buf, int tebc, int final)
+static int inline append_sync_flush(char *buf, uint32_t tebc, int final)
 {
 	uint64_t flush;
-	int shift = (tebc & 0x7);
+	uint32_t shift = (tebc & 0x7);
 	if (tebc > 0) {
 		/* last byte is partially full */	
 		buf = buf - 1; 
@@ -212,7 +212,7 @@ static int inline append_sync_flush(char *buf, int tebc, int final)
 	return(((tebc > 5) || (tebc == 0)) ? 5 : 4);
 }
 
-static int inline append_full_flush(char *buf, int tebc, int final)
+static int inline append_full_flush(char *buf, uint32_t tebc, int final)
 {
 	return append_sync_flush(buf, tebc, final);
 }
@@ -221,10 +221,10 @@ static int inline append_full_flush(char *buf, int tebc, int final)
  * Appends 10 bits of partial flush and returns the new tebc in the
  * argument. Returns bytes appended
 */
-static int inline append_partial_flush(char *buf, int *tebc, int final)
+static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
 {
 	uint64_t flush;
-	int shift = (*tebc & 0x7);
+	uint32_t shift = (*tebc & 0x7);
 	int bytes = 0;
 	ASSERT(!!buf && *tebc < 8);
 	if (*tebc > 0) {
@@ -252,12 +252,12 @@ static int inline append_partial_flush(char *buf, int *tebc, int final)
   the internal buffer fifo_out. returns number of bytes appended.
   updates s->tebc
 */
-static int append_spanning_flush(nx_streamp s, int flush, int tebc, int final)
+static int append_spanning_flush(nx_streamp s, int flush, uint32_t  tebc, int final)
 {
 	char tmp[6];
 	char *ptr;
 	int  nb, k;
-	int next_tebc = tebc;
+	uint32_t next_tebc = tebc;
 
 	/* assumes fifo_out is empty */
 	ASSERT(s->used_out == 0 && s->cur_out == 0); 
@@ -345,7 +345,7 @@ static int append_spanning_flush(nx_streamp s, int flush, int tebc, int final)
 }
 
 /* update the bfinal and len/nlen fields of an existing block header */
-static int rewrite_spanning_flush(nx_streamp s, char *buf, uint32_t avail_out, int tebc, int final, uint32_t block_len)
+static int rewrite_spanning_flush(nx_streamp s, char *buf, uint32_t avail_out, uint32_t tebc, int final, uint32_t block_len)
 {
 	char tmp[6];
 	char *ptr;
@@ -1078,7 +1078,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 {
 	int with_count;
 	uint32_t adler, crc, spbc, tpbc;
-	int tebc;
+	uint32_t tebc;
 	uint32_t first_bytes, last_bytes, copy_bytes, histbytes, overflow;
 
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
@@ -1102,7 +1102,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	if (fc == GZIP_FC_WRAP)
 		s->tebc = 0;
 	else
-		s->tebc = (int) getnn(s->nxcmdp->cpb, out_tebc); 
+		s->tebc = getnn(s->nxcmdp->cpb, out_tebc); 
 
 	/* s->last_ratio = ((long)tpbc * 1000) / ((long)spbc + 1); */
 	
@@ -1713,7 +1713,7 @@ s3:
 		/* reminder of where the block starts */
 		char *blk_head = s->next_out;
 		uint32_t avail_out = s->avail_out;
-		int old_tebc = s->tebc;
+		uint32_t old_tebc = s->tebc;
 		int bfinal = 0;
 		uint32_t cksum;
 

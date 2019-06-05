@@ -237,7 +237,7 @@ typedef struct nx_stream_s {
 
 	uint32_t        spbc;
 	uint32_t        tpbc;
-	int             tebc;
+	uint32_t        tebc;
 
         /* nx commands */
         /* int             final_block; */

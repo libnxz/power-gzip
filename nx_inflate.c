@@ -650,12 +650,8 @@ inf_return:
 static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
-	int read_sz, n;
+	int read_sz;
 	uint32_t write_sz, free_space, source_sz, target_sz;
-	uint64_t total_out;
-	int is_final = 0, is_eof;
-	int cnt = 0;
-	void* fsa;
 	long loop_cnt = 0, loop_max = 0xffff;
 
 	/* inflate benefits from large jobs; memcopies must be amortized */
@@ -663,7 +659,6 @@ static int nx_inflate_(nx_streamp s, int flush)
 	
 	/* nx hardware */
 	uint32_t sfbt, subc, spbc, tpbc, nx_ce, fc;
-	int resuming = 0;
 	//int history_len = 0;
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
         nx_dde_t *ddl_in = s->ddl_in;

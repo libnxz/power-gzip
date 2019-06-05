@@ -364,7 +364,7 @@ static int inline write_unlock(int *ref_count)
 /* search nx_dht_builtin.c */
 static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym_t *top)
 {
-	int i, k, sidx;
+	int i, sidx;
 	dht_entry_t *builtin = dht_tab->builtin;
 
 	/* speed up the search */	
@@ -397,7 +397,7 @@ static int dht_search_builtin(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_s
 /* search the user generated cached dhts */
 static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym_t *top)
 {
-	int i, k, sidx;
+	int i, sidx;
 	dht_entry_t *dht_cache = dht_tab->cache;
 	
 	/* speed up the search starting from the last */
@@ -440,7 +440,6 @@ static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym
 
 static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 {
-	int i, k, sidx;
 	long source_bytes;
 	uint32_t fc, histlen;
 	dht_entry_t *dht_entry = dht_atomic_load( &dht_tab->last_used_entry );
@@ -524,10 +523,8 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
  
 static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 {
-	int i, k, sidx, clock=0;
+	int clock=0;
 	int dht_num_bytes, dht_num_valid_bits, dhtlen;
-	int least_used_idx;
-	int64_t least_used_count;
 	top_sym_t top[1];
 	dht_tab_t *dht_tab = (dht_tab_t *) handle;
 	dht_entry_t *dht_cache = dht_tab->cache;

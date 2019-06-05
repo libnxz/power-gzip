@@ -630,7 +630,6 @@ static int nx_copy_buffer_to_dde(nx_dde_t *d, char *data, uint32_t size)
 	}
 	else {
 		int i;
-		char *tmp;
 		u32 offset = 0;
 		int actual_byte_count = size;
 		nx_dde_t *dde_list = (nx_dde_t *) getp64(d, ddead); /* list base */
@@ -717,7 +716,6 @@ int nx_deflateReset(z_streamp strm)
 
 int nx_deflateEnd(z_streamp strm)
 {
-	int rc;
 	int status;
 	nx_streamp s;
 
@@ -862,7 +860,6 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
  */
 static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
 {
-	int rc = LIBNX_OK;
 	uint32_t copy_bytes;
 		
 	if (s->used_out == 0 || s->avail_out == 0) return LIBNX_OK_NO_AVOUT;	
@@ -1076,10 +1073,9 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 /* this will also set final bit */
 static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 {
-	int with_count;
-	uint32_t adler, crc, spbc, tpbc;
+	uint32_t spbc, tpbc;
 	uint32_t tebc;
-	uint32_t first_bytes, last_bytes, copy_bytes, histbytes, overflow;
+	uint32_t copy_bytes, histbytes, overflow;
 
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
 
@@ -1251,12 +1247,11 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 {
 	uint32_t bytes_in, bytes_out;	
 	nx_gzip_crb_cpb_t *nxcmdp;
-	int cc, inp_len, pgfault_retries;
+	int cc, pgfault_retries;
 	nx_dde_t *ddl_in, *ddl_out;
 	long pgsz;
 	int histbytes;
 	int rc = LIBNX_OK;
-	void *fsa = NULL;
 		
 	if (s == NULL)
 		return LIBNX_ERR_ARG;
@@ -1467,7 +1462,6 @@ static int nx_deflate_add_header(nx_streamp s)
                 }
                 else { /* caller supplied header */
 
-                        int k;
                         uint8_t flg;
 
                         /* k = 0; */
@@ -1564,7 +1558,6 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 /* deflate interface */
 int nx_deflate(z_streamp strm, int flush)
 {
-	uint32_t total;
 	retlibnx_t rc;
 	nx_streamp s;
 	const int combine_cksum = 1;
@@ -1715,7 +1708,6 @@ s3:
 		uint32_t avail_out = s->avail_out;
 		uint32_t old_tebc = s->tebc;
 		int bfinal = 0;
-		uint32_t cksum;
 
 		/* write a header, zero length and not final */
 		append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, 0);

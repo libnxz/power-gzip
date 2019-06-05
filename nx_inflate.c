@@ -651,7 +651,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
 	int read_sz, n;
-	int write_sz, free_space, copy_sz, source_sz, target_sz;
+	uint32_t write_sz, free_space, source_sz, target_sz;
 	uint64_t total_out;
 	int is_final = 0, is_eof;
 	int cnt = 0;
@@ -662,7 +662,8 @@ static int nx_inflate_(nx_streamp s, int flush)
 	uint32_t inflate_per_job_len = 64 * nx_config.per_job_len;
 	
 	/* nx hardware */
-	int sfbt, subc, spbc, tpbc, nx_ce, fc, resuming = 0;
+	uint32_t sfbt, subc, spbc, tpbc, nx_ce, fc;
+	int resuming = 0;
 	//int history_len = 0;
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
         nx_dde_t *ddl_in = s->ddl_in;

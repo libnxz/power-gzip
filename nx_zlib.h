@@ -232,7 +232,7 @@ typedef struct nx_stream_s {
 	
         /* return status */
         int             nx_cc;          /* nx return codes */
-        int             nx_ce;          /* completion extension Fig.6-7 */       
+        uint32_t             nx_ce;          /* completion extension Fig.6-7 */       
         int             z_rc;           /* libz return codes */
 
 	uint32_t        spbc;

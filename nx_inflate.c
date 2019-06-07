@@ -477,8 +477,6 @@ inf_forever:
 
 		if (s->gzflags & 0x08) { /* fname was set */
 			if (s->avail_in == 0) goto inf_return;
-			if (s->gzhead != NULL && s->gzhead->name != NULL)
-				s->gzhead->name[s->gzhead->name_max-1] = 0;
 			copy = 0;
 			do {
 				c = (unsigned int)(s->next_in[copy++]);
@@ -490,7 +488,7 @@ inf_forever:
 				   found.  inflate original looks
 				   buggy to me looping without limits. 
 				   malformed input file should not sigsegv zlib */
-			} while (!!c && copy < s->avail_in && s->length < s->gzhead->name_max);
+			} while (!!c && copy < s->avail_in);
 			s->avail_in -= copy;
 			s->next_in  += copy;
 			if (!!c) goto inf_return; /* need more name */
@@ -506,10 +504,6 @@ inf_forever:
 
 		if (s->gzflags & 0x10) { /* fcomment was set */
 			if (s->avail_in == 0) goto inf_return;
-			if (s->gzhead != NULL && s->gzhead->comment != NULL) {
-				/* terminate with \0 for safety */
-				s->gzhead->comment[s->gzhead->comm_max-1] = 0;
-			}
 			copy = 0;
 			do {
 				c = (unsigned int)(s->next_in[copy++]);
@@ -517,7 +511,7 @@ inf_forever:
 				    s->gzhead->comment != NULL &&
 				    s->length < s->gzhead->comm_max )
 					s->gzhead->comment[s->length++] = (char) c;
-			} while (!!c && copy < s->avail_in && s->length < s->gzhead->comm_max);
+			} while (!!c && copy < s->avail_in);
 			s->avail_in -= copy;
 			s->next_in  += copy;
 			if (!!c) goto inf_return; /* need more comment */

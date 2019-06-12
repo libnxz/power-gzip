@@ -8,7 +8,7 @@ do
     do
 	b=$((1 << $a))
 	nbyte=$(($b * 1024))
-	rpt=$((1000 * 1000 * 1000 * 10)) # 10GB
+	rpt=$((1000 * 1000 * 1000 * 1)) # 1GB
 	rpt=$(( ($rpt+$nbyte-1)/$nbyte )) # iters
 	rpt=$(( ($rpt+$th-1)/$th )) # per thread
 	rm -f junk2

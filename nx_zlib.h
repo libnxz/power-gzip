@@ -179,6 +179,9 @@ typedef struct nx_stream_s {
 					 * the stream is finished or fully
 					 * flushed to the output */
 
+	char            trailer[9];     /* temp storage for tail bytes */
+	int             trailer_len;
+  
 	uint16_t        hcrc16;         /* stored in the gzip header */
 	uint32_t        cksum;          /* running checksum of the header */
 	ckbuf_t         ckbuf;          /* hcrc16 helpers */

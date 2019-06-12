@@ -108,6 +108,7 @@ int nx_inflateReset(z_streamp strm)
 	s->resuming = 0;
 	s->history_len = 0;
 	s->is_final = 0;
+	s->trailer_len = 0;
 
 	s->nxcmdp  = &s->nxcmd0;
 
@@ -300,11 +301,14 @@ int nx_inflate(z_streamp strm, int flush)
 
 inf_forever:
 	/* inflate state machine */
+
+	prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 	
 	switch (s->inf_state) {
 		unsigned int c, copy;
 
 	case inf_state_header:
+
 		if (s->wrap == (HEADER_ZLIB | HEADER_GZIP)) {
 			/* auto detect zlib/gzip */
 			nx_inflate_get_byte(s, c);
@@ -339,7 +343,8 @@ inf_forever:
 		}
 		break;
 		
-	case inf_state_gzip_id1:		
+	case inf_state_gzip_id1:
+
 		nx_inflate_get_byte(s, c);
 		if (c != 0x1f) {
 			strm->msg = (char *)"incorrect gzip header";			
@@ -484,10 +489,6 @@ inf_forever:
 				    s->gzhead->name != NULL &&
 				    s->length < s->gzhead->name_max )
 					s->gzhead->name[s->length++] = (char) c;
-				/* copy until the \0 character is
-				   found.  inflate original looks
-				   buggy to me looping without limits. 
-				   malformed input file should not sigsegv zlib */
 			} while (!!c && copy < s->avail_in);
 			s->avail_in -= copy;
 			s->next_in  += copy;
@@ -555,6 +556,7 @@ inf_forever:
 		break;
 		
 	case inf_state_zlib_id1:
+
 		nx_inflate_get_byte(s, c);
 		if ((c & 0x0f) != 0x08) {
 			strm->msg = (char *)"unknown compression method";
@@ -572,6 +574,7 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_zlib_flg:
+
 		nx_inflate_get_byte(s, c);
 		if ( ((s->zlib_cmf * 256 + c) % 31) != 0 ) {
 			strm->msg = (char *)"incorrect header check";
@@ -591,6 +594,7 @@ inf_forever:
 		break;
 
 	case inf_state_zlib_dictid:		
+
 		while( s->inf_held < 4) { 
 			nx_inflate_get_byte(s, c);
 			s->dictid = (s->dictid << 8) | (c & 0xff);
@@ -611,19 +615,27 @@ inf_forever:
 		s->inf_state = inf_state_inflate; /* go to inflate proper */
 
 	case inf_state_inflate:
+
 		rc = nx_inflate_(s, flush);
 		goto inf_return;
+
 	case inf_state_data_error:
+
 		rc = Z_DATA_ERROR;
 		goto inf_return;
+		
 	case inf_state_mem_error:
+
 		rc = Z_MEM_ERROR;
 		break;
+
 	case inf_state_buf_error:
+
 		rc = Z_BUF_ERROR;
 		break;		
 		
 	default:
+
 		rc = Z_STREAM_ERROR;
 		break;
 	}
@@ -640,6 +652,109 @@ inf_return:
 	}
 	return rc;
 }	
+
+
+static inline void nx_inflate_update_checksum(nx_streamp s)
+{
+	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
+
+	s->crc32 = cmdp->cpb.out_crc;
+	s->adler32 = cmdp->cpb.out_adler;	
+
+	if (s->wrap == HEADER_GZIP)
+		s->zstrm->adler = s->adler = s->crc32;
+	else if (s->wrap == HEADER_ZLIB)
+		s->zstrm->adler = s->adler = s->adler32;			
+}
+
+
+static int nx_inflate_verify_checksum(nx_streamp s, int copy)
+{
+	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
+	char *tail;
+	uint32_t cksum, isize;
+	int i;
+
+	assert(s->is_final == 1);
+
+	if (copy) {
+		/* to handle the case of crc and isize spanning fifo_in
+		 * and next_in */
+		int need, got;
+		if (s->wrap == HEADER_GZIP)
+			need = 8;
+		else if (s->wrap == HEADER_ZLIB)
+			need = 4;
+		else
+			need = 0;
+
+		/* if partial copy exist from previous calls */
+		need = NX_MAX( NX_MIN(need - s->trailer_len, need), 0 );
+
+		/* copy need bytes from fifo_in */
+		got = NX_MIN(s->used_in, need);
+		if (got > 0) {
+			memcpy(s->trailer, s->fifo_in + s->cur_in, got);
+			s->trailer_len   = got;
+			s->used_in      -= got;
+			s->cur_in       += got;
+			fifo_in_len_check(s);
+		}
+
+		/* copy any remaining from next_in */		
+		got = NX_MIN(s->avail_in, need - got);
+		if (got > 0) {
+			memcpy(s->trailer + s->trailer_len, s->next_in, got);
+			s->trailer_len    += got;
+			update_stream_in(s, got);
+			update_stream_in(s->zstrm, got);
+		}
+		return Z_OK;
+	}
+
+	tail = s->trailer;
+	
+	/* assume for now that next_in contains the checksum */
+	if (s->wrap == HEADER_GZIP) {
+		if (s->trailer_len == 8) {
+			/* crc32 and isize are present; compare checksums */
+			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16 | tail[3]<<24);
+			isize = (tail[4] | tail[5]<<8 | tail[6]<<16 | tail[7]<<24);
+
+			prt_info("computed checksum %08x isize %08x\n", cmdp->cpb.out_crc, (uint32_t)(s->total_out % (1ULL<<32)));
+			prt_info("stored   checksum %08x isize %08x\n", cksum, isize);
+
+			nx_inflate_update_checksum(s);
+			
+			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(s->total_out % (1ULL<<32)) )
+				return Z_STREAM_END;
+			else {
+				prt_err("checksum or isize mismatch\n");
+				return Z_STREAM_ERROR;
+			}
+		}
+	}
+	else if (s->wrap == HEADER_ZLIB) {
+		if (s->trailer_len == 4) {
+			/* adler32 is present; compare checksums */
+			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16 | tail[3]<<24);
+
+			prt_err("computed checksum %08x\n", cmdp->cpb.out_adler);
+			prt_err("stored   checksum %08x\n", cksum);
+
+			nx_inflate_update_checksum(s);			
+
+			if (cksum == cmdp->cpb.out_adler)
+				return Z_STREAM_END;
+			else {
+				prt_err("checksum mismatch\n");
+				return Z_STREAM_ERROR;
+			}
+		}
+	}
+	/* raw data does not check crc */
+	return Z_STREAM_END;
+}
 
 static int nx_inflate_(nx_streamp s, int flush)
 {
@@ -688,10 +803,16 @@ copy_fifo_out_to_next_out:
 		}
 		print_dbg_info(s, __LINE__);
 
-		if (s->used_out > 0 && s->avail_out == 0) return Z_OK; /* Need more space */
+		if (s->used_out > 0 && s->avail_out == 0)
+			return Z_OK; /* Need more space */
 
-		/* if final is find, will not go ahead */
-		if (s->is_final == 1 && s->used_in == 0) return Z_STREAM_END;
+		/* if final is found, will not go ahead */
+		/* if (s->is_final == 1 && s->used_in == 0) return Z_STREAM_END; */
+		/* if (s->is_final == 1 && s->used_in == 0) */
+		if (s->is_final == 1) {
+			nx_inflate_verify_checksum(s, 1);
+			return nx_inflate_verify_checksum(s, 0);
+		}
 	}
 
 	assert(s->used_out == 0);
@@ -731,9 +852,6 @@ small_next_in:
 			prt_err("unexpected error\n");
 			return Z_STREAM_END;
 		}
-	}
-	else {
-		/* if avai_in > nx_config.soft_copy_threshold, do nothing */
 	}
 	print_dbg_info(s, __LINE__);
 	
@@ -946,7 +1064,7 @@ restart_nx:
 
 	case ERR_NX_OK:
 
-		/* This should not happen for gzip formatted data;
+		/* This should not happen for gzip or zlib formatted data;
 		 * we need trailing crc and isize */
 		prt_info("ERR_NX_OK\n");
 		spbc = get32(cmdp->cpb, out_spbc_decomp);
@@ -1079,6 +1197,8 @@ offsets_state:
 		fifo_in_len_check(s);
 	}
 
+	nx_inflate_update_checksum(s);
+	
 	int overflow_len = tpbc - len_next_out;
 	if (overflow_len <= 0) { /* there is no overflow */
 		assert(s->used_out == 0);
@@ -1137,19 +1257,25 @@ offsets_state:
 	s->resuming = 1;
 
 	if (s->is_final == 1 || cc == ERR_NX_OK) {
+
+		/* copy trailer bytes to temp storage */
+		nx_inflate_verify_checksum(s, 1);
 		/* update total_in */
-		s->total_in = s->total_in - s->used_in;
+		s->total_in = s->total_in - s->used_in; /* garbage past cksum */
 		s->zstrm->total_in = s->total_in;
 		s->is_final = 1;
-		s->used_in = 0;
+		/* s->used_in = 0; */
 		if (s->used_out == 0) {
+			/* final state and everything copied to next_out */
 			print_dbg_info(s, __LINE__);
-			return Z_STREAM_END;
+			/* return Z_STREAM_END if all cksum bytes
+			 * available otherwise Z_OK */
+			return nx_inflate_verify_checksum(s, 0);
 		}
 		else
 			goto copy_fifo_out_to_next_out;
 	}
-
+	
 	if (s->avail_in > 0 && s->avail_out > 0) {
 		goto copy_fifo_out_to_next_out;
 	}

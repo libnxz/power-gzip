@@ -294,10 +294,9 @@ int nx_inflate(z_streamp strm, int flush)
 		pthread_mutex_unlock(&zlib_stats_mutex);
 	}
 
-	s->next_in = s->zstrm->next_in;
-	s->avail_in = s->zstrm->avail_in;
-	s->next_out = s->zstrm->next_out;
-	s->avail_out = s->zstrm->avail_out;
+	/* copy in from user stream to internal structures */
+	copy_stream_in(s, s->zstrm);
+	copy_stream_out(s, s->zstrm);	
 
 inf_forever:
 	/* inflate state machine */
@@ -468,7 +467,7 @@ inf_forever:
 					       len + copy > s->gzhead->extra_max ?
 					       s->gzhead->extra_max - len : copy);
 				}
-				update_stream_in(s,copy);
+				update_stream_in(s, copy);
 				s->length -= copy;
 			}
 			if (s->length) goto inf_return; /* more extra data to copy */
@@ -643,6 +642,10 @@ inf_forever:
 	
 inf_return:
 
+	/* copy out to user stream */
+	copy_stream_in(s->zstrm, s);
+	copy_stream_out(s->zstrm, s);	
+	
 	/* statistic */
 	if (nx_gzip_gather_statistics()) {
 		pthread_mutex_lock(&zlib_stats_mutex);
@@ -667,7 +670,7 @@ static inline void nx_inflate_update_checksum(nx_streamp s)
 		s->zstrm->adler = s->adler = s->adler32;			
 }
 
-
+/* 0 is verify only, 1 is copy only, 2 is both copy and verify */
 static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 {
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
@@ -677,7 +680,7 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 
 	assert(s->is_final == 1);
 
-	if (copy) {
+	if (copy > 0) {
 		/* to handle the case of crc and isize spanning fifo_in
 		 * and next_in */
 		int need, got;
@@ -707,14 +710,13 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 			memcpy(s->trailer + s->trailer_len, s->next_in, got);
 			s->trailer_len    += got;
 			update_stream_in(s, got);
-			update_stream_in(s->zstrm, got);
 		}
-		return Z_OK;
+		if (copy == 1) 
+			return Z_OK; /* copy only */
 	}
 
 	tail = s->trailer;
 	
-	/* assume for now that next_in contains the checksum */
 	if (s->wrap == HEADER_GZIP) {
 		if (s->trailer_len == 8) {
 			/* crc32 and isize are present; compare checksums */
@@ -733,6 +735,7 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 				return Z_STREAM_ERROR;
 			}
 		}
+		else return Z_OK; /* didn't receive all */
 	}
 	else if (s->wrap == HEADER_ZLIB) {
 		if (s->trailer_len == 4) {
@@ -751,6 +754,7 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 				return Z_STREAM_ERROR;
 			}
 		}
+		else return Z_OK; /* didn't receive all */
 	}
 	/* raw data does not check crc */
 	return Z_STREAM_END;
@@ -779,11 +783,15 @@ static int nx_inflate_(nx_streamp s, int flush)
 	if ((flush == Z_FINISH) && (s->avail_in == 0) && (s->used_out == 0))
 		return Z_STREAM_END;
 
-	if (s->avail_in == 0 && s->used_in == 0 &&
-	    s->avail_out == 0 && s->used_out == 0)
+	if (s->avail_in == 0 && s->used_in == 0 && s->avail_out == 0 && s->used_out == 0)
 		return Z_STREAM_END;
 
+	if (s->is_final == 1) {
+		return nx_inflate_verify_checksum(s, 2); /* copy and verify */
+	}
+	
 copy_fifo_out_to_next_out:
+
 	if (++loop_cnt == loop_max) {
 		prt_err("cannot make progress; too many loops loop_cnt = %ld\n", (long)loop_cnt);
 		return Z_STREAM_END;
@@ -796,7 +804,6 @@ copy_fifo_out_to_next_out:
 		if (write_sz > 0) {
 			memcpy(s->next_out, s->fifo_out + s->cur_out, write_sz);
 			update_stream_out(s, write_sz);
-			update_stream_out(s->zstrm, write_sz);
 			s->used_out -= write_sz;
 			s->cur_out += write_sz;
 			fifo_out_len_check(s);
@@ -804,14 +811,10 @@ copy_fifo_out_to_next_out:
 		print_dbg_info(s, __LINE__);
 
 		if (s->used_out > 0 && s->avail_out == 0)
-			return Z_OK; /* Need more space */
+			return Z_OK; /* Need more space to write to */
 
-		/* if final is found, will not go ahead */
-		/* if (s->is_final == 1 && s->used_in == 0) return Z_STREAM_END; */
-		/* if (s->is_final == 1 && s->used_in == 0) */
 		if (s->is_final == 1) {
-			nx_inflate_verify_checksum(s, 1);
-			return nx_inflate_verify_checksum(s, 0);
+			return nx_inflate_verify_checksum(s, 2);
 		}
 	}
 
@@ -823,6 +826,7 @@ copy_fifo_out_to_next_out:
 	/* we should flush all data to next_out here, s->used_out should be 0 */
 
 small_next_in:
+
 	/* used_in is the data amount waiting in fifo_in; avail_in is
 	   the data amount waiting in the user buffer next_in */
 	if (s->avail_in < nx_config.soft_copy_threshold && s->avail_out > 0) {
@@ -844,7 +848,6 @@ small_next_in:
 			/* copy from next_in to the offset cur_in + used_in */
 			memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, read_sz);
 			update_stream_in(s, read_sz);
-			update_stream_in(s->zstrm, read_sz);
 			s->used_in = s->used_in + read_sz;
 		}
 		else {
@@ -961,6 +964,8 @@ decomp_state:
 	/* do not include input side history in the estimation */
 	source_sz = source_sz - s->history_len;
 
+	assert(source_sz > 0);
+	
 	source_sz = NX_MIN(source_sz, source_sz_expected);
 
 	target_sz_expected = NX_MIN(target_sz_expected, target_sz);
@@ -1188,12 +1193,11 @@ offsets_state:
 	/* source_sz is the real used in size */
 	if (source_sz > s->used_in) {
 		update_stream_in(s, source_sz - s->used_in);
-		update_stream_in(s->zstrm, source_sz - s->used_in);
 		s->used_in = 0;
 	}
 	else {
 		s->used_in -= source_sz;
-		s->cur_in += source_sz;
+		s->cur_in  += source_sz;
 		fifo_in_len_check(s);
 	}
 
@@ -1215,7 +1219,6 @@ offsets_state:
 			fifo_out_len_check(s);
 		}
 		update_stream_out(s, tpbc);
-		update_stream_out(s->zstrm, tpbc);
 	}
 	else if (overflow_len > 0 && overflow_len < INF_HIS_LEN){
 		int need_len = INF_HIS_LEN - overflow_len;
@@ -1243,12 +1246,10 @@ offsets_state:
 			
 		s->used_out += overflow_len;
 		update_stream_out(s, len_next_out);
-		update_stream_out(s->zstrm, len_next_out);
 	}
 	else { /* overflow_len > 1<<15 */
 		s->used_out += overflow_len;
 		update_stream_out(s, len_next_out);
-		update_stream_out(s->zstrm, len_next_out);
 	}
 
 	s->history_len = (s->total_out + s->used_out > nx_config.window_max) ? nx_config.window_max : (s->total_out + s->used_out);
@@ -1263,8 +1264,7 @@ offsets_state:
 		/* copy trailer bytes to temp storage */
 		nx_inflate_verify_checksum(s, 1);
 		/* update total_in */
-		s->total_in = s->total_in - s->used_in; /* garbage past cksum */
-		s->zstrm->total_in = s->total_in;
+		s->total_in = s->total_in - s->used_in; /* garbage past cksum ????? */
 		s->is_final = 1;
 		/* s->used_in = 0; */
 		if (s->used_out == 0) {
@@ -1274,18 +1274,21 @@ offsets_state:
 			 * available otherwise Z_OK */
 			return nx_inflate_verify_checksum(s, 0);
 		}
-		else
+		else {
 			goto copy_fifo_out_to_next_out;
+		}
 	}
 	
 	if (s->avail_in > 0 && s->avail_out > 0) {
 		goto copy_fifo_out_to_next_out;
 	}
-	
-	if (s->used_in > 1 && s->avail_out > 0 && target_space_retries > 0) {
+
+#if 0
+	/* why target_space_retries? */
+	if (s->used_in > 1 && s->avail_out > 0 && target_space_retries > 0 ) { 
 		goto copy_fifo_out_to_next_out;
 	}
-
+#endif
 	if (flush == Z_FINISH) return Z_STREAM_END;
 
 	print_dbg_info(s, __LINE__);

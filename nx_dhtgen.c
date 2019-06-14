@@ -432,7 +432,6 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
     tree_node_t nodearr[NLEN];
     tree_node_t remaining_node;    
     int tree_node_number =  0;  
-    int ascending = 1; /* -1 for descending */
     q_t leaf_q, node_q;
     int nz_nsym;
 
@@ -964,9 +963,6 @@ int dhtgen (
     int cpb_header             /* =1 if prepending the 16byte cpb header that contains the bit length of dht */
     )
 {
-    unsigned int i, ret;
-    int limit;
-    int max_depth, iter=0;
     huff_tree_t ll_htree, dis_htree;
     u5 lens[NLEN+NDIS];
     char *dhtbuf;

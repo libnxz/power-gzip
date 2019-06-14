@@ -148,10 +148,10 @@ static inline void set_bfinal(void *buf, int bfinal, int offset)
    rewind buf by one byte to fill those free bits.  Returns number of
    appended bytes. Any fractional bits in buf-1 are not included in the
    byte count.  Set block_len=0 for sync or full flush empty blocks.  */
-static inline int append_btype00_header(char *buf, int tebc, int final, int block_len)
+static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int block_len)
 {
 	uint64_t flush, blen;
-	int shift = (tebc & 0x7);
+	uint32_t shift = (tebc & 0x7);
 	ASSERT(!!buf && tebc < 8);
 	ASSERT(block_len < 0x10000);
 	if (tebc > 0) {
@@ -189,10 +189,10 @@ static inline int append_btype00_header(char *buf, int tebc, int final, int bloc
  * closed. sync and full flush blocks are identical; treatment
  * of the history are different
 */
-static int inline append_sync_flush(char *buf, int tebc, int final)
+static int inline append_sync_flush(char *buf, uint32_t tebc, int final)
 {
 	uint64_t flush;
-	int shift = (tebc & 0x7);
+	uint32_t shift = (tebc & 0x7);
 	if (tebc > 0) {
 		/* last byte is partially full */	
 		buf = buf - 1; 
@@ -212,7 +212,7 @@ static int inline append_sync_flush(char *buf, int tebc, int final)
 	return(((tebc > 5) || (tebc == 0)) ? 5 : 4);
 }
 
-static int inline append_full_flush(char *buf, int tebc, int final)
+static int inline append_full_flush(char *buf, uint32_t tebc, int final)
 {
 	return append_sync_flush(buf, tebc, final);
 }
@@ -221,10 +221,10 @@ static int inline append_full_flush(char *buf, int tebc, int final)
  * Appends 10 bits of partial flush and returns the new tebc in the
  * argument. Returns bytes appended
 */
-static int inline append_partial_flush(char *buf, int *tebc, int final)
+static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
 {
 	uint64_t flush;
-	int shift = (*tebc & 0x7);
+	uint32_t shift = (*tebc & 0x7);
 	int bytes = 0;
 	ASSERT(!!buf && *tebc < 8);
 	if (*tebc > 0) {
@@ -252,12 +252,12 @@ static int inline append_partial_flush(char *buf, int *tebc, int final)
   the internal buffer fifo_out. returns number of bytes appended.
   updates s->tebc
 */
-static int append_spanning_flush(nx_streamp s, int flush, int tebc, int final)
+static int append_spanning_flush(nx_streamp s, int flush, uint32_t  tebc, int final)
 {
 	char tmp[6];
 	char *ptr;
 	int  nb, k;
-	int next_tebc = tebc;
+	uint32_t next_tebc = tebc;
 
 	/* assumes fifo_out is empty */
 	ASSERT(s->used_out == 0 && s->cur_out == 0); 
@@ -345,7 +345,7 @@ static int append_spanning_flush(nx_streamp s, int flush, int tebc, int final)
 }
 
 /* update the bfinal and len/nlen fields of an existing block header */
-static int rewrite_spanning_flush(nx_streamp s, char *buf, uint32_t avail_out, int tebc, int final, uint32_t block_len)
+static int rewrite_spanning_flush(nx_streamp s, char *buf, uint32_t avail_out, uint32_t tebc, int final, uint32_t block_len)
 {
 	char tmp[6];
 	char *ptr;
@@ -630,7 +630,6 @@ static int nx_copy_buffer_to_dde(nx_dde_t *d, char *data, uint32_t size)
 	}
 	else {
 		int i;
-		char *tmp;
 		u32 offset = 0;
 		int actual_byte_count = size;
 		nx_dde_t *dde_list = (nx_dde_t *) getp64(d, ddead); /* list base */
@@ -717,7 +716,6 @@ int nx_deflateReset(z_streamp strm)
 
 int nx_deflateEnd(z_streamp strm)
 {
-	int rc;
 	int status;
 	nx_streamp s;
 
@@ -862,7 +860,6 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
  */
 static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
 {
-	int rc = LIBNX_OK;
 	uint32_t copy_bytes;
 		
 	if (s->used_out == 0 || s->avail_out == 0) return LIBNX_OK_NO_AVOUT;	
@@ -1076,10 +1073,9 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 /* this will also set final bit */
 static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 {
-	int with_count;
-	uint32_t adler, crc, spbc, tpbc;
-	int tebc;
-	uint32_t first_bytes, last_bytes, copy_bytes, histbytes, overflow;
+	uint32_t spbc, tpbc;
+	uint32_t tebc;
+	uint32_t copy_bytes, histbytes, overflow;
 
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
 
@@ -1102,7 +1098,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	if (fc == GZIP_FC_WRAP)
 		s->tebc = 0;
 	else
-		s->tebc = (int) getnn(s->nxcmdp->cpb, out_tebc); 
+		s->tebc = getnn(s->nxcmdp->cpb, out_tebc); 
 
 	/* s->last_ratio = ((long)tpbc * 1000) / ((long)spbc + 1); */
 	
@@ -1119,7 +1115,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	   (minus histbytes)
 	   remainder is the amount used from next_in  */
 	
-	ASSERT(spbc <= s->avail_in);
+	/* ASSERT(spbc <= s->avail_in); issue 71 do we really require this? */
 	update_stream_in(s, spbc);
 	update_stream_in(s->zstrm, spbc);
 		
@@ -1251,12 +1247,11 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 {
 	uint32_t bytes_in, bytes_out;	
 	nx_gzip_crb_cpb_t *nxcmdp;
-	int cc, inp_len, pgfault_retries;
+	int cc, pgfault_retries;
 	nx_dde_t *ddl_in, *ddl_out;
 	long pgsz;
 	int histbytes;
 	int rc = LIBNX_OK;
-	void *fsa = NULL;
 		
 	if (s == NULL)
 		return LIBNX_ERR_ARG;
@@ -1292,7 +1287,7 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 
 	/* limit the input size; mainly for sampling LZcounts */
 	if (limit) bytes_in = NX_MIN(bytes_in, limit);
-
+	
 	/* initial checksums. TODO arch independent endianness */
 	put32(nxcmdp->cpb, in_crc, s->crc32);
 	put32(nxcmdp->cpb, in_adler, s->adler32); 	
@@ -1335,7 +1330,8 @@ restart:
 		else if (pgfault_retries > 0) {
 			/* try fewer input pages assuming memory has pressure 
 			   this will do one page per call at the limit */
-			bytes_in = NX_MAX( bytes_in/2, pgsz); 
+			if (bytes_in > pgsz)
+				bytes_in = NX_MAX(bytes_in/2, pgsz);
 			--pgfault_retries;
 			goto restart;
 		}
@@ -1369,8 +1365,9 @@ restart:
 		
 	case ERR_NX_TARGET_SPACE:
 
-		/* target buffer not large enough retry fewer pages  */		
-		bytes_in = NX_MAX( bytes_in/2, pgsz);
+		/* target buffer not large enough retry fewer pages  */
+		if (bytes_in > pgsz)
+			bytes_in = NX_MAX(bytes_in/2, pgsz);		
 		prt_info("ERR_NX_TARGET_SPACE, retry with bytes_in %d\n", bytes_in);
 		goto restart;
 
@@ -1465,7 +1462,6 @@ static int nx_deflate_add_header(nx_streamp s)
                 }
                 else { /* caller supplied header */
 
-                        int k;
                         uint8_t flg;
 
                         /* k = 0; */
@@ -1562,7 +1558,6 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 /* deflate interface */
 int nx_deflate(z_streamp strm, int flush)
 {
-	uint32_t total;
 	retlibnx_t rc;
 	nx_streamp s;
 	const int combine_cksum = 1;
@@ -1711,9 +1706,8 @@ s3:
 		/* reminder of where the block starts */
 		char *blk_head = s->next_out;
 		uint32_t avail_out = s->avail_out;
-		int old_tebc = s->tebc;
+		uint32_t old_tebc = s->tebc;
 		int bfinal = 0;
-		uint32_t cksum;
 
 		/* write a header, zero length and not final */
 		append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, 0);

@@ -81,13 +81,6 @@ struct sigaction act;
 void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 /* **************************************************************** */
 
-/* 
-   Enter critical section.  
-   exp=0 indicates the resource is free; exp=1 if busy.
-   Return -1 if expired or error
-*/
-static int biglock;
-
 static int nx_wait_exclusive(int *excp)
 {
 	/* __sync_bool_compare_and_swap(ptr, oldval, newval) is a gcc
@@ -348,7 +341,6 @@ int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 */
 int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 {
-	volatile char t;
 	uint32_t indirect_count;
 	uint32_t buf_len;
 	long total;
@@ -538,8 +530,6 @@ ret:
 
 int nx_close(nx_devp_t nxdevp)
 {
-	int i;
-	
 	/* leave everything open */
 	return 0;
 }
@@ -733,7 +723,7 @@ void nx_hw_init(void)
 		nx_gzip_trace = strtol(trace_s, (char **)NULL, 0);
 
 	if (verbo_s != NULL) {
-		int z, c;
+		int z;
 		nx_config.verbose = str_to_num(verbo_s);
 		z = nx_config.verbose & NX_VERBOSE_LIBNX_MASK;
 		nx_lib_debug(z);
@@ -802,7 +792,6 @@ void nx_hw_init(void)
 
 void nx_hw_done(void)
 {
-	int dev_no;
 	int flags = (nx_gzip_inflate_flags | nx_gzip_deflate_flags);
 
 	if (!!nx_gzip_log) fflush(nx_gzip_log);

@@ -179,6 +179,9 @@ typedef struct nx_stream_s {
 					 * the stream is finished or fully
 					 * flushed to the output */
 
+	char            trailer[9];     /* temp storage for tail bytes */
+	int             trailer_len;
+  
 	uint16_t        hcrc16;         /* stored in the gzip header */
 	uint32_t        cksum;          /* running checksum of the header */
 	ckbuf_t         ckbuf;          /* hcrc16 helpers */
@@ -232,12 +235,12 @@ typedef struct nx_stream_s {
 	
         /* return status */
         int             nx_cc;          /* nx return codes */
-        int             nx_ce;          /* completion extension Fig.6-7 */       
+        uint32_t        nx_ce;          /* completion extension Fig.6-7 */       
         int             z_rc;           /* libz return codes */
 
 	uint32_t        spbc;
 	uint32_t        tpbc;
-	int             tebc;
+	uint32_t        tebc;
 
         /* nx commands */
         /* int             final_block; */
@@ -270,6 +273,9 @@ typedef struct nx_stream_s *nx_streamp;
 /* stream pointers and lengths manipulated */
 #define update_stream_out(s,b) do{(s)->next_out += (b); (s)->total_out += (b); (s)->avail_out -= (b);}while(0)
 #define update_stream_in(s,b)  do{(s)->next_in  += (b); (s)->total_in  += (b); (s)->avail_in  -= (b);}while(0)
+
+#define copy_stream_in(d,s)  do{(d)->next_in  = (s)->next_in;  (d)->total_in  = (s)->total_in;  (d)->avail_in  = (s)->avail_in;}while(0)
+#define copy_stream_out(d,s) do{(d)->next_out = (s)->next_out; (d)->total_out = (s)->total_out; (d)->avail_out = (s)->avail_out;}while(0)
 
 /* Fifo buffer management. NX has scatter gather capability.
    We treat the fifo queue in two steps: from current head (or tail) to

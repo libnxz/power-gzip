@@ -62,13 +62,24 @@
 #include <errno.h>
 #include <signal.h>
 #include "nxu.h"
+#include "nx_dht.h"
 #include "nx.h"
 #include "nx_dbg.h"
 
 int nx_dbg = 0;
 FILE *nx_gzip_log = NULL;
 
+/* #define SAVE_LZCOUNTS  define only when printing a builtin dht */
+
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
+#define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
+
+/* maximum of 5% of input and the nbyte value is used to sample symbols towards dht statistics */
+#define NX_LZ_SAMPLE_PERCENT  5
+#ifndef NX_LZ_SAMPLE_NBYTE
+#define NX_LZ_SAMPLE_NBYTE    (1UL<<15)
+#endif
+#define NX_CHUNK_SZ  (1<<18)
 
 #ifdef NXTIMER
 struct _nx_time_dbg {
@@ -80,9 +91,7 @@ struct _nx_time_dbg {
 extern uint64_t dbgtimer;
 #endif	
 
-
-/* LZ counts returned in the user supplied nx_gzip_crb_cpb_t structure */
-static int compress_fht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
+static int compress_dht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
 			       int with_count, nx_gzip_crb_cpb_t *cmdp, void *handle)
 {
 	int i,cc;
@@ -92,9 +101,18 @@ static int compress_fht_sample(char *src, uint32_t srclen, char *dst, uint32_t d
 
 	/* memset(&cmdp->crb, 0, sizeof(cmdp->crb)); */ /* cc=21 error; revisit clearing below */
 	put32(cmdp->crb, gzip_fc, 0);   /* clear */
-	fc = (with_count) ? GZIP_FC_COMPRESS_RESUME_FHT_COUNT : GZIP_FC_COMPRESS_RESUME_FHT;
+
+	/* The reason we use a RESUME function code from get go is
+	   because we can; resume is equivalent to a non-resume
+	   function code when in_histlen=0 */
+	if (with_count) 
+		fc = GZIP_FC_COMPRESS_RESUME_DHT_COUNT;
+	else 
+		fc = GZIP_FC_COMPRESS_RESUME_DHT;
+
 	putnn(cmdp->crb, gzip_fc, fc);
-	putnn(cmdp->cpb, in_histlen, 0); /* resuming with no history */
+	/* resuming with no history; not optimal but good enough for the sample code */
+	putnn(cmdp->cpb, in_histlen, 0);
 	memset((void *)&cmdp->crb.csb, 0, sizeof(cmdp->crb.csb));
     
 	/* Section 6.6 programming notes; spbc may be in two different places depending on FC */
@@ -118,6 +136,9 @@ static int compress_fht_sample(char *src, uint32_t srclen, char *dst, uint32_t d
 	putnn(cmdp->crb.target_dde, dde_count, 0);
 	put32(cmdp->crb.target_dde, ddebc, dstlen);
 	put64(cmdp->crb.target_dde, ddead, (uint64_t) dst);   
+
+	/* fprintf(stderr, "in_dhtlen %x\n", getnn(cmdp->cpb, in_dhtlen) );
+	   fprintf(stderr, "in_dht %02x %02x\n", cmdp->cpb.in_dht_char[0],cmdp->cpb.in_dht_char[16]); */
 
 	/* submit the crb */
 	nxu_run_job(cmdp, handle);
@@ -273,21 +294,14 @@ int compress_file(int argc, char **argv, void *handle)
 	uint32_t flushlen, chunk;
 	size_t inlen, outlen, dsttotlen, srctotlen;	
 	uint32_t adler, crc, spbc, tpbc, tebc;
-	int lzcounts=0;
+	int lzcounts=1; /* always collect lzcounts */
+	int initial_pass;
 	int cc,fc;
 	int num_hdr_bytes;
 	nx_gzip_crb_cpb_t nxcmd, *cmdp;
 	uint32_t pagelen = 65536; /* should get this with syscall */
 	int fault_tries=50;
-
-#define TEST2
-#ifdef TEST2
-	cmdp = (void *)(uintptr_t)aligned_alloc(sizeof(nx_gzip_crb_t),sizeof(nx_gzip_crb_cpb_t));
-#else
-	cmdp = &nxcmd;
-#endif
-	fprintf(stderr, "crb %p\n", cmdp);
-	
+	void *dhthandle;
     
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <fname>\n", argv[0]);
@@ -306,7 +320,7 @@ int compress_file(int argc, char **argv, void *handle)
 	NX_CLK( (td.freq = nx_get_freq())  );
 	
 	/* compress piecemeal in small chunks */    
-	chunk = 1<<22;
+	chunk = NX_CHUNK_SZ;
 
 	/* write the gzip header */    
 	num_hdr_bytes = gzip_header_blank(outbuf); 
@@ -317,19 +331,54 @@ int compress_file(int argc, char **argv, void *handle)
 	srcbuf    = inbuf;
 	srctotlen = 0;
 
+	/* One time init of the dht tables; consider saving this
+	   handle in the nx_stream data structure for the nx_zlib
+	   implementation */
+	dhthandle = dht_begin(NULL, NULL);
+
 	/* prep the CRB */
-	/* cmdp = &nxcmd; */
+	cmdp = &nxcmd;
 	memset(&cmdp->crb, 0, sizeof(cmdp->crb));
+
+	/* prep the CPB */
+	/* memset(&cmdp->cpb.out_lzcount, 0, sizeof(uint32_t) * (LLSZ+DSZ) ); */
 	put32(cmdp->cpb, in_crc, 0); /* initial gzip crc */
+
+	/* Fill in with the default dht here; instead we could also do
+	   fixed huffman with counts for sampling the LZcounts; fixed
+	   huffman doesn't need a dht_lookup */
+	dht_lookup(cmdp, dht_default_req, dhthandle); 
+	initial_pass = 1;
 
 	fault_tries = 50;
 
 	while (inlen > 0) {
 
+	initial_pass_done:
 		/* will submit a chunk size source per job */
 		srclen = NX_MIN(chunk, inlen);
-		/* supply large target in case data expands */				
-		dstlen = NX_MIN(2*srclen, outlen); 
+		/* supply large target in case data expands; 288
+		   is for very small src plus the dht headroom */				
+		dstlen = NX_MIN(2 * srclen + 288, outlen); 
+
+		if (initial_pass == 1) {
+			/* If requested a first pass to collect
+			   lzcounts; first pass can be short; no need
+			   to run the entire data through typically */
+			/* If srclen is very large, use 5% of it. If
+			   srclen is smaller than 32KB, then use
+			   srclen itself as the sample */
+			srclen = NX_MIN( NX_MAX(((uint64_t)srclen * NX_LZ_SAMPLE_PERCENT)/100, NX_LZ_SAMPLE_NBYTE), srclen);
+			fprintf(stderr, "sample size %d\n", srclen);
+		}
+		else {
+			/* Here I will use the lzcounts collected from
+			   the previous second pass to lookup a cached
+			   or computed DHT; I don't need to sample the
+			   data anymore; previous run's lzcount
+			   is a good enough as an lzcount of this run */
+			dht_lookup(cmdp, dht_search_req, dhthandle); 
+		}
 
 		NX_CLK( (td.touch1 = nx_get_time()) );
 
@@ -339,7 +388,7 @@ int compress_file(int argc, char **argv, void *handle)
 		   many pages but would try to estimate the
 		   compression ratio and adjust both the src and dst
 		   touch amounts */
-		nx_touch_pages (cmdp, sizeof(nx_gzip_crb_cpb_t), pagelen, 1);
+		nx_touch_pages (cmdp, sizeof(*cmdp), pagelen, 0);
 		nx_touch_pages (srcbuf, srclen, pagelen, 0);
 		nx_touch_pages (dstbuf, dstlen, pagelen, 1);	    
 
@@ -348,7 +397,7 @@ int compress_file(int argc, char **argv, void *handle)
 		NX_CLK( (td.sub1 = nx_get_time()) );			
 		NX_CLK( (td.subc += 1) );
 		
-		cc = compress_fht_sample(
+		cc = compress_dht_sample(
 			srcbuf, srclen,
 			dstbuf, dstlen,
 			lzcounts, cmdp, handle);
@@ -377,6 +426,13 @@ int compress_file(int argc, char **argv, void *handle)
 		}
 
 		fault_tries = 50; /* reset for the next chunk */
+
+		if (initial_pass == 1) {
+			/* we got our lzcount sample from the 1st pass */
+			NXPRT( fprintf(stderr, "first pass done\n") );
+			initial_pass = 0;
+			goto initial_pass_done;
+		}
 	    
 		inlen     = inlen - srclen;
 		srcbuf    = srcbuf + srclen;
@@ -447,6 +503,12 @@ int compress_file(int argc, char **argv, void *handle)
 	if (NULL != inbuf) free(inbuf);
 	if (NULL != outbuf) free(outbuf);    
 
+#ifdef SAVE_LZCOUNTS
+	/* print a dht based on the lzcounts */
+	dht_print(dhthandle);
+#endif
+	dht_end(dhthandle);
+
 	return 0;
 }
 
@@ -459,6 +521,7 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
 		sig, info->si_code, info->si_addr);
 
+	exit(-1);
 	nx_fault_storage_address = info->si_addr; 
 }
 

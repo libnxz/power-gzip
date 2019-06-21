@@ -1,8 +1,12 @@
 /*
  * P9 gunzip sample code for demonstrating the P9 NX hardware
  * interface.  Not intended for productive uses or for performance or
- * compression ratio measurements.  Note also that /dev/crypto/gzip,
- * VAS and skiboot support are required (version numbers TBD)
+ * compression ratio measurements. For simplicity of demonstration,
+ * this sample code compresses in to fixed Huffman blocks only
+ * (Deflate btype=1) and has very simple memory management.  Dynamic
+ * Huffman blocks (Deflate btype=2) are more involved as detailed in
+ * the user guide.  Note also that /dev/crypto/gzip, VAS and skiboot
+ * support are required (version numbers TBD)
  *
  * Changelog:
  *   2018-04-02 Initial version
@@ -57,46 +61,140 @@
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
+#include <stdarg.h>
 #include "nxu.h"
+#include "nx_dht.h"
 #include "nx.h"
 #include "nx_dbg.h"
+#include <zlib.h>
 
 int nx_dbg = 0;
 FILE *nx_gzip_log = NULL;
 
-/* #define NXDBG */
-/* #define NXTIMER */
-/* #define NX_MMAP */
-
-#define ASSERT(X) assert(X)
-
-#ifdef NXTIMER
-struct _nx_time_dbg {
-	uint64_t freq;
-	uint64_t sub1, sub2, subc;
-	uint64_t touch1, touch2;
-	uint64_t faultc, targetlenc, datalenc;
-} td;
-extern uint64_t dbgtimer;
-#endif	
+typedef struct nxlite_handle_t {
+	void *device_handle;
+	void *dht_handle;
+} nxlite_handle_t;
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
 
-#define mb()     asm volatile("sync" ::: "memory")
-#define rmb()    asm volatile("lwsync" ::: "memory")
-#define wmb()    rmb()
-
-const int fifo_in_len = 1<<24;
-const int fifo_out_len = 1<<24;	
-const int page_sz = 1<<16;
-const int line_sz = 1<<7;
-const int window_max = 1<<15;
-const int retry_max = 50;
+/* maximum of 5% of input and the nbyte value is used to sample symbols towards dht statistics */
+#define NX_LZ_SAMPLE_PERCENT  5
+#ifndef NX_LZ_SAMPLE_NBYTE
+#define NX_LZ_SAMPLE_NBYTE    (1UL<<15)
+#endif
+#define NX_CHUNK_SZ  (1<<18)
 
 extern void *nx_fault_storage_address;
 extern void *nx_function_begin(int function, int pri);
 extern int nx_function_end(void *handle);
+static void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
+
+
+static int compress_dht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
+			       int with_count, nx_gzip_crb_cpb_t *cmdp, void *handle)
+{
+	int i,cc;
+	uint32_t fc;
+
+	assert(!!cmdp);
+
+	/* memset(&cmdp->crb, 0, sizeof(cmdp->crb)); */ /* cc=21 error; revisit clearing below */
+	put32(cmdp->crb, gzip_fc, 0);   /* clear */
+
+	/* The reason we use a RESUME function code from get go is
+	   because we can; resume is equivalent to a non-resume
+	   function code when in_histlen=0 */
+	if (with_count) 
+		fc = GZIP_FC_COMPRESS_RESUME_DHT_COUNT;
+	else 
+		fc = GZIP_FC_COMPRESS_RESUME_DHT;
+
+	putnn(cmdp->crb, gzip_fc, fc);
+	/* resuming with no history; not optimal but good enough for the sample code */
+	putnn(cmdp->cpb, in_histlen, 0);
+	memset((void *)&cmdp->crb.csb, 0, sizeof(cmdp->crb.csb));
+    
+	/* Section 6.6 programming notes; spbc may be in two different places depending on FC */
+	if (!with_count) 
+		put32(cmdp->cpb, out_spbc_comp, 0);
+	else 
+		put32(cmdp->cpb, out_spbc_comp_with_count, 0);
+    
+	/* Figure 6-3 6-4; CSB location */
+	put64(cmdp->crb, csb_address, 0);    
+	put64(cmdp->crb, csb_address, (uint64_t) &cmdp->crb.csb & csb_address_mask);
+    
+	/* source direct dde */
+	clear_dde(cmdp->crb.source_dde);    
+	putnn(cmdp->crb.source_dde, dde_count, 0); 
+	put32(cmdp->crb.source_dde, ddebc, srclen); 
+	put64(cmdp->crb.source_dde, ddead, (uint64_t) src);
+
+	/* target direct dde */
+	clear_dde(cmdp->crb.target_dde);        
+	putnn(cmdp->crb.target_dde, dde_count, 0);
+	put32(cmdp->crb.target_dde, ddebc, dstlen);
+	put64(cmdp->crb.target_dde, ddead, (uint64_t) dst);   
+
+	/* fprintf(stderr, "in_dhtlen %x\n", getnn(cmdp->cpb, in_dhtlen) );
+	   fprintf(stderr, "in_dht %02x %02x\n", cmdp->cpb.in_dht_char[0],cmdp->cpb.in_dht_char[16]); */
+
+	/* submit the crb */
+	nxu_run_job(cmdp, handle);
+
+	/* poll for the csb.v bit; you should also consider expiration */        
+	do {;} while (getnn(cmdp->crb.csb, csb_v) == 0);
+
+	/* CC Table 6-8 */        
+	cc = getnn(cmdp->crb.csb, csb_cc);
+
+	return cc;
+}
+
+/* Prepares a blank no filename no timestamp gzip header and returns
+   the number of bytes written to buf;
+   https://tools.ietf.org/html/rfc1952 */
+static int gzip_header_blank(char *buf)
+{
+	int i=0;
+	buf[i++] = 0x1f; /* ID1 */
+	buf[i++] = 0x8b; /* ID2 */
+	buf[i++] = 0x08; /* CM  */
+	buf[i++] = 0x00; /* FLG */
+	buf[i++] = 0x00; /* MTIME */
+	buf[i++] = 0x00; /* MTIME */
+	buf[i++] = 0x00; /* MTIME */
+	buf[i++] = 0x00; /* MTIME */            
+	buf[i++] = 0x04; /* XFL 4=fastest */
+	buf[i++] = 0x03; /* OS UNIX */
+	return i;
+}
+
+/* Returns number of appended bytes */
+static int append_sync_flush(char *buf, int tebc, int final)
+{
+	uint64_t flush;
+	int shift = (tebc & 0x7);
+	if (tebc > 0) {
+		/* last byte is partially full */	
+		buf = buf - 1; 
+		*buf = *buf & (unsigned char)((1<<tebc)-1);
+	}
+	else *buf = 0;
+	flush = ((0x1ULL & final) << shift) | *buf;
+	shift = shift + 3; /* BFINAL and BTYPE written */
+	shift = (shift <= 8) ? 8 : 16;
+	flush |= (0xFFFF0000ULL) << shift; /* Zero length block */
+	shift = shift + 32;
+	while (shift > 0) {
+		*buf++ = (unsigned char)(flush & 0xffULL);
+		flush = flush >> 8;
+		shift = shift - 8;
+	}
+	return(((tebc > 5) || (tebc == 0)) ? 5 : 4);
+}
 
 /*
   Fault in pages prior to NX job submission.  wr=1 may be required to
@@ -110,7 +208,7 @@ static int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 	char *end = (char *)buf + buf_len - 1;
 	volatile char t;
 
-	ASSERT(buf_len >= 0 && !!buf);
+	assert(buf_len >= 0 && !!buf);
 
 	NXPRT( fprintf(stderr, "touch %p %p len 0x%lx wr=%d\n", buf, buf + buf_len, buf_len, wr) );
 	
@@ -130,14 +228,6 @@ static int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 	return 0;
 }
 
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
-{
-	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
-	       sig, info->si_code, info->si_addr);
-
-	nx_fault_storage_address = info->si_addr;
-	/* exit(0); */
-}
 
 static void nx_print_dde(nx_dde_t *ddep, const char *msg)
 {
@@ -303,6 +393,8 @@ static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 		buf_addr = get64(dde_list[i], ddead);
 		total += buf_len;
 
+		nx_touch_pages((void *)&(dde_list[i]), sizeof(nx_dde_t), page_sz, 0);
+		
 		NXPRT( fprintf(stderr, "touch loop len 0x%x ddead %p total 0x%lx\n", buf_len, (void *)buf_addr, total) ); 
 
 		/* touching fewer pages than encoded in the ddebc */
@@ -316,6 +408,361 @@ static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 	}
 	return ERR_NX_OK;
 }
+
+/*
+  Final deflate block bit. This call assumes the block 
+  beginning is byte aligned.
+*/
+static void set_bfinal(void *buf, int bfinal)
+{
+	char *b = buf;
+	if (bfinal)
+		*b = *b | (unsigned char) 0x01;
+	else
+		*b = *b & (unsigned char) 0xfe;
+}
+
+
+/* Memory pointed to by nxhandle is also free'ed */
+void nxlite_end(void *nxhandle)
+{
+	nxlite_handle_t *h;
+
+	if (nxhandle == NULL)
+		return;
+
+	h = (nxlite_handle_t *) nxhandle;
+
+	/* close the device */
+	if (h->device_handle != NULL)
+		nx_function_end(h->device_handle);
+
+	/* if a dht struct was allocated, free it */
+	if (h->dht_handle != NULL)
+		dht_end(h->dht_handle);
+
+	free(nxhandle);
+}
+
+/* Returns a handle which may be used on subsequent calls to
+ * *compress() and *uncompress(). Caller must return the handle to
+ * nxlite_end().  A NULL return value indicates an error.
+ */
+void *nxlite_begin()
+{
+	int rc;
+	struct sigaction act;
+	nxlite_handle_t *h;
+
+	if (NULL == (h = malloc(sizeof(nxlite_handle_t)))) {
+		fprintf(stderr, "error: cannot malloc\n");
+		return NULL;
+	}
+	memset(h, 0, sizeof(nxlite_handle_t));
+	
+	/* open the device and save the device pointer in h */
+	if (NULL == (h->device_handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0))) {
+		fprintf(stderr, "Unable to init NX, errno %d\n", errno);
+		nxlite_end(h);
+		return NULL;
+	}
+
+	/* One time init of the dht tables; */
+	if (NULL == (h->dht_handle = dht_begin(NULL, NULL))) {
+		fprintf(stderr, "Unable to init dht tables\n");
+		nxlite_end(h);
+		return NULL;
+	}
+
+	/* use signals for catching CSB page faults */
+	act.sa_handler = 0;
+	act.sa_sigaction = sigsegv_handler;
+	act.sa_flags = SA_SIGINFO;
+	act.sa_restorer = 0;
+	sigemptyset(&act.sa_mask);
+	sigaction(SIGSEGV, &act, NULL);
+	
+	return h;
+}
+
+static int nxlite_compress(char *dest, uint64_t *destLen,
+			   char *source, uint64_t sourceLen,
+			   void **handlep)
+{
+	char *inbuf, *outbuf, *srcbuf, *dstbuf;
+	uint32_t srclen, dstlen;
+	uint32_t flushlen, chunk;
+	size_t inlen, outlen, dsttotlen, srctotlen;	
+	uint32_t adler, crc, spbc, tpbc, tebc;
+	int lzcounts=1; /* always collect lzcounts */
+	int initial_pass;
+	int cc,fc;
+	int num_hdr_bytes;
+	nx_gzip_crb_cpb_t nxcmd, *cmdp;
+	uint32_t pagelen = 65536; /* should get page size with a syscall */
+	int fault_tries = 50;
+	nxlite_handle_t *myhandle=NULL;
+
+	if (!source || sourceLen == 0 || !dest || *destLen == 0) {
+		fprintf(stderr, "error: a buffer address or length is 0 (%s %d)\n", __FILE__, __LINE__);
+		return Z_BUF_ERROR;
+	}
+	inbuf = source;
+	inlen = sourceLen;
+	outbuf = dest;
+	outlen = *destLen;
+
+	/* open device if not opened */
+	if ( !*handlep) {
+		myhandle = nxlite_begin();
+		if (!myhandle)
+			return Z_STREAM_ERROR;
+		/* return to the caller for subsequent calls */
+		*handlep = myhandle;
+	}
+	/* reuse the supplied handle */
+	else myhandle = *handlep;
+	
+	/* compress piecemeal in small chunks */    
+	chunk = NX_CHUNK_SZ;
+
+	/* write the gzip header */    
+	num_hdr_bytes = gzip_header_blank(outbuf); 
+	dstbuf    = outbuf + num_hdr_bytes;
+	outlen    = outlen - num_hdr_bytes;	
+	dsttotlen = num_hdr_bytes;
+	
+	srcbuf    = inbuf;
+	srctotlen = 0;
+
+	/* prep the CRB */
+	cmdp = &nxcmd;
+	memset(&cmdp->crb, 0, sizeof(cmdp->crb));
+
+	/* prep the CPB */
+	/* memset(&cmdp->cpb.out_lzcount, 0, sizeof(uint32_t) * (LLSZ+DSZ) ); */
+	put32(cmdp->cpb, in_crc, 0); /* initial gzip crc */
+
+	/* Fill in with the default dht here; instead we could also do
+	   fixed huffman with counts for sampling the LZcounts; fixed
+	   huffman doesn't need a dht_lookup */
+	dht_lookup(cmdp, dht_default_req, myhandle->dht_handle); 
+	initial_pass = 1;
+
+	fault_tries = 50;
+
+	while (inlen > 0) {
+
+	initial_pass_done:
+		/* will submit a chunk size source per job */
+		srclen = NX_MIN(chunk, inlen);
+		/* supply large target in case data expands; 288
+		   is for very small src plus the dht headroom */				
+		dstlen = NX_MIN(2 * srclen + 288, outlen); 
+
+		if (initial_pass == 1) {
+			/* If requested a first pass to collect
+			   lzcounts; first pass can be short; no need
+			   to run the entire data through typically */
+			/* If srclen is very large, use 5% of it. If
+			   srclen is smaller than 32KB, then use
+			   srclen itself as the sample */
+			srclen = NX_MIN( NX_MAX(((uint64_t)srclen * NX_LZ_SAMPLE_PERCENT)/100, NX_LZ_SAMPLE_NBYTE), srclen);
+			NXPRT( fprintf(stderr, "sample size %d\n", srclen) );
+		}
+		else {
+			/* Here I will use the lzcounts collected from
+			   the previous second pass to lookup a cached
+			   or computed DHT; I don't need to sample the
+			   data anymore; previous run's lzcount
+			   is a good enough as an lzcount of this run */
+			dht_lookup(cmdp, dht_search_req, myhandle->dht_handle); 
+		}
+
+		/* Page faults are handled by the user code */		
+
+		/* Fault-in pages; an improved code wouldn't touch so
+		   many pages but would try to estimate the
+		   compression ratio and adjust both the src and dst
+		   touch amounts */
+		nx_touch_pages (cmdp, sizeof(*cmdp), pagelen, 0);
+		nx_touch_pages (srcbuf, srclen, pagelen, 0);
+		nx_touch_pages (dstbuf, dstlen, pagelen, 1);	    
+
+		cc = compress_dht_sample(
+			srcbuf, srclen,
+			dstbuf, dstlen,
+			lzcounts, cmdp,
+			myhandle->device_handle);
+
+		if (cc != ERR_NX_OK && cc != ERR_NX_TPBC_GT_SPBC && cc != ERR_NX_TRANSLATION && cc != ERR_NX_TARGET_SPACE) {
+			fprintf(stderr, "nx error: cc= %d\n", cc);
+			return Z_STREAM_ERROR; //exit(-1);
+		}
+		
+		/* Page faults are handled by the user code */
+		if (cc == ERR_NX_TRANSLATION) {
+			volatile char touch = *(char *)cmdp->crb.csb.fsaddr;
+			NXPRT( fprintf(stderr, "page fault: cc= %d, try= %d, fsa= %08llx\n", cc, fault_tries, (long long unsigned) cmdp->crb.csb.fsaddr) );
+			fault_tries --;
+			if (fault_tries > 0) {
+				continue;
+			}
+			else {
+				fprintf(stderr, "error: cannot progress; too many faults\n");
+				return Z_STREAM_ERROR; //exit(-1);				
+			}			    
+		}
+		else if (cc == ERR_NX_TARGET_SPACE) {
+			fprintf(stderr, "target buffer size too small: cc= %d\n", cc );
+			return Z_BUF_ERROR;
+		}
+
+		fault_tries = 50; /* reset for the next chunk */
+
+		if (initial_pass == 1) {
+			/* we got our lzcount sample from the 1st pass */
+			NXPRT( fprintf(stderr, "first pass done\n") );
+			initial_pass = 0;
+			goto initial_pass_done;
+		}
+	    
+		inlen     = inlen - srclen;
+		srcbuf    = srcbuf + srclen;
+		srctotlen = srctotlen + srclen;
+
+		/* two possible locations for spbc depending on the function code */
+		spbc = (!lzcounts) ? get32(cmdp->cpb, out_spbc_comp) :
+			get32(cmdp->cpb, out_spbc_comp_with_count);
+		assert(spbc == srclen);
+
+		tpbc = get32(cmdp->crb.csb, tpbc);  /* target byte count */
+		tebc = getnn(cmdp->cpb, out_tebc);  /* target ending bit count */
+		NXPRT( fprintf(stderr, "compressed chunk %d to %d bytes, tebc= %d\n", spbc, tpbc, tebc) );
+	    
+		if (inlen > 0) { /* more chunks to go */
+			/* This sample code does not use compression
+			   history.  It will hurt the compression
+			   ratio for small size chunks */
+			set_bfinal(dstbuf, 0);
+			dstbuf    = dstbuf + tpbc;
+			dsttotlen = dsttotlen + tpbc;
+			outlen    = outlen - tpbc;
+			/* round up to the next byte with a flush
+			 * block; do not set the BFINAL bit */		    
+			flushlen  = append_sync_flush(dstbuf, tebc, 0);
+			dsttotlen = dsttotlen + flushlen;
+			outlen    = outlen - flushlen;			
+			dstbuf    = dstbuf + flushlen;
+			NXPRT( fprintf(stderr, "added deflate sync_flush %d bytes\n", flushlen) );
+		}
+		else {  /* done */ 
+			/* set the BFINAL bit of the last block per deflate std */
+			set_bfinal(dstbuf, 1);		    
+			/* *dstbuf   = *dstbuf | (unsigned char) 0x01;  */
+			dstbuf    = dstbuf + tpbc;
+			dsttotlen = dsttotlen + tpbc;
+			outlen    = outlen - tpbc;
+		}
+
+		/* resuming crc for the next chunk */
+		crc = get32(cmdp->cpb, out_crc);
+		put32(cmdp->cpb, in_crc, crc); 
+		crc = be32toh(crc);
+	}
+
+	/* append CRC32 and ISIZE to the end */
+	memcpy(dstbuf, &crc, 4);
+	memcpy(dstbuf+4, &srctotlen, 4);
+	dsttotlen = dsttotlen + 8;
+	outlen    = outlen - 8;
+
+	/* write out how many bytes are in the dest buffer */
+	*destLen = dsttotlen;
+
+	NXPRT( fprintf(stderr, "compressed %ld to %ld bytes total, crc32=%08x\n", srctotlen, dsttotlen, crc) );
+
+	dht_end(myhandle->dht_handle);
+
+	return Z_OK;
+}
+
+static void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
+{
+	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
+		sig, info->si_code, info->si_addr);
+
+	/* exit(-1); */
+	nx_fault_storage_address = info->si_addr; 
+}
+
+
+/*
+  Compresses the source buffer into the destination buffer.  sourceLen
+  is the byte length of the source buffer.  Upon entry, destLen is the
+  total size of the destination buffer.
+
+  compress returns Z_OK if success, Z_MEM_ERROR if there was not
+  enough memory, Z_BUF_ERROR if there was not enough room in the
+  output buffer, Z_STREAM_ERROR for other device or memory specific
+  errors.
+*/
+int compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
+{
+	void *handle = NULL;
+	int rc;
+
+	rc = nxlite_compress((char *)dest, (uint64_t *)destLen,
+			     (char *)source, (uint64_t)sourceLen,
+			     &handle);
+
+	nxlite_end(handle);
+
+	return rc;
+}	
+
+
+/*
+     Decompresses the source buffer into the destination buffer.  sourceLen is
+   the byte length of the source buffer.  Upon entry, destLen is the total size
+   of the destination buffer, which must be large enough to hold the entire
+   uncompressed data.  (The size of the uncompressed data must have been saved
+   previously by the compressor and transmitted to the decompressor by some
+   mechanism outside the scope of this compression library.) Upon exit, destLen
+   is the actual size of the uncompressed data.
+
+     uncompress returns Z_OK if success, Z_MEM_ERROR if there was not
+   enough memory, Z_BUF_ERROR if there was not enough room in the output
+   buffer, or Z_DATA_ERROR if the input data was corrupted or incomplete.  In
+   the case where there is not enough room, uncompress() will fill the output
+   buffer with the uncompressed data up to that point.
+*/
+int uncompress (Bytef *dest, uLongf *destLen,
+		const Bytef *source, uLong sourceLen)
+{
+	return 0;
+}
+
+int main()
+{
+	return 0;
+}
+
+
+  
+
+
+
+
+/* ************************************ */
+
+const int fifo_in_len = 1<<24;
+const int fifo_out_len = 1<<24;	
+const int page_sz = 1<<16;
+const int line_sz = 1<<7;
+const int window_max = 1<<15;
+const int retry_max = 50;
+
 
 /* 
    Src and dst buffers are supplied in scatter gather lists. 
@@ -373,15 +820,31 @@ static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 #define fifo_used_last_offset(cur)             (0)	
 
 
-int decompress_file(int argc, char **argv, void *devhandle)
+/* fifo queue management */
+#define buffer_used_bytes(cur, used, len) (used) /* amount */
+#define buffer_free_bytes(cur, used, len) ((len)-((cur)+(used)))
+/* amount of free bytes in the first and last parts */
+#define buffer_free_first_bytes(cur, used, len)  ((len)-((cur)+(used)))
+#define buffer_free_last_bytes(cur, used, len)   0 
+/* amount of used bytes in the first and last parts */
+#define buffer_used_first_bytes(cur, used, len)  (used)
+#define buffer_used_last_bytes(cur, used, len)   0
+/* first and last free parts start here */
+#define buffer_free_first_offset(cur, used)      ((cur)+(used))
+#define buffer_free_last_offset(cur, used, len)  buffer_used_last_bytes(cur, used, len)
+/* first and last used parts start here */
+#define buffer_used_first_offset(cur)            (cur)
+#define buffer_used_last_offset(cur)             (0)	
+
+
+
+static int nxlite_uncompress(char *dest, uint64_t *destLen,
+			     char *source, uint64_t sourceLen,
+			     void **handlep)
 {
-#ifdef NX_MMAP
-	int inpf;
-	int outf;
-#else
 	FILE *inpf;
 	FILE *outf;
-#endif
+
 	int c, expect, i, cc, rc = 0;
 	char gzfname[1024];
 
@@ -406,121 +869,22 @@ int decompress_file(int argc, char **argv, void *devhandle)
         nx_dde_t dde_out[6] __attribute__ ((aligned (128)));
 	int pgfault_retries;
 
-	/* when using mmap'ed files */
-	off_t input_file_size;	
-	off_t input_file_offset;
-	off_t fifo_in_mmap_offset;
-	off_t fifo_out_mmap_offset;
-	size_t fifo_in_mmap_size;
-	size_t fifo_out_mmap_size;
+	used_in = cur_in = used_out = cur_out = 0;
+	is_final = is_eof = 0;
 
-	NX_CLK( memset(&td, 0, sizeof(td)) );
-	NX_CLK( (td.freq = nx_get_freq())  );
-	
-	if (argc > 2) {
-		fprintf(stderr, "usage: %s <fname> or stdin\n", argv[0]);
-		fprintf(stderr, "    writes to stdout or <fname>.nx.gunzip\n");
-		return -1;
-	}
-
-	if (argc == 1) {
-#ifndef NX_MMAP		
-		inpf = stdin;
-		outf = stdout;
-#else
-		fprintf(stderr, "mmap needs a file name");
-		return -1;
-#endif		
-	}
-	else if (argc == 2) {
-		char w[1024];
-		char *wp;
-#ifdef NX_MMAP
-		struct stat statbuf;
-		inpf = open(argv[1], O_RDONLY);
-		if (inpf < 0) {
-			perror(argv[1]);
-			return -1;
-		}
-		if (fstat(inpf, &statbuf)) {
-			perror("cannot stat file");
-			return -1;
-		}
-		input_file_size = statbuf.st_size;
-		input_file_offset = 0;
-
-		fifo_in_mmap_offset = 0;
-		fifo_in_mmap_size = fifo_in_len + page_sz;
-		fifo_in = mmap(0, fifo_in_mmap_size, PROT_READ, MAP_PRIVATE, inpf, fifo_in_mmap_offset);
-		if (fifo_in == MAP_FAILED) {
-			perror("cannot mmap input file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "mmap fifo_in %p %p %lx\n", (void *)fifo_in, (void *)fifo_in + fifo_in_mmap_size, fifo_in_mmap_offset));
-#else	/* !NX_MMAP */		
-		inpf = fopen(argv[1], "r");
-		if (inpf == NULL) {
-			perror(argv[1]);
-			return -1;
-		}			
-#endif
-
-		/* make a new file name to write to; ignoring .gz stored name */
-		wp = ( NULL != (wp = strrchr(argv[1], '/')) ) ? ++wp : argv[1];
-		strcpy(w, wp);
-		strcat(w, ".nx.gunzip");
-
-#ifdef NX_MMAP
-		outf = open(w, O_RDWR|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP );
-		if (outf < 0) {
-			perror(argv[1]);
-			return -1;
-		}
-		total_out = 0;
-
-		fifo_out_mmap_offset = 0;
-		fifo_out_mmap_size = fifo_out_len + page_sz;		
-		
-		/* since output doesn't exist yet we pick an mmap size
-		   that can be truncated at the end */
-		if (ftruncate(outf, fifo_out_mmap_size)) {
-			perror("cannot resize output");
-			return -1;
-		}
-
-		/* and get a memory address for it */
-		fifo_out = mmap(0, fifo_out_mmap_size, PROT_READ|PROT_WRITE, MAP_SHARED, outf, fifo_out_mmap_offset);
-		if (fifo_out == MAP_FAILED) {
-			perror("cannot mmap output file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "mmap fifo_out %p %p %lx\n", (void *)fifo_out, (void *)fifo_out + fifo_out_mmap_size, fifo_out_mmap_offset) );		
-#else	/* !NX_MMAP */
-		outf = fopen(w, "w");
-		if (outf == NULL) {
-			perror(w);
-			return -1;
-		}
-#endif
-	}
-
-#ifdef NX_MMAP
-#define GETINPC(X) ((input_file_offset < input_file_size) ? ((int)((char)fifo_in[input_file_offset++])) : EOF)
-#else
-#define GETINPC(X) fgetc(X)
-#endif
+#define GETINPC(X) *(source + cur_in++)
 	
 	/* Decode the gzip header */
-	c = GETINPC(inpf); expect = 0x1f; /* ID1 */
+	c = GETINPC(); expect = 0x1f; /* ID1 */
 	if (c != expect) goto err1;
 
-	c = GETINPC(inpf); expect = 0x8b; /* ID2 */
+	c = GETINPC(); expect = 0x8b; /* ID2 */
 	if (c != expect) goto err1;
 
-	c = GETINPC(inpf); expect = 0x08; /* CM */
+	c = GETINPC(); expect = 0x08; /* CM */
 	if (c != expect) goto err1;
 
-	int flg = GETINPC(inpf); /* FLG */
+	int flg = GETINPC(); /* FLG */
 	if (flg & 0b11100000 || flg & 0b100) goto err2;
 
 	fprintf(stderr, "gzHeader FLG %x\n", flg);
@@ -529,7 +893,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	   sample code */
 	for (i=0; i<6; i++) {
 		char tmp[10];
-		if (EOF == (tmp[i] = GETINPC(inpf)))
+		if (EOF == (tmp[i] = GETINPC()))
 			goto err3;
 		fprintf(stderr, "%02x ", tmp[i]);
 		if (i == 5) fprintf(stderr, "\n");
@@ -540,7 +904,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	if (flg & 0b1000) {
 		int k=0;
 		do {
-			if (EOF == (c = GETINPC(inpf)))
+			if (EOF == (c = GETINPC()))
 				goto err3;
 			gzfname[k++] = c;
 		} while (c);
@@ -549,30 +913,15 @@ int decompress_file(int argc, char **argv, void *devhandle)
 
 	/* FHCRC */
 	if (flg & 0b10) {
-		c = GETINPC(inpf); c = GETINPC(inpf);
+		c = GETINPC(); c = GETINPC();
 		fprintf(stderr, "gzHeader FHCRC: ignored\n");
 	}	
 
-	used_in = cur_in = used_out = cur_out = 0;
-	is_final = is_eof = 0;
-#ifdef NX_MMAP
-	cur_in = input_file_offset;
-#endif	
-
-#ifndef NX_MMAP	
-	/* allocate one page larger to prevent page faults due to NX overfetching */
-	/* either do this (char*)(uintptr_t)aligned_alloc or use
-	   -std=c11 flag to make the int-to-pointer warning go away */
-	assert( NULL != (fifo_in  = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_in_len + page_sz) ) );
-	assert( NULL != (fifo_out = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_out_len + page_sz + line_sz) ) );
-	fifo_out = fifo_out + line_sz; /* leave unused space due to history rounding rules */
-	nx_touch_pages(fifo_out, fifo_out_len, page_sz, 1);		
-#endif
+	cmdp = &cmd;
+	memset( &cmdp->crb, 0, sizeof(cmdp->crb) );
 	
 	ddl_in  = &dde_in[0];
 	ddl_out = &dde_out[0];	
-	cmdp = &cmd;
-	memset( &cmdp->crb, 0, sizeof(cmdp->crb) );
 	
 read_state:
 
@@ -582,28 +931,19 @@ read_state:
 	
 	if (is_eof != 0) goto write_state;
 
-#ifndef NX_MMAP	
-
-	/* we read in to fifo_in in two steps: first: read in to from
-	   cur_in to the end of the buffer.  last: if free space wrapped
-	   around, read from fifo_in offset 0 to offset cur_in  */
-
-	/* reset fifo head to reduce unnecessary wrap arounds */
 	cur_in = (used_in == 0) ? 0 : cur_in; 
 	
-	/* free space total is reduced by a gap */
-	free_space = NX_MAX( 0, fifo_free_bytes(used_in, fifo_in_len) - line_sz);
+	free_space = buffer_free_bytes(cur_in, used_in, fifo_in_len);
 
 	/* free space may wrap around as first and last */
-	first_free = fifo_free_first_bytes(cur_in, used_in, fifo_in_len);
-	last_free  = fifo_free_last_bytes(cur_in, used_in, fifo_in_len);
+	first_free = free_space;
+	last_free  = 0; //buffer_free_last_bytes(cur_in, used_in, fifo_in_len);
 
 	/* start offsets of the free memory */
-	first_offset = fifo_free_first_offset(cur_in, used_in);
-	last_offset  = fifo_free_last_offset(cur_in, used_in, fifo_in_len);
+	first_offset = buffer_free_first_offset(cur_in, used_in);
+	last_offset  = 0; //buffer_free_last_offset(cur_in, used_in, fifo_in_len);
 
-	/* reduce read_sz because of the line_sz gap */
-	read_sz = NX_MIN(free_space, first_free);
+	read_sz = free_space;
 	n = 0;
 	if (read_sz > 0) {
 		/* read in to offset cur_in + used_in */
@@ -617,65 +957,14 @@ read_state:
 			goto write_state;
 		}
 	}
+
+	used_in = sourceLen;
 	
-	/* if free space wrapped around */
-	if (last_free > 0) {
-		/* reduce read_sz because of the line_sz gap */
-		read_sz = NX_MIN(free_space, last_free); 
-		n = 0;		
-		if (read_sz > 0) {
-			n = fread(fifo_in + last_offset, 1, read_sz, inpf);
-			used_in = used_in + n;       /* increase used space */
-			free_space = free_space - n; /* decrease free space */
-			ASSERT(n <= read_sz);
-			if (n != read_sz) {
-				/* either EOF or error; exit the read loop */
-				is_eof = 1;
-				goto write_state;
-			}			
-		}
-	}
 
 	/* At this point we have used_in bytes in fifo_in with the
 	   data head starting at cur_in and possibly wrapping
 	   around */
 
-#else /* NX_MMAP */
-
-	if (input_file_size == input_file_offset) {
-		is_eof = 1;
-		goto write_state;
-	}
-	
-	cur_in = input_file_offset - fifo_in_mmap_offset;
-	/* valid bytes from cur_in to the end of the mmap window */
-	used_in = NX_MIN(fifo_in_len - cur_in, input_file_size - input_file_offset);
-	ASSERT( fifo_in_len > 2*page_sz );
-	if (cur_in > (fifo_in_len - 2*page_sz) ) {
-		/* when near the tail of the mmap'ed region move the mmap window */
-		if (munmap(fifo_in, fifo_in_mmap_size)) {
-			perror("munmap");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "munmap %p %p\n", (void *)fifo_in, (void *)fifo_in + fifo_in_mmap_size) ); 
-
-		/* round down to page boundary */
-		fifo_in_mmap_offset = (input_file_offset / page_sz) * page_sz;
-		fifo_in_mmap_size = fifo_in_len + page_sz;
-
-		fifo_in = mmap(0, fifo_in_mmap_size, PROT_READ, MAP_PRIVATE, inpf, fifo_in_mmap_offset);
-		if (fifo_in == MAP_FAILED) {
-			perror("cannot mmap input file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "mmap fifo_in %p %p %lx\n", (void *)fifo_in, (void *)fifo_in + fifo_in_mmap_size, fifo_in_mmap_offset) );	
-
-		cur_in = input_file_offset - fifo_in_mmap_offset;
-		used_in = NX_MIN(fifo_in_len - cur_in, input_file_size - input_file_offset);
-	}
-
-#endif /* NX_MMAP */
-	
 
 write_state:
 
@@ -685,13 +974,13 @@ write_state:
 	
 	if (used_out == 0) goto decomp_state;
 
-#ifndef NX_MMAP	
+
 	/* If fifo_out has data waiting, write it out to the file to
 	   make free target space for the accelerator used bytes in
 	   the first and last parts of fifo_out */
 
-	first_used = fifo_used_first_bytes(cur_out, used_out, fifo_out_len);
-	last_used  = fifo_used_last_bytes(cur_out, used_out, fifo_out_len);
+	first_used = buffer_used_first_bytes(cur_out, used_out, fifo_out_len);
+	last_used  = 0; //buffer_used_last_bytes(cur_out, used_out, fifo_out_len);
 
 	write_sz = first_used;
 
@@ -727,46 +1016,7 @@ write_state:
 	/* reset the fifo tail to reduce unnecessary wrap arounds
 	   cur_out = (used_out == 0) ? 0 : cur_out; */
 
-#else  /* NX_MMAP */
 
-	cur_out = (int)(total_out - fifo_out_mmap_offset);	
-	/* valid bytes from beginning of the mmap window to cur_out */
-	used_out = 0;
-
-	ASSERT( fifo_out_len > 2*page_sz );
-	if (cur_out > (fifo_out_len - 2*page_sz)) {
-		/* when near the tail of the mmap'ed region move the mmap window */
-		if (munmap(fifo_out, fifo_out_mmap_size)) {
-			perror("munmap");
-			return -1;
-		}
-		NXPRT( fprintf(stderr, "munmap %p %p\n", (void *)fifo_out, (void *)fifo_out + fifo_out_mmap_size) ); 
-		/* round down to page boundary; keep a page from behind for the LZ history */
-		if (total_out > page_sz)
-			fifo_out_mmap_offset = ( ((off_t)total_out - page_sz) / page_sz) * page_sz;
-		else
-			fifo_out_mmap_offset = 0;
-
-		fifo_out_mmap_size = fifo_out_len + page_sz;
-
-		/* resize output file */
-		if (ftruncate(outf, fifo_out_mmap_offset + fifo_out_mmap_size)) {
-			perror("cannot resize output");
-			return -1;
-		}
-
-		fifo_out = mmap(0, fifo_out_mmap_size, PROT_READ|PROT_WRITE, MAP_SHARED, outf, fifo_out_mmap_offset);
-		if (fifo_out == MAP_FAILED) {
-			perror("cannot mmap input file");
-			return -1;
-		}
-		NXPRT( fprintf(stderr,"mmap fifo_out %p %p %lx\n", (void *)fifo_out, (void *)fifo_out + fifo_out_mmap_size,fifo_out_mmap_offset));
-
-		cur_out = (int)(total_out - fifo_out_mmap_offset);
-		used_out = 0; 
-	}
-	
-#endif /* NX_MMAP */	
 
 decomp_state:
 
@@ -806,10 +1056,10 @@ decomp_state:
 			else {
 				nx_append_dde(ddl_in, fifo_out + ((fifo_out_len + cur_out) - history_len),
 					      history_len - cur_out);
-#ifndef NX_MMAP			
+
 				/* Up to 32KB history wraps around fifo_out */
 				nx_append_dde(ddl_in, fifo_out, cur_out);
-#endif				
+
 			}
 
 		}
@@ -842,12 +1092,9 @@ decomp_state:
 	/*
 	 * NX source buffers
 	 */
-	first_used = fifo_used_first_bytes(cur_in, used_in, fifo_in_len);
-#ifndef NX_MMAP	
-	last_used = fifo_used_last_bytes(cur_in, used_in, fifo_in_len);
-#else
-	last_used = 0;
-#endif
+	first_used = buffer_used_first_bytes(cur_in, used_in, fifo_in_len);
+	last_used = 0; //buffer_used_last_bytes(cur_in, used_in, fifo_in_len);
+
 	
 	if (first_used > 0)
 		nx_append_dde(ddl_in, fifo_in + cur_in, first_used);
@@ -858,33 +1105,19 @@ decomp_state:
 	/*
 	 * NX target buffers
 	 */
-	first_free = fifo_free_first_bytes(cur_out, used_out, fifo_out_len);
-#ifndef NX_MMAP	
-	last_free = fifo_free_last_bytes(cur_out, used_out, fifo_out_len);
-#else
-	last_free = 0;
-#endif
+	first_free = buffer_free_bytes(cur_out, used_out, fifo_out_len);
 
-#ifndef NX_MMAP	
+	last_free = 0; //buffer_free_last_bytes(cur_out, used_out, fifo_out_len);
+
 	/* reduce output free space amount not to overwrite the history */
-	int target_max = NX_MAX(0, fifo_free_bytes(used_out, fifo_out_len) - (1<<16));
-#else
-	int target_max = first_free; /* no wrap-around in the mmap case */
-#endif
+	int target_max = NX_MAX(0, buffer_free_bytes(used_out, fifo_out_len) - (1<<16));
+
 	NXPRT( fprintf(stderr, "target_max %d (0x%x)\n", target_max, target_max) );
 	
 	first_free = NX_MIN(target_max, first_free);
 	if (first_free > 0) {
-		first_offset = fifo_free_first_offset(cur_out, used_out);		
+		first_offset = buffer_free_first_offset(cur_out, used_out);		
 		nx_append_dde(ddl_out, fifo_out + first_offset, first_free);
-	}
-
-	if (last_free > 0) {
-		last_free = NX_MIN(target_max - first_free, last_free); 
-		if (last_free > 0) {
-			last_offset = fifo_free_last_offset(cur_out, used_out, fifo_out_len);
-			nx_append_dde(ddl_out, fifo_out + last_offset, last_free);
-		}
 	}
 
 	/* Target buffer size is used to limit the source data size
@@ -924,34 +1157,20 @@ decomp_state:
 	   touch pages */
 	pgfault_retries = retry_max;
 
-#ifndef REPCNT	
-#define REPCNT 1L
-#endif
-#ifdef REPEATING
-	/* this is for bandwidth measurement of multiple jobs only */
-	int repeat_count = 0;
-#endif
+
+
 	
 restart_nx:
 
  	putp32(ddl_in, ddebc, source_sz);  
 
-	NX_CLK( (td.touch1 = nx_get_time()) );	
-	
 	/* fault in pages */
 	nx_touch_pages_dde(ddl_in, 0, page_sz, 0);
 	nx_touch_pages_dde(ddl_out, target_sz_estimate, page_sz, 1);
 
-	NX_CLK( (td.touch2 += (nx_get_time() - td.touch1)) );	
-
-	NX_CLK( (td.sub1 = nx_get_time()) );
-	NX_CLK( (td.subc += 1) );
-	
 	/* send job to NX */
 	cc = nx_submit_job(ddl_in, ddl_out, cmdp, devhandle);
 
-	NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );	
-	
 	switch (cc) {
 
 	case ERR_NX_TRANSLATION:
@@ -960,7 +1179,6 @@ restart_nx:
 		   be here. But may be some pages were paged out. Kernel should have 
 		   placed the faulting address to fsaddr */
 		NXPRT( fprintf(stderr, "ERR_NX_TRANSLATION %p\n", (void *)cmdp->crb.csb.fsaddr) );
-		NX_CLK( (td.faultc += 1) );
 
 		/* Touch 1 byte, read-only  */
 		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, page_sz, 0);
@@ -989,7 +1207,6 @@ restart_nx:
 	case ERR_NX_DATA_LENGTH:
 
 		NXPRT( fprintf(stderr, "ERR_NX_DATA_LENGTH; not an error usually; stream may have trailing data\n") );
-		NX_CLK( (td.datalenc += 1) );
 		
 		/* Not an error in the most common case; it just says 
 		   there is trailing data that we must examine */
@@ -1007,12 +1224,9 @@ restart_nx:
 			spbc = get32(cmdp->cpb, out_spbc_decomp);
 			tpbc = get32(cmdp->crb.csb, tpbc);
 			ASSERT(target_max >= tpbc);
-#ifndef REPEATING			
+
 			goto ok_cc3; /* not an error */
-#else
-			if (++repeat_count < REPCNT) goto restart_nx;
-			else goto ok_cc3;
-#endif
+
 		}
 		else {
 			/* History length error when CE(1)=1 CE(0)=0. 
@@ -1024,7 +1238,6 @@ restart_nx:
 		
 	case ERR_NX_TARGET_SPACE:
 
-		NX_CLK( (td.targetlenc += 1) );		
 		/* Target buffer not large enough; retry smaller input
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > history_len );
@@ -1202,15 +1415,6 @@ finish_state:
 			isize = (tail[4] | tail[5]<<8 | tail[6]<<16 | tail[7]<<24);
 			fprintf(stderr, "stored   checksum %08x isize %08x\n", cksum, isize);
 
-			NX_CLK( fprintf(stderr, "DECOMP %s ", argv[1]) );			
-			NX_CLK( fprintf(stderr, "obytes %ld ", total_out*REPCNT) );
-			NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );	
-			NX_CLK( fprintf(stderr, "submit %ld ticks %ld count ", td.sub2, td.subc) );
-			NX_CLK( fprintf(stderr, "touch  %ld ticks ", td.touch2)     );
-			NX_CLK( fprintf(stderr, "%g byte/s ", ((double)total_out*REPCNT)/((double)td.sub2/(double)td.freq)) );
-			NX_CLK( fprintf(stderr, "fault %ld target %ld datalen %ld\n", td.faultc, td.targetlenc, td.datalenc) );
-			/* NX_CLK( fprintf(stderr, "dbgtimer %ld\n", dbgtimer) ); */
-
 			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(total_out % (1ULL<<32))) {
 				rc = 0;	goto ok1;
 			}
@@ -1241,16 +1445,9 @@ err4:
 err5:
 ok1:
 	fprintf(stderr, "decomp is complete: fclose\n");
-#ifndef NX_MMAP	
+
 	fclose(outf);
-#else
-	NXPRT( fprintf(stderr, "ftruncate %ld\n", total_out) );
-	if (ftruncate(outf, (off_t)total_out)) {
-		perror("cannot resize file");
-		rc = -1;
-	}
-	close(outf);
-#endif
+
 	return rc;
 }
 

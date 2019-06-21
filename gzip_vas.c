@@ -1,7 +1,38 @@
 /*
- * P9 gzip test driver. For P9 NX interface exercising.  Not for
- * performance or compression ratio measurements; using the fixed
- * huffman blocks only.
+ * NX-GZIP compression accelerator user library
+ *
+ * Copyright (C) IBM Corporation, 2011-2017
+ *
+ * Licenses for GPLv2 and Apache v2.0:
+ *
+ * GPLv2:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ *
+ * Apache v2.0:
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Author: Bulent Abali <abali@us.ibm.com>
+ *
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +57,7 @@
 #include "nx-helpers.h"
 #include "copy-paste.h"
 #include "nxu.h"
+#include "nx_dbg.h"
 #include <sys/platform/ppc.h>
 
 #define barrier()
@@ -55,7 +87,7 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 
 	memset(&txattr, 0, sizeof(txattr));
 	txattr.version = 1;
-	txattr.vas_id = -1;
+	txattr.vas_id = pri;
 	txattr.tc_mode  = 0;
 	txattr.rsvd_txbuf = 0;
 	rc = ioctl(fd, VAS_GZIP_TX_WIN_OPEN, (unsigned long)&txattr);
@@ -73,7 +105,7 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 	}
 	/* printf("Window paste addr @%p\n", addr); */
 	handle->fd = fd;
-	handle->paste_addr = addr + 0x400;
+	handle->paste_addr = (void *)((char *)addr + 0x400);
 
 	rc = 0;
 out:
@@ -102,7 +134,7 @@ void *nx_function_begin(int function, int pri)
 	}
 
 	nxhandle->function = function;
-	rc = open_device_nodes(devname, 1, nxhandle);
+	rc = open_device_nodes(devname, pri, nxhandle);
 	if (rc < 0) {
 		errno = -rc;
 		fprintf(stderr, " open_device_nodes failed\n");
@@ -114,12 +146,19 @@ void *nx_function_begin(int function, int pri)
 
 int nx_function_end(void *handle)
 {
-	struct nx_handle *nxhandle = handle;
+        int rc = 0;
+        struct nx_handle *nxhandle = handle;
+        /* check erro here? if unmap successfully, page fault usually found? */
+        // rc = munmap(nxhandle->paste_addr, 4096);
 
-	/* error check? */
-	munmap(nxhandle->paste_addr, 4096);
-	close(nxhandle->fd);
-	free(nxhandle);
+        rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+        if (rc < 0) {
+                fprintf(stderr, "munmap() failed, errno %d\n", errno);
+                return rc;
+        }
+        close(nxhandle->fd);
+        free(nxhandle);
+        return rc;
 }
 
 static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
@@ -162,6 +201,7 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	/* check CSB flags */
 	if( getnn( cmdp->crb.csb, csb_v ) == 0 ) {
 		fprintf( stderr, "CSB still not valid after %d polls, giving up", (int) poll );
+		prt_err("CSB still not valid after %d polls, giving up.\n", (int) poll);
 		return -ETIMEDOUT;
 	}
 
@@ -174,14 +214,14 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle, int (*callback)(const voi
 int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 #endif
 {
-	int i, fc, ret, retries, once=0;
+	int i, ret, retries, once=0;
 	struct nx_handle *nxhandle = handle;
 
 	assert(handle != NULL);
 	i = 0;
 	retries = 5000;
 	while (i++ < retries) {
-		uint64_t t;
+		/* uint64_t t; */
 
 		/* t = __ppc_get_timebase(); */
 		hwsync();
@@ -192,7 +232,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 		
 		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
 
-		if (ret & 2) {
+		if ((ret == 2) || (ret == 3)) {
 
 #ifdef NX_JOB_CALLBACK			
 			if (!!callback && !once) {
@@ -202,12 +242,11 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			}
 #endif 
 			ret = nx_wait_for_csb( cmdp );
-			NXPRT( fprintf( stderr, "wait_for_csb() returns %d\n", ret) );
 			if (!ret) {
 				goto out;
 			} else if (ret == -EAGAIN) {
 				volatile long x;
-				fprintf( stderr, "Touching address %p, 0x%lx\n",
+				prt_err("Touching address %p, 0x%lx\n",
 					 nx_fault_storage_address,
 					 *(long *)nx_fault_storage_address);
 				x = *(long *)nx_fault_storage_address;
@@ -216,7 +255,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 				continue;
 			}
 			else {
-				fprintf( stderr, "wait_for_csb() returns %d\n", ret);
+				prt_err("wait_for_csb() returns %d\n", ret);
 				break;
 			}
 		} else {
@@ -231,7 +270,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 				/* sleep */
 				static unsigned int pr=0;
 				if (pr++ % 100 == 0) {
-					fprintf( stderr, "Paste attempt %d/%d, failed pid= %d\n", i, retries, getpid());
+					prt_err("Paste attempt %d/%d, failed pid= %d\n", i, retries, getpid());
 				}
 				usleep(1);
 			}
@@ -242,6 +281,4 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 out:
 	return ret;
 }
-
-
 

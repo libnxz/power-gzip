@@ -32,7 +32,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Author: Bulent Abali <abali@us.ibm.com>
+ * Authors: Bulent Abali <abali@us.ibm.com>
+ *          Xiao Lei Hu  <xlhu@cn.ibm.com>
  *
  */
 
@@ -48,6 +49,8 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <endian.h>
+#include <pthread.h>
+#include <sys/platform/ppc.h>
 #include "nxu.h"
 #include "nx_dbg.h"
 
@@ -76,6 +79,14 @@
 #define HEADER_RAW   0
 #define HEADER_ZLIB  1
 #define HEADER_GZIP  2
+
+#ifndef MAX_WBITS
+#  define MAX_WBITS 15
+#endif
+#ifndef DEF_WBITS
+#  define DEF_WBITS MAX_WBITS
+#endif
+
 
 extern FILE *nx_gzip_log;
 
@@ -106,12 +117,15 @@ struct nx_config_t {
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;
 
+extern int nx_dht_config;
+
 /* NX device handle */
 struct nx_dev_t {
 	int lock;       /* crb serializer */
 	int nx_errno;
 	int socket_id;  /* one NX-gzip per cpu socket */
 	int nx_id;      /* unique */
+	int open_cnt;
 	
 	/* https://github.com/sukadev/linux/blob/vas-kern-v8.1/tools/testing/selftests/powerpc/user-nx842/compress.c#L514 */
 	struct {
@@ -165,6 +179,9 @@ typedef struct nx_stream_s {
 					 * the stream is finished or fully
 					 * flushed to the output */
 
+	char            trailer[9];     /* temp storage for tail bytes */
+	int             trailer_len;
+  
 	uint16_t        hcrc16;         /* stored in the gzip header */
 	uint32_t        cksum;          /* running checksum of the header */
 	ckbuf_t         ckbuf;          /* hcrc16 helpers */
@@ -176,6 +193,8 @@ typedef struct nx_stream_s {
 	int		history_len;
 	int		last_comp_ratio;
 	int		is_final;
+	int		invoke_cnt;  /* the times to invoke nx inflate or nx deflate */
+	void		*dhthandle;
 
         z_streamp       zstrm;          /* point to the parent  */
 
@@ -216,12 +235,12 @@ typedef struct nx_stream_s {
 	
         /* return status */
         int             nx_cc;          /* nx return codes */
-        int             nx_ce;          /* completion extension Fig.6-7 */       
+        uint32_t        nx_ce;          /* completion extension Fig.6-7 */       
         int             z_rc;           /* libz return codes */
 
 	uint32_t        spbc;
 	uint32_t        tpbc;
-	int             tebc;
+	uint32_t        tebc;
 
         /* nx commands */
         /* int             final_block; */
@@ -233,7 +252,7 @@ typedef struct nx_stream_s {
         /* nx command and parameter block; one command at a time per stream */
 	nx_gzip_crb_cpb_t *nxcmdp;  
         nx_gzip_crb_cpb_t nxcmd0;      
-        nx_gzip_crb_cpb_t nxcmd1;       /* two cpb blocks to parallelize 
+	/* nx_gzip_crb_cpb_t nxcmd1;       two cpb blocks to parallelize 
 					   lzcount processing */
         
         /* fifo_in is the saved amount from last deflate() call
@@ -254,6 +273,9 @@ typedef struct nx_stream_s *nx_streamp;
 /* stream pointers and lengths manipulated */
 #define update_stream_out(s,b) do{(s)->next_out += (b); (s)->total_out += (b); (s)->avail_out -= (b);}while(0)
 #define update_stream_in(s,b)  do{(s)->next_in  += (b); (s)->total_in  += (b); (s)->avail_in  -= (b);}while(0)
+
+#define copy_stream_in(d,s)  do{(d)->next_in  = (s)->next_in;  (d)->total_in  = (s)->total_in;  (d)->avail_in  = (s)->avail_in;}while(0)
+#define copy_stream_out(d,s) do{(d)->next_out = (s)->next_out; (d)->total_out = (s)->total_out; (d)->avail_out = (s)->avail_out;}while(0)
 
 /* Fifo buffer management. NX has scatter gather capability.
    We treat the fifo queue in two steps: from current head (or tail) to
@@ -306,14 +328,16 @@ typedef struct nx_stream_s *nx_streamp;
 
 #define print_dbg_info(s, line) \
 do { prt_info(\
-"== %d s->avail_in %d s->total_in %d \
-s->used_in %d s->cur_in %d \
-s->avail_out %d s->total_out %d \
-s->used_out %d s->cur_out %d\n", line, \
-(s)->avail_in, (s)->total_in, \
-(s)->used_in, (s)->cur_in, \
-(s)->avail_out, (s)->total_out, \
-(s)->used_out, (s)->cur_out);\
+"== %d avail_in %ld total_in %ld \
+used_in %ld cur_in %ld \
+avail_out %ld total_out %ld \
+used_out %ld cur_out %ld \
+len_in %ld len_out %ld\n", line, \
+(long)(s)->avail_in, (long)(s)->total_in,	\
+(long)(s)->used_in, (long)(s)->cur_in,		\
+(long)(s)->avail_out, (long)(s)->total_out,	\
+(long)(s)->used_out, (long)(s)->cur_out,	\
+(long)(s)->len_in, (long)(s)->len_out);		\
 } while (0)
 
 
@@ -343,6 +367,89 @@ typedef enum {
 	inf_state_stream_error,			
 } inf_state_t;
 
+#define ZLIB_SIZE_SLOTS 256	/* Each slot represents 4KiB, the last
+				   slot is represending everything
+				   which larger or equal 1024KiB */
+
+struct zlib_stats {
+	unsigned long deflateInit;
+	unsigned long deflate;
+	unsigned long deflate_avail_in[ZLIB_SIZE_SLOTS];
+	unsigned long deflate_avail_out[ZLIB_SIZE_SLOTS];
+	unsigned long deflateReset;
+	unsigned long deflate_total_in[ZLIB_SIZE_SLOTS];
+	unsigned long deflate_total_out[ZLIB_SIZE_SLOTS];
+	unsigned long deflateSetDictionary;
+	unsigned long deflateSetHeader;
+	unsigned long deflateParams;
+	unsigned long deflateBound;
+	unsigned long deflatePrime;
+	unsigned long deflateCopy;
+	unsigned long deflateEnd;
+
+	unsigned long inflateInit;
+	unsigned long inflate;
+	unsigned long inflate_avail_in[ZLIB_SIZE_SLOTS];
+	unsigned long inflate_avail_out[ZLIB_SIZE_SLOTS];
+	unsigned long inflateReset;
+	unsigned long inflateReset2;
+	unsigned long inflate_total_in[ZLIB_SIZE_SLOTS];
+	unsigned long inflate_total_out[ZLIB_SIZE_SLOTS];
+	unsigned long inflateSetDictionary;
+	unsigned long inflateGetDictionary;
+	unsigned long inflateGetHeader;
+	unsigned long inflateSync;
+	unsigned long inflatePrime;
+	unsigned long inflateCopy;
+	unsigned long inflateEnd;
+	
+	uint64_t deflate_len;
+	uint64_t deflate_time;
+
+	uint64_t inflate_len;
+	uint64_t inflate_time;
+
+};
+
+extern pthread_mutex_t zlib_stats_mutex; 
+extern struct zlib_stats zlib_stats; 
+inline void zlib_stats_inc(unsigned long *count)
+{
+        if (!nx_gzip_gather_statistics())
+                return;
+
+        pthread_mutex_lock(&zlib_stats_mutex);
+        *count = *count + 1;
+        pthread_mutex_unlock(&zlib_stats_mutex);
+}
+
+static inline uint64_t get_nxtime_now(void)
+{
+	return __ppc_get_timebase();
+}
+
+static inline uint64_t get_nxtime_diff(uint64_t t1, uint64_t t2)
+{
+	if (t2 > t1) {
+		return t2-t1;
+	}else{
+		return (0xFFFFFFFFFFFFFFF-t1) + t2;
+	}
+}
+
+static inline double nxtime_to_us(uint64_t nxtime)
+{
+	uint64_t freq;
+
+	freq = __ppc_get_timebase_freq();
+	
+	return (double)(nxtime * 1000000 / freq) ;
+}
+
+#ifndef ARRAY_SIZE
+#  define ARRAY_SIZE(a)	 (sizeof((a)) / sizeof((a)[0]))
+#endif
+
 /* gzip_vas.c */
 extern void *nx_fault_storage_address;
 extern void *nx_function_begin(int function, int pri);
@@ -364,6 +471,7 @@ extern int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len);
 extern int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr);
 extern int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp);
 extern void nx_hw_init(void);
+extern void nx_hw_done(void);
 
 /* nx_deflate.c */
 extern int nx_deflateInit_(z_streamp strm, int level, const char *version, int stream_size);
@@ -389,5 +497,10 @@ extern uLong nx_compressBound(uLong sourceLen);
 /* nx_uncompr.c */
 extern int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
 extern int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+
+/* nx_dht.c */
+extern void *dht_begin(char *ifile, char *ofile);
+extern void dht_end(void *handle);
+extern int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 
 #endif /* _NX_ZLIB_H */

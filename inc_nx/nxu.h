@@ -246,7 +246,10 @@ typedef struct {
 		};
 	    };
 	};
-	nx_qw_t  in_dht[DHTSZ];               /* qw[1:18]     */
+	union {
+	    nx_qw_t  in_dht[DHTSZ];           /* qw[1:18]     */
+	    char     in_dht_char[DHT_MAXSZ];  /* byte access  */
+	};
 	nx_qw_t  reserved[5];                 /* qw[19:23]    */
     };
 
@@ -308,7 +311,8 @@ typedef struct {
     nx_dde_t target_dde;           /* byte[32:47] */
     volatile nx_ccb_t ccb;         /* byte[48:63] */
     volatile union {
-	nx_qw_t reserved64[3];     /* byte[64:96] */ 
+	/* nx_qw_t reserved64[3];  /* byte[64:111] */ 
+	nx_qw_t reserved64[11];    /* byte[64:239] shift csb by 128 bytes out of the crb; csb was in crb earlier; JReilly says csb written with partial inject */
 	stamped_crb_t stamp;       /* byte[64:79] */
     };
     volatile nx_csb_t csb;

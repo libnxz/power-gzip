@@ -24,6 +24,7 @@ static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsign
 	c_stream.next_out = compr;
 
 	while (c_stream.total_in != src_len && c_stream.total_out < compr_len) {
+	    step = (step < (src_len - c_stream.total_in))?(step):(src_len - c_stream.total_in);
 	    c_stream.avail_in = c_stream.avail_out = step;
 	    err = nx_deflate(&c_stream, Z_NO_FLUSH);
 	    if (c_stream.total_in > src_len) break;
@@ -193,14 +194,20 @@ int run_case8()
 	return run(1024*1024*8, 4096, __func__);
 }
 
-/* A large buffer > fifo_in len and and avail_in == total */
+/* A large buffer > fifo_in len and and avail_in > 10K */
 int run_case8_1()
+{
+	return run(1024*1024*8, 1024*128, __func__);
+}
+
+/* A large buffer > fifo_in len and and avail_in == total */
+int run_case8_2()
 {
 	return run(1024*1024*8, 1024*1024*8, __func__);
 }
 
 /* A large buffer > fifo_in len and and avail_in == total */
-int run_case8_2()
+int run_case8_3()
 {
 	return run(1024*1024*20, 1024*1024*20, __func__);
 }

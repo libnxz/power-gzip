@@ -32,7 +32,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Author: Bulent Abali <abali@us.ibm.com>
+ * Authors: Bulent Abali <abali@us.ibm.com>
+ *          Xiao Lei Hu  <xlhu@cn.ibm.com>
  *
  */
 
@@ -48,6 +49,8 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <endian.h>
+#include <pthread.h>
+#include <signal.h>
 #include "zlib.h"
 #include "copy-paste.h"
 #include "nx-ftw.h"
@@ -68,15 +71,15 @@ int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x0;		/* no trace by default */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
+int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 
+pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
+pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */
+struct zlib_stats zlib_stats;	/* global statistics */
+
+struct sigaction act;
+void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 /* **************************************************************** */
-
-/* 
-   Enter critical section.  
-   exp=0 indicates the resource is free; exp=1 if busy.
-   Return -1 if expired or error
-*/
-static int biglock;
 
 static int nx_wait_exclusive(int *excp)
 {
@@ -142,6 +145,92 @@ int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 	return 0;
 }
 
+#define FAST_ALIGN_ALLOC
+#ifdef FAST_ALIGN_ALLOC
+
+#define ROUND_UP(X,ALIGN) ((typeof(X)) ((((uint64_t)(X)+((uint64_t)(ALIGN)-1))/((uint64_t)(ALIGN)))*((uint64_t)(ALIGN))))
+#define NX_MEM_ALLOC_CORRUPTED 0x1109ce98cedd7badUL
+typedef struct nx_alloc_header_t { uint64_t signature; void *allocated_addr; } nx_alloc_header_t; 
+
+/* allocate internal buffers and try mlock but ignore failed mlocks */
+void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
+{
+	char *buf;
+	nx_alloc_header_t h;
+
+	/* aligned_alloc library routine has a high overhead. We roll
+	   our own algorithm here: 1. Alloc more than the request
+	   amount by the alignment size plus a header. Header will
+	   hide the actual malloc address to be freed later 2. Advance
+	   the mallocated pointer by the header size to reserve room
+	   for the header. 3. Round up the advanced pointer to the
+	   alignment boundary. This is the aligned pointer that we
+	   will return to the caller.  4. Before returning subtract
+	   header size amount from the aligned pointer and write the
+	   header to this hidden address.  Later, when caller supplies
+	   to be freed address (aligned), subtract the header amount
+	   to get to the hidden address. */
+
+#ifdef NXTIMER
+	uint64_t ts, te;
+	ts = nx_get_time();
+#endif	
+
+	buf = malloc( len + alignment + sizeof(nx_alloc_header_t) );
+	if (buf == NULL)
+                return buf;
+
+	h.allocated_addr = (void *)buf;
+	h.signature = NX_MEM_ALLOC_CORRUPTED;
+
+	buf = ROUND_UP(buf + sizeof(nx_alloc_header_t), alignment);
+
+	/* save the hidden address behind buf, and return buf */	
+	*((nx_alloc_header_t *)(buf - sizeof(nx_alloc_header_t))) = h;
+
+#ifdef NXTIMER		
+	te = nx_get_time();
+	fprintf(stderr,"time %ld freq %ld, bytes %d alignment %ld, file %s line %d\n", te-ts, nx_get_freq(), len, alignment, __FILE__, __LINE__);
+	fflush(stderr);
+#endif
+	
+	if (lock) {
+		if (mlock(buf, len))
+			prt_err("mlock failed, errno= %d\n", errno);
+	}
+
+	return buf;
+}
+
+void nx_free_buffer(void *buf, uint32_t len, int unlock)
+{
+	nx_alloc_header_t *h;
+
+	if (buf == NULL)
+		return;
+
+	/* retrieve the hidden address which is the actually address to
+	   be freed */
+	h = (nx_alloc_header_t *)((char *)buf - sizeof(nx_alloc_header_t));
+
+	buf = (void *) h->allocated_addr;
+
+	/* if signature is overwritten then indicates a double free or
+	   memory corruption */
+	assert( NX_MEM_ALLOC_CORRUPTED == h->signature );
+	h->signature = 0;
+
+	if (unlock) 
+		if (munlock(buf, len))
+			pr_err("munlock failed, errno= %d\n", errno);
+
+	free(buf);
+
+	return;
+}
+
+#else /* FAST_ALIGN_ALLOC */
+
 /* allocate internal buffers and try mlock but ignore failed mlocks */
 void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 {
@@ -149,9 +238,9 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 	buf = aligned_alloc(alignment, len);  	
 	if (buf == NULL)
 		return buf;
-	nx_touch_pages(buf, len, alignment, 1);
-	memset(buf, 0, len);
-
+	/* nx_touch_pages(buf, len, alignment, 1); */
+	/* do we need to touch? unnecessary page faults with small data sizes? */
+	
 	if (lock) {
 		if (mlock(buf, len))
 			prt_err("mlock failed, errno= %d\n", errno);
@@ -170,6 +259,9 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 	return;
 }
 
+#endif /* FAST_ALIGN_ALLOC */
+
+
 /* 
    Adds an (address, len) pair to the list of ddes (ddl) and updates
    the base dde.  ddl[0] is the only dde in a direct dde which
@@ -186,8 +278,8 @@ int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 	uint32_t ddecnt;
 	uint32_t bytes;
 
-	if (addr == NULL && len == 0) {
-		clearp_dde(ddl);
+	if (addr == NULL || len == 0) {
+		// clearp_dde(ddl);
 		return 0;
 	}
 
@@ -249,7 +341,6 @@ int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 */
 int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 {
-	volatile char t;
 	uint32_t indirect_count;
 	uint32_t buf_len;
 	long total;
@@ -259,6 +350,8 @@ int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 
 	ASSERT(!!ddep);
 	
+	nx_touch_pages((void *)ddep, sizeof(nx_dde_t), page_sz, 0);
+
 	indirect_count = getpnn(ddep, dde_count);
 
 	prt_trace("nx_touch_pages_dde dde_count %d request len 0x%lx\n", indirect_count, buf_sz); 
@@ -293,7 +386,9 @@ int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 		buf_len = get32(dde_list[i], ddebc);
 		buf_addr = get64(dde_list[i], ddead);
 		total += buf_len;
-
+		
+		nx_touch_pages((void *)&(dde_list[i]), sizeof(nx_dde_t), page_sz, 0);
+		
 		prt_trace("touch loop len 0x%x ddead %p total 0x%lx\n", buf_len, (void *)buf_addr, total); 
 
 		/* touching fewer pages than encoded in the ddebc */
@@ -371,10 +466,6 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 	cmdp->cpb.out_spbc_comp_with_count = 0;
 	cmdp->cpb.out_spbc_decomp = 0;
 
-	/* clear output */
-	put32(cmdp->cpb, out_crc, INIT_CRC );
-	put32(cmdp->cpb, out_adler, INIT_ADLER);
-
 	if (nx_gzip_trace_enabled()) {
 		nx_print_dde(src, "source");
 		nx_print_dde(dst, "target");
@@ -390,7 +481,7 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 
 
 /* 
-   open nx_id = -1 for any nx device. or open a particular nx device 
+   nx_id will not be used here, use nx_gzip_chip_num to decide use which nx
 */
 nx_devp_t nx_open(int nx_id)
 {
@@ -402,28 +493,43 @@ nx_devp_t nx_open(int nx_id)
 		return NULL;
 	}
 
-	/* TODO open only one device until we learn how to locate them all */
-	if (nx_dev_count > 0)
-		return &nx_devices[0];
-	vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0);
-	if (!vas_handle) {
-		prt_err("nx_function_begin failed, errno %d\n", errno);
-		return NULL;
+	pthread_mutex_lock(&nx_devices_mutex);
+	/* Open device firstly anyway */
+	if (nx_dev_count == 0) {
+		for (int i = -1; i <= NX_MIN(nx_gzip_chip_num, 1); i++) {
+			vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, i);
+			if (!vas_handle) {
+				prt_err("nx_function_begin failed, errno %d\n", errno);
+				nx_devp = NULL;
+				goto ret;
+			}
+			nx_devp = &nx_devices[ nx_dev_count ];
+			nx_devp->vas_handle = vas_handle;
+			++ nx_dev_count;
+		}
 	}
 
-	nx_wait_exclusive((int *) &biglock);
-	nx_devp = &nx_devices[ nx_dev_count ];
-	nx_devp->vas_handle = vas_handle;
-	++ nx_dev_count;
-	nx_exit_exclusive((int *) &biglock);
+	/*
+	 * nx_devices[0] is nx_function_begin(NX_FUNC_COMP_GZIP, -1)
+	 * nx_devices[1] is nx_function_begin(NX_FUNC_COMP_GZIP, 0)
+	 * nx_devices[2] is nx_function_begin(NX_FUNC_COMP_GZIP, 1)
+	 */
 
+	if (nx_gzip_chip_num != 2) {
+		nx_devp = &nx_devices[nx_gzip_chip_num+1];
+	}
+	else { /* use both nx, to make sure balance among threads */
+		if (nx_devices[1].open_cnt <= nx_devices[2].open_cnt) nx_devp = &nx_devices[1];
+		else nx_devp = &nx_devices[2];
+	}
+	nx_devp->open_cnt++;
+ret:
+	pthread_mutex_unlock(&nx_devices_mutex);
 	return nx_devp;
 }
 
 int nx_close(nx_devp_t nxdevp)
 {
-	int i;
-	
 	/* leave everything open */
 	return 0;
 }
@@ -482,25 +588,92 @@ void nx_lib_debug(int onoff)
 	nx_dbg = onoff;
 }
 
+static void print_stats(void)
+{
+	unsigned int i;
+	struct zlib_stats *s = &zlib_stats;
+
+	pthread_mutex_lock(&zlib_stats_mutex);	
+	prt_stat("API call statistic:\n");
+	prt_stat("deflateInit: %ld\n", s->deflateInit);
+	prt_stat("deflate: %ld\n", s->deflate);
+
+	for (i = 0; i < ARRAY_SIZE(s->deflate_avail_in); i++) {
+		if (s->deflate_avail_in[i] == 0)
+			continue;
+		prt_stat("  deflate_avail_in %4i KiB: %ld\n",
+			(i + 1) * 4, s->deflate_avail_in[i]);
+	}
+         
+	for (i = 0; i < ARRAY_SIZE(s->deflate_avail_out); i++) {
+		if (s->deflate_avail_out[i] == 0)
+			continue;
+		prt_stat("  deflate_avail_out %4i KiB: %ld\n",
+			(i + 1) * 4, s->deflate_avail_out[i]);
+	}
+
+	prt_stat("deflateBound: %ld\n", s->deflateBound);
+	prt_stat("deflateEnd: %ld\n", s->deflateEnd);
+	prt_stat("inflateInit: %ld\n", s->inflateInit);
+	prt_stat("inflate: %ld\n", s->inflate);
+        
+	for (i = 0; i < ARRAY_SIZE(s->inflate_avail_in); i++) {
+		if (s->inflate_avail_in[i] == 0)
+			continue;
+		prt_stat("  inflate_avail_in %4i KiB: %ld\n",
+				(i + 1) * 4, s->inflate_avail_in[i]);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(s->inflate_avail_out); i++) {
+		if (s->inflate_avail_out[i] == 0)
+			continue;
+		prt_stat("  inflate_avail_out %4i KiB: %ld\n",
+				 (i + 1) * 4, s->inflate_avail_out[i]);
+	}
+        
+	prt_stat("inflateEnd: %ld\n", s->inflateEnd);
+
+	prt_stat("deflate data length: %ld KiB\n", s->deflate_len/1024);
+	prt_stat("deflate time: %1.2f secs\n",nxtime_to_us(s->deflate_time)/1000000);
+	prt_stat("deflate rate: %1.2f MiB/s\n", s->deflate_len/(1024*1024)/(nxtime_to_us(s->deflate_time)/1000000));
+
+	prt_stat("inflate data length: %ld KiB\n", s->inflate_len/1024);
+	prt_stat("inflate time: %1.2f secs\n",nxtime_to_us(s->inflate_time)/1000000);
+	prt_stat("inflate rate: %1.2f MiB/s\n", s->inflate_len/(1024*1024)/(nxtime_to_us(s->inflate_time)/1000000));
+
+	pthread_mutex_unlock(&zlib_stats_mutex);
+
+	for (int i = 0; i <= NX_MIN(2, nx_gzip_chip_num+1); i++) {
+		prt_stat("nx_devices[%d].open_cnt %d\n", i, nx_devices[i].open_cnt);
+	}
+	return;
+}
+
 /* 
  * Execute on library load 
  */
 void nx_hw_init(void)
 {
 	int nx_count;
+	int rc = 0;
 
 	/* only init one time for the program */
 	if (nx_init_done == 1) return;
+	pthread_mutex_init (&mutex_log, NULL);
+	pthread_mutex_init (&nx_devices_mutex, NULL);
 
 	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
-	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0,1,2 for socket# */
+	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE"); /* KiB MiB GiB suffix */
 	char *inf_bufsz  = getenv("NX_GZIP_INF_BUF_SIZE"); /* KiB MiB GiB suffix */	
 	char *logfile    = getenv("NX_GZIP_LOGFILE");
 	char *trace_s    = getenv("NX_GZIP_TRACE");
+	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");  /* default 0 is using literals only, odd is lit and lens */
+	char *strategy_ovrd  = getenv("NX_GZIP_DEFLATE");
+	strategy_ovrd = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
 
-	/* Init nx_config a defalut value firstly */
+	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
 	nx_config.line_sz = 128;
 	nx_config.stored_block_len = (1<<15);
@@ -516,7 +689,7 @@ void nx_hw_init(void)
 	nx_config.compress_threshold = (10*1024); /* collect as much input */
 	nx_config.inflate_fifo_in_len = ((1<<16)*2); /* default 128K, half used */
 	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
-	nx_config.deflate_fifo_in_len = ((1<<20)*2); /* default 8M, half used */
+	nx_config.deflate_fifo_in_len = 1<<17; /* ((1<<20)*2); /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.retry_max = 50;	
 	nx_config.window_max = (1<<15);
@@ -524,6 +697,15 @@ void nx_hw_init(void)
 	nx_config.verbose = 0;	
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;
+	
+	/* Initialize the stats structure*/
+	if (nx_gzip_gather_statistics()) {
+ 		rc = pthread_mutex_init(&zlib_stats_mutex, NULL);
+		if (rc != 0){
+			prt_err("initializing phtread_mutex failed!\n");
+			return;
+		}
+        }
 
 	nx_count = nx_enumerate_engines();
 
@@ -541,7 +723,7 @@ void nx_hw_init(void)
 		nx_gzip_trace = strtol(trace_s, (char **)NULL, 0);
 
 	if (verbo_s != NULL) {
-		int z, c;
+		int z;
 		nx_config.verbose = str_to_num(verbo_s);
 		z = nx_config.verbose & NX_VERBOSE_LIBNX_MASK;
 		nx_lib_debug(z);
@@ -568,10 +750,22 @@ void nx_hw_init(void)
 		nx_config.strm_inf_bufsz = (uint32_t) sz;
 	}	
 
+	if (strategy_ovrd != NULL) {
+		nx_strategy_override = str_to_num(strategy_ovrd);
+		if (nx_strategy_override != 0 && nx_strategy_override != 1) {
+			prt_err("Invalid NX_GZIP_DEFLATE, use default value\n");
+			nx_strategy_override = 0;
+		}
+	}
+
+	if (dht_config != NULL) {
+		nx_dht_config = str_to_num(dht_config);		
+		prt_info("DHT config set to 0x%x\n", nx_dht_config);
+	}
+	
 	/* revalue the fifo_in and fifo_out */	
-	nx_config.inflate_fifo_in_len = (nx_config.strm_inf_bufsz * 2);
-	nx_config.inflate_fifo_out_len = (nx_config.strm_inf_bufsz * 2 * 256);
-	nx_config.deflate_fifo_in_len = (nx_config.strm_def_bufsz);
+	nx_config.inflate_fifo_in_len  = (nx_config.strm_inf_bufsz * 2);
+	nx_config.inflate_fifo_out_len = (nx_config.strm_inf_bufsz * 2);
 	nx_config.deflate_fifo_out_len = (nx_config.strm_def_bufsz * 2);
 	
 	/* If user is asking for a specific accelerator. Otherwise we
@@ -580,42 +774,56 @@ void nx_hw_init(void)
 	if (chip_num_s != NULL) {
 		nx_gzip_chip_num = atoi(chip_num_s);
 		/* TODO check if that accelerator exists */
+		if ((nx_gzip_chip_num < -1) || (nx_gzip_chip_num > 2)) {
+			prt_err("Unsupported NX_GZIP_DEV_NUM %d!\n", nx_gzip_chip_num);
+		}
 	}
+
+	/* add a signal action */
+	act.sa_handler = 0;
+	act.sa_sigaction = sigsegv_handler;
+	act.sa_flags = SA_SIGINFO;
+	act.sa_restorer = 0;
+	sigemptyset(&act.sa_mask);
+	sigaction(SIGSEGV, &act, NULL);
 
 	nx_init_done = 1;
 }
 
 void nx_hw_done(void)
 {
-	int dev_no;
 	int flags = (nx_gzip_inflate_flags | nx_gzip_deflate_flags);
 
 	if (!!nx_gzip_log) fflush(nx_gzip_log);
 	fflush(stderr);
 
 	nx_close_all();
-	
+
 	if (nx_gzip_log != stderr) {
 		nx_gzip_log = NULL;
 	}
 }
 
-	
-#ifdef _NX_ZLIB_TEST
-int main()
-{
-        Byte *compr, *uncompr;
-        uLong comprLen = 10000*sizeof(int); /* don't overflow on MSDOS */
-        uLong uncomprLen = comprLen;
-        compr = (Byte*)calloc((uInt)comprLen, 1);
-        uncompr = (Byte*)calloc((uInt)uncomprLen, 1);
+static void _done(void) __attribute__((destructor));
 
-	volatile int ex;
-	nx_hw_init();
-	nx_init_exclusive((int *) &ex);	
-	nx_wait_exclusive((int *) &ex);
-	nx_exit_exclusive((int *) &ex);
-	if (__builtin_cpu_is("power8")) fprintf(stderr, "cpu is power8\n");
+static void _done(void)
+{
+	if (nx_gzip_gather_statistics()) {
+		print_stats();
+		pthread_mutex_destroy(&zlib_stats_mutex);
+	}
+
+	nx_hw_done();
+	return;
 }
-#endif
+
+void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
+{
+	prt_err("%d: Got signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);
+
+	fprintf(stderr, "%d: signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);	
+	fflush(stderr);
+	/* nx_fault_storage_address = info->si_addr; */
+	exit(-1);
+}
 

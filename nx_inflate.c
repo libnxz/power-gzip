@@ -678,8 +678,6 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 	uint32_t cksum, isize;
 	int i;
 
-	assert(s->is_final == 1);
-
 	if (copy > 0) {
 		/* to handle the case of crc and isize spanning fifo_in
 		 * and next_in */

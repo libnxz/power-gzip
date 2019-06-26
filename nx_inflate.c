@@ -784,7 +784,8 @@ static int nx_inflate_(nx_streamp s, int flush)
 	if (s->avail_in == 0 && s->used_in == 0 && s->avail_out == 0 && s->used_out == 0)
 		return Z_STREAM_END;
 
-	if (s->is_final == 1) {
+	if (s->is_final == 1 && s->used_out == 0) {
+		/* returning from avail_out==0 */
 		return nx_inflate_verify_checksum(s, 2); /* copy and verify */
 	}
 	
@@ -808,8 +809,10 @@ copy_fifo_out_to_next_out:
 		}
 		print_dbg_info(s, __LINE__);
 
-		if (s->used_out > 0 && s->avail_out == 0)
+		if (s->used_out > 0 && s->avail_out == 0) {
+			prt_info("need more avail_out\n");
 			return Z_OK; /* Need more space to write to */
+		}
 
 		if (s->is_final == 1) {
 			return nx_inflate_verify_checksum(s, 2);

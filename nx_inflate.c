@@ -117,6 +117,8 @@ int nx_inflateReset(z_streamp strm)
 	s->ckidx = 0;
 	s->cksum = INIT_CRC;	
 	s->havedict = 0;
+
+	s->total_time = 0;
 		
 	return nx_inflateResetKeep(strm);
 }

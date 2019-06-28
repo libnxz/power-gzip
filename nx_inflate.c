@@ -489,8 +489,7 @@ inf_forever:
 				    s->length < s->gzhead->name_max )
 					s->gzhead->name[s->length++] = (char) c;
 			} while (!!c && copy < s->avail_in);
-			s->avail_in -= copy;
-			s->next_in  += copy;
+			update_stream_in(s, copy);
 			if (!!c) goto inf_return; /* need more name */
 		}
 		else if (s->gzhead != NULL)
@@ -512,8 +511,7 @@ inf_forever:
 				    s->length < s->gzhead->comm_max )
 					s->gzhead->comment[s->length++] = (char) c;
 			} while (!!c && copy < s->avail_in);
-			s->avail_in -= copy;
-			s->next_in  += copy;
+			update_stream_in(s, copy);
 			if (!!c) goto inf_return; /* need more comment */
 		}
 		else if (s->gzhead != NULL)

@@ -54,6 +54,7 @@ pthread_mutex_t mutex_log;
 #define nx_gzip_hw_trace_enabled()    (nx_gzip_trace & 0x2)
 #define nx_gzip_sw_trace_enabled()    (nx_gzip_trace & 0x4)
 #define nx_gzip_gather_statistics()   (nx_gzip_trace & 0x8)
+#define nx_gzip_per_stream_stat()     (nx_gzip_trace & 0x10)
 
 #define prt(fmt, ...) do { \
 	pthread_mutex_lock (&mutex_log);				\

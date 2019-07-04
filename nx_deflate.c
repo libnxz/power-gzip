@@ -774,7 +774,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	   sizes may be simulated by making full flush blocks with the
 	   same size as the window size */
 	if (windowBits != 15 && windowBits != 31 && windowBits != -15) {
-		pr_err("NX does not support less than 2^15 byte window size: %d\n", windowBits);
+		prt_info("NX does not support less than 2^15 byte window size: %d\n", windowBits);
 		/* TODO should I ignore small window request? */
 		return Z_STREAM_ERROR;
 	}
@@ -791,13 +791,13 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 
 	prt_info(" windowBits %d wrap %d \n", windowBits, wrap);
 	if (method != Z_DEFLATED || (strategy != Z_FIXED && strategy != Z_DEFAULT_STRATEGY)) {
-		pr_err("unsupported zlib method or strategy\n");		
+		prt_err("unsupported zlib method or strategy\n");		
 		return Z_STREAM_ERROR;
 	}
 
 	h = nx_open(-1); /* TODO allow picking specific NX device */
 	if (!h) {
-		pr_err("cannot open NX device\n");
+		prt_err("cannot open NX device\n");
 		return Z_STREAM_ERROR;
 	}
 
@@ -955,7 +955,7 @@ static int nx_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 			     s->nxdevp);
 		if (rc != LIBNX_OK ) {
 			memcpy(s->fifo_in + s->cur_in, s->next_in, copy_bytes);
-			pr_err("nx_copy failed\n");
+			prt_err("nx_copy failed\n");
 		}
 
 		s->used_in += copy_bytes;
@@ -973,7 +973,7 @@ static int nx_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 				     s->nxdevp);
 			if (rc != LIBNX_OK ) {
 				memcpy(s->fifo_in, s->next_in, copy_bytes);
-				pr_err("nx_copy failed\n");
+				prt_err("nx_copy failed\n");
 			}
 			s->used_in += copy_bytes;
 			len -= copy_bytes;
@@ -1397,7 +1397,7 @@ restart:
 		goto do_update_offsets;
 
 	default:
-		pr_err("error: cc = %u cc = 0x%x\n", cc, cc);
+		prt_err("error: cc = %u cc = 0x%x\n", cc, cc);
 		rc = LIBNX_ERROR;
 		goto err_exit;
 	}
@@ -1604,7 +1604,7 @@ int nx_deflate(z_streamp strm, int flush)
 	/* check next_in and next_out buffer */
 	if (s->next_out == NULL || (s->avail_in != 0 && s->next_in == NULL)) return Z_STREAM_ERROR;
 	if (s->avail_out == 0) {
-		prt_err("s->avail_out is 0\n");
+		prt_info("s->avail_out is 0\n");
 		return Z_BUF_ERROR;
 	}
 
@@ -1619,7 +1619,7 @@ int nx_deflate(z_streamp strm, int flush)
 
 	/* User must not provide more input after the first FINISH: */
 	if (s->status == NX_BFINAL_STATE && s->avail_in != 0) {
-		prt_err("s->status is NX_BFINAL_STATE but s->avail_out is not 0\n");
+		prt_info("s->status is NX_BFINAL_STATE but s->avail_out is not 0\n");
 		return Z_BUF_ERROR;
 	}
 

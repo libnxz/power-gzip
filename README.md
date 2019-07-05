@@ -33,11 +33,13 @@ export LD_LIBRARY_PATH=../:$LD_LIBRARY_PATH
 ./test_inflate
 ```
 ## How to Select NXs
-If want to use 1 NX or 2 NXs, use NX_GZIP_DEV_NUM variable.
-1. Use "export NX_GZIP_DEV_NUM=-1" to use only one NX whose id is arbitrary.
-2. Use "export NX_GZIP_DEV_NUM=0" to use only one NX whose id is 0.
-3. Use "export NX_GZIP_DEV_NUM=1" to use only one NX whose id is 1.
-4. Use "export NX_GZIP_DEV_NUM=2" to use two NXs.
+By default, the NX-GZIP device with the nearest process to cpu affinity is selected
+Consider using numactl -N 0 (or 8) to force your process attach to a particular device
+~~If you want to use 1 NX or 2 NXs, use NX_GZIP_DEV_NUM variable.~~
+~~1. Use "export NX_GZIP_DEV_NUM=-1" to use only one NX whose id is arbitrary.~~
+~~2. Use "export NX_GZIP_DEV_NUM=0" to use only one NX whose id is 0.~~
+~~3. Use "export NX_GZIP_DEV_NUM=1" to use only one NX whose id is 1.~~
+~~4. Use "export NX_GZIP_DEV_NUM=2" to use two NXs.~~
 
 ## How to enable log and trace for debug
 The default log will be /tmp/nx.log. Use "export NX_GZIP_LOGFILE=your.log" to specify a different log.  

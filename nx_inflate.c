@@ -832,7 +832,6 @@ small_next_in:
 	   the data amount waiting in the user buffer next_in */
 	if (s->avail_in < nx_config.soft_copy_threshold && s->avail_out > 0) {
 		if (s->fifo_in == NULL) {
-			// s->len_in = nx_config.inflate_fifo_in_len;
 			s->len_in = nx_config.soft_copy_threshold * 2;
 			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
 				prt_err("nx_alloc_buffer for inflate fifo_in\n");		
@@ -850,11 +849,6 @@ small_next_in:
 			memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, read_sz);
 			update_stream_in(s, read_sz);
 			s->used_in = s->used_in + read_sz;
-		}
-		else {
-			/* should never come here */
-			prt_err("unexpected error\n");
-			return Z_STREAM_END;
 		}
 	}
 	print_dbg_info(s, __LINE__);

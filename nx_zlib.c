@@ -223,7 +223,7 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 
 	if (unlock) 
 		if (munlock(buf, len))
-			pr_err("munlock failed, errno= %d\n", errno);
+			prt_err("munlock failed, errno= %d\n", errno);
 
 	free(buf);
 
@@ -255,7 +255,7 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 		return;
 	if (unlock) 
 		if (munlock(buf, len))
-			pr_err("munlock failed, errno= %d\n", errno);
+			prt_err("munlock failed, errno= %d\n", errno);
 	free(buf);
 	return;
 }
@@ -695,7 +695,7 @@ void nx_hw_init(void)
 	nx_count = nx_enumerate_engines();
 
 	if (nx_count == 0) {
-		prt_err("NX-gzip accelerators found: %d\n", nx_count);		  
+		prt_info("NX-gzip accelerators found: %d\n", nx_count);		  
 		return;
 	}
 

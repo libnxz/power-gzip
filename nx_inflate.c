@@ -729,7 +729,7 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(s->total_out % (1ULL<<32)) )
 				return Z_STREAM_END;
 			else {
-				prt_err("checksum or isize mismatch\n");
+				prt_info("checksum or isize mismatch\n");
 				return Z_STREAM_ERROR;
 			}
 		}
@@ -740,15 +740,15 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 			/* adler32 is present; compare checksums */
 			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16 | tail[3]<<24);
 
-			prt_err("computed checksum %08x\n", cmdp->cpb.out_adler);
-			prt_err("stored   checksum %08x\n", cksum);
+			prt_info("computed checksum %08x\n", cmdp->cpb.out_adler);
+			prt_info("stored   checksum %08x\n", cksum);
 
 			nx_inflate_update_checksum(s);			
 
 			if (cksum == cmdp->cpb.out_adler)
 				return Z_STREAM_END;
 			else {
-				prt_err("checksum mismatch\n");
+				prt_info("checksum mismatch\n");
 				return Z_STREAM_ERROR;
 			}
 		}

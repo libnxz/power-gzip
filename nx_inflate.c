@@ -117,6 +117,8 @@ int nx_inflateReset(z_streamp strm)
 	s->ckidx = 0;
 	s->cksum = INIT_CRC;	
 	s->havedict = 0;
+
+	s->total_time = 0;
 		
 	return nx_inflateResetKeep(strm);
 }
@@ -489,8 +491,7 @@ inf_forever:
 				    s->length < s->gzhead->name_max )
 					s->gzhead->name[s->length++] = (char) c;
 			} while (!!c && copy < s->avail_in);
-			s->avail_in -= copy;
-			s->next_in  += copy;
+			update_stream_in(s, copy);
 			if (!!c) goto inf_return; /* need more name */
 		}
 		else if (s->gzhead != NULL)
@@ -512,8 +513,7 @@ inf_forever:
 				    s->length < s->gzhead->comm_max )
 					s->gzhead->comment[s->length++] = (char) c;
 			} while (!!c && copy < s->avail_in);
-			s->avail_in -= copy;
-			s->next_in  += copy;
+			update_stream_in(s, copy);
 			if (!!c) goto inf_return; /* need more comment */
 		}
 		else if (s->gzhead != NULL)
@@ -678,8 +678,6 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 	uint32_t cksum, isize;
 	int i;
 
-	assert(s->is_final == 1);
-
 	if (copy > 0) {
 		/* to handle the case of crc and isize spanning fifo_in
 		 * and next_in */
@@ -731,7 +729,7 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(s->total_out % (1ULL<<32)) )
 				return Z_STREAM_END;
 			else {
-				prt_err("checksum or isize mismatch\n");
+				prt_info("checksum or isize mismatch\n");
 				return Z_STREAM_ERROR;
 			}
 		}
@@ -742,15 +740,15 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 			/* adler32 is present; compare checksums */
 			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16 | tail[3]<<24);
 
-			prt_err("computed checksum %08x\n", cmdp->cpb.out_adler);
-			prt_err("stored   checksum %08x\n", cksum);
+			prt_info("computed checksum %08x\n", cmdp->cpb.out_adler);
+			prt_info("stored   checksum %08x\n", cksum);
 
 			nx_inflate_update_checksum(s);			
 
 			if (cksum == cmdp->cpb.out_adler)
 				return Z_STREAM_END;
 			else {
-				prt_err("checksum mismatch\n");
+				prt_info("checksum mismatch\n");
 				return Z_STREAM_ERROR;
 			}
 		}
@@ -786,7 +784,8 @@ static int nx_inflate_(nx_streamp s, int flush)
 	if (s->avail_in == 0 && s->used_in == 0 && s->avail_out == 0 && s->used_out == 0)
 		return Z_STREAM_END;
 
-	if (s->is_final == 1) {
+	if (s->is_final == 1 && s->used_out == 0) {
+		/* returning from avail_out==0 */
 		return nx_inflate_verify_checksum(s, 2); /* copy and verify */
 	}
 	
@@ -810,8 +809,10 @@ copy_fifo_out_to_next_out:
 		}
 		print_dbg_info(s, __LINE__);
 
-		if (s->used_out > 0 && s->avail_out == 0)
+		if (s->used_out > 0 && s->avail_out == 0) {
+			prt_info("need more avail_out\n");
 			return Z_OK; /* Need more space to write to */
+		}
 
 		if (s->is_final == 1) {
 			return nx_inflate_verify_checksum(s, 2);
@@ -831,7 +832,6 @@ small_next_in:
 	   the data amount waiting in the user buffer next_in */
 	if (s->avail_in < nx_config.soft_copy_threshold && s->avail_out > 0) {
 		if (s->fifo_in == NULL) {
-			// s->len_in = nx_config.inflate_fifo_in_len;
 			s->len_in = nx_config.soft_copy_threshold * 2;
 			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
 				prt_err("nx_alloc_buffer for inflate fifo_in\n");		
@@ -849,11 +849,6 @@ small_next_in:
 			memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, read_sz);
 			update_stream_in(s, read_sz);
 			s->used_in = s->used_in + read_sz;
-		}
-		else {
-			/* should never come here */
-			prt_err("unexpected error\n");
-			return Z_STREAM_END;
 		}
 	}
 	print_dbg_info(s, __LINE__);

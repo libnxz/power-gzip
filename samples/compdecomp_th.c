@@ -246,6 +246,7 @@ void *decomp_file_multith(void *argsv)
 	double elapsed;
 	thread_args_t *argsp = (thread_args_t *) argsv;
 	int tid;
+	unsigned long cksum = 1;
 	
 	inbuf = argsp->inbuf;
 	inlen = argsp->inlen;	
@@ -305,6 +306,15 @@ void *decomp_file_multith(void *argsv)
 			fprintf(stderr, "tid %d: uncompress error\n", tid);
 			return (void *) -1;
 		}
+
+#ifdef SIMPLE_CHECKSUM2
+#pragma GCC warning "Verifying crc will reduce decomp throughput"
+		cksum = 1;		
+		cksum = nx_crc32(cksum, decompbuf, decompdata_len);
+		/* fprintf(stderr, "target checksum %016lx\n", cksum); */
+		assert( cksum == argsp->checksum );
+#endif
+		
 	}
 
 	/* wait all threads to finish; min max not useful anymore since timer is after this barrier */
@@ -320,8 +330,8 @@ void *decomp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: uncompressed to %ld bytes %ld times in %7.4g seconds\n",
 			tid, (long)decompdata_len, iterations, elapsed);
 
-	unsigned long cksum = 1;
 #ifdef SIMPLE_CHECKSUM
+	cksum = 1;
 	cksum = nx_crc32(cksum, decompbuf, decompdata_len);
 	assert( cksum == argsp->checksum );
 #endif

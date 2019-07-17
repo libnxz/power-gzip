@@ -181,6 +181,8 @@ typedef struct nx_stream_s {
 
 	char            trailer[9];     /* temp storage for tail bytes */
 	int             trailer_len;
+
+	uint64_t        total_time;     /* stream's total time running */
   
 	uint16_t        hcrc16;         /* stored in the gzip header */
 	uint32_t        cksum;          /* running checksum of the header */

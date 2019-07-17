@@ -63,6 +63,7 @@
 struct nx_config_t nx_config;
 static struct nx_dev_t nx_devices[NX_DEVICES_MAX];
 static int nx_dev_count = 0;
+static int nx_ref_count = 0;
 static int nx_init_done = 0;
 
 int nx_dbg = 0;
@@ -222,7 +223,7 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 
 	if (unlock) 
 		if (munlock(buf, len))
-			pr_err("munlock failed, errno= %d\n", errno);
+			prt_err("munlock failed, errno= %d\n", errno);
 
 	free(buf);
 
@@ -254,7 +255,7 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 		return;
 	if (unlock) 
 		if (munlock(buf, len))
-			pr_err("munlock failed, errno= %d\n", errno);
+			prt_err("munlock failed, errno= %d\n", errno);
 	free(buf);
 	return;
 }
@@ -479,58 +480,41 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 	return cc;
 }
 
-
-/* 
-   nx_id will not be used here, use nx_gzip_chip_num to decide use which nx
-*/
 nx_devp_t nx_open(int nx_id)
 {
 	nx_devp_t nx_devp;
 	void *vas_handle;
 
-	if (nx_dev_count >= NX_DEVICES_MAX) {
-		prt_err("nx_open failed: too many open devices\n");
-		return NULL;
-	}
-
-	pthread_mutex_lock(&nx_devices_mutex);
-	/* Open device firstly anyway */
-	if (nx_dev_count == 0) {
-		for (int i = -1; i <= NX_MIN(nx_gzip_chip_num, 1); i++) {
-			vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, i);
-			if (!vas_handle) {
-				prt_err("nx_function_begin failed, errno %d\n", errno);
-				nx_devp = NULL;
-				goto ret;
-			}
-			nx_devp = &nx_devices[ nx_dev_count ];
-			nx_devp->vas_handle = vas_handle;
-			++ nx_dev_count;
+	int ocount = __atomic_fetch_add(&nx_ref_count, 1, __ATOMIC_RELAXED);
+	
+	if (ocount == 0) {
+		vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, -1);
+		if (!vas_handle) {
+			prt_err("nx_function_begin failed, errno %d\n", errno);
+			nx_devp = NULL;
+			ocount = __atomic_fetch_sub(&nx_ref_count, 1, __ATOMIC_RELAXED);
+			goto ret;
 		}
+		/* using only the default device for now; nx_dev_count
+		 * is either 0 to 1 */
+		nx_devp = &nx_devices[ nx_dev_count ];
+		nx_devp->vas_handle = vas_handle;
+		++ nx_dev_count;
 	}
-
-	/*
-	 * nx_devices[0] is nx_function_begin(NX_FUNC_COMP_GZIP, -1)
-	 * nx_devices[1] is nx_function_begin(NX_FUNC_COMP_GZIP, 0)
-	 * nx_devices[2] is nx_function_begin(NX_FUNC_COMP_GZIP, 1)
-	 */
-
-	if (nx_gzip_chip_num != 2) {
-		nx_devp = &nx_devices[nx_gzip_chip_num+1];
-	}
-	else { /* use both nx, to make sure balance among threads */
-		if (nx_devices[1].open_cnt <= nx_devices[2].open_cnt) nx_devp = &nx_devices[1];
-		else nx_devp = &nx_devices[2];
+	else {
+		/* vas is already open; threads will reuse it */
+		volatile void *vh;
+		nx_devp = &nx_devices[0];
+		/* TODO; hack poll while the other thread is doing nx_function_begin */
+		while( NULL == (vh = __atomic_load_n(&nx_devp->vas_handle, __ATOMIC_RELAXED) ) ){;};
 	}
 	nx_devp->open_cnt++;
 ret:
-	pthread_mutex_unlock(&nx_devices_mutex);
-	return nx_devp;
+	return nx_devp;       
 }
 
 int nx_close(nx_devp_t nxdevp)
 {
-	/* leave everything open */
 	return 0;
 }
 
@@ -540,7 +524,8 @@ static void nx_close_all()
 	
 	/* no need to lock anything; we're exiting */
 	for (i=0; i < nx_dev_count; i++)
-		nx_function_end(nx_devices[i].vas_handle);
+		if (!!nx_devices[i].vas_handle)
+			nx_function_end(nx_devices[i].vas_handle);
 	return;
 }
 
@@ -710,7 +695,7 @@ void nx_hw_init(void)
 	nx_count = nx_enumerate_engines();
 
 	if (nx_count == 0) {
-		prt_err("NX-gzip accelerators found: %d\n", nx_count);		  
+		prt_info("NX-gzip accelerators found: %d\n", nx_count);		  
 		return;
 	}
 
@@ -788,6 +773,14 @@ void nx_hw_init(void)
 	sigaction(SIGSEGV, &act, NULL);
 
 	nx_init_done = 1;
+}
+
+static void _nx_hwinit(void) __attribute__((constructor));
+
+static void _nx_hwinit(void)
+{
+	nx_hw_init();
+	nx_open(-1);
 }
 
 void nx_hw_done(void)

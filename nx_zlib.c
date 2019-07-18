@@ -51,6 +51,7 @@
 #include <endian.h>
 #include <pthread.h>
 #include <signal.h>
+#include <dirent.h>
 #include "zlib.h"
 #include "copy-paste.h"
 #include "nx-ftw.h"
@@ -535,9 +536,71 @@ static void nx_close_all()
    Check if this is a Power box with NX-gzip units on-chip.
    Populate NX structures and return number of NX units
 */
+#define DEVICE_TREE "/proc/device-tree"
 static int nx_enumerate_engines()
 {
-	return 1;
+	DIR *d;
+	struct dirent *de;
+	char vas_file[512];
+	FILE *f;
+	char buf[10];
+	int count = 0;
+	size_t n;
+
+	d = opendir(DEVICE_TREE);
+	if (d == NULL){
+		prt_err("open device tree dir failed.\n");
+		return 0;
+	}
+
+
+	while ((de = readdir(d)) != NULL) {
+		if (strncmp(de->d_name, "vas", 3) == 0){
+			prt_info("vas device tree:%s\n",de->d_name);
+			
+			memset(vas_file,0,sizeof(vas_file));
+			sprintf(vas_file, "%s/%s/%s",DEVICE_TREE,de->d_name,"ibm,vas-id");
+			f = fopen(vas_file, "r");
+			if (f == NULL){
+				prt_err("open vas file(%s) failed.\n",vas_file);
+				continue;
+			}
+			/*Must read 4 bytes*/
+			n = fread(buf, 1, 4, f);
+			if (n != 4){
+				prt_err("read vas file(%s) failed.\n",vas_file);
+				fclose(f);
+				continue;
+			}
+			nx_devices[count].nx_id = be32toh(*(int *)buf);
+			fclose(f);
+	
+			memset(vas_file,0,sizeof(vas_file));
+			sprintf(vas_file, "%s/%s/%s",DEVICE_TREE,de->d_name,"ibm,chip-id");
+			f = fopen(vas_file, "r");
+			if (f == NULL){
+				prt_err("open vas file(%s) failed.\n",vas_file);
+				continue;
+			}
+			
+			/*Must read 4 bytes*/
+			n = fread(buf, 1, 4, f);
+			if (n != 4){
+				prt_err("read vas file(%s) failed.\n",vas_file);
+				fclose(f);
+				continue;
+			}
+			nx_devices[count].socket_id = be32toh(*(int *)buf); 
+			fclose(f);
+			
+			count++;
+
+		}
+	}
+
+	closedir(d);
+
+	return count;
 }
 
 /**
@@ -639,7 +702,7 @@ static void print_stats(void)
  */
 void nx_hw_init(void)
 {
-	int nx_count;
+	int nx_count = 0;
 	int rc = 0;
 
 	/* only init one time for the program */
@@ -683,26 +746,28 @@ void nx_hw_init(void)
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;
 	
-	/* Initialize the stats structure*/
-	if (nx_gzip_gather_statistics()) {
- 		rc = pthread_mutex_init(&zlib_stats_mutex, NULL);
-		if (rc != 0){
-			prt_err("initializing phtread_mutex failed!\n");
-			return;
-		}
-        }
-
-	nx_count = nx_enumerate_engines();
-
-	if (nx_count == 0) {
-		prt_info("NX-gzip accelerators found: %d\n", nx_count);		  
-		return;
-	}
-
+	/* log file should be initialized first*/ 
 	if (logfile != NULL)
 		nx_gzip_log = fopen(logfile, "a+");
 	else
 		nx_gzip_log = fopen("/tmp/nx.log", "a+");
+
+	/* Initialize the stats structure*/
+	if (nx_gzip_gather_statistics()) {
+		rc = pthread_mutex_init(&zlib_stats_mutex, NULL);
+		if (rc != 0){
+			prt_err("initializing phtread_mutex failed!\n");
+			return;
+		}
+	}
+
+	nx_count = nx_enumerate_engines();
+	if (nx_count == 0) {
+		prt_err("NX-gzip accelerators found: %d\n", nx_count);		  
+		return;
+	}
+
+	prt_info("%d NX GZIP Accelerator Found!\n",nx_count);
 	
 	if (trace_s != NULL)
 		nx_gzip_trace = strtol(trace_s, (char **)NULL, 0);

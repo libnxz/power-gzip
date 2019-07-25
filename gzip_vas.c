@@ -189,12 +189,16 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	{
 		++poll;
 		hwsync();
+
+		cpu_pri_low();
 		
 		/* usleep(0) takes around 29000 ticks ~60 us.
 		   300000 is spinning for about 600 us then
 		   start sleeping */
-		if ( (__ppc_get_timebase() - t) > USLEEP_TH)
+		if ( (__ppc_get_timebase() - t) > USLEEP_TH) {
+			cpu_pri_default();		  
 			usleep(1);
+		}
 
 		if( poll > CSB_MAX_POLL )
 			break;

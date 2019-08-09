@@ -547,6 +547,8 @@ int nx_deflateEnd(z_streamp strm)
 {
 	int status;
 	nx_streamp s;
+	int rc;
+	void *temp = NULL;
 
 	if (strm == Z_NULL)
 		return Z_STREAM_ERROR;
@@ -555,8 +557,14 @@ int nx_deflateEnd(z_streamp strm)
 	if (s == NULL)
 		return Z_STREAM_ERROR;
 
-	/* statistic*/
-	zlib_stats_inc(&zlib_stats.deflateEnd);
+	if(s->bak_stream){ /*in case call deflateEnd without a deflate call*/
+		temp  = (void *)strm->state;
+		strm->state = s->bak_stream;
+		rc = s_deflateEnd(strm);
+		prt_info("call s_deflateEnd to release sw resource,rc=%d\n",rc);
+		strm->state = temp;
+		s->bak_stream = NULL;
+        }
 
 	status = s->status;
 	/* TODO add here Z_DATA_ERROR if the stream was freed
@@ -589,11 +597,18 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	int wrap;
 	nx_streamp s;
 	nx_devp_t h;
+	void *temp = NULL;
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 
-	/* statistic */
-	zlib_stats_inc(&zlib_stats.deflateInit);
+	/*If the stream has been initialized by sw*/
+	if(strm->state && (0 == has_nx_state(strm))){
+		temp = (void *)strm->state; /*keep this pointer*/
+		strm->state = NULL;
+		prt_info("this stream has been initialized by sw\n");
+	}
+
+	nx_hw_init();
 
 	strm->msg = Z_NULL;
 
@@ -638,6 +653,8 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
 
+	s->magic1     = MAGIC1;
+	s->magic2     = MAGIC2;
 	s->nxcmdp     = &s->nxcmd0;
 	s->wrap       = wrap;
 	s->windowBits = windowBits;
@@ -679,6 +696,11 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 
 	strm->state = (void *) s; /* remember the hardware state */
 	rc = nx_deflateReset(strm);
+
+	if(temp){ /*keep the software state*/
+		s->bak_stream = temp;
+		s->switchable = 1;
+	}
 
 	return rc;
 }
@@ -1508,8 +1530,8 @@ int nx_deflate(z_streamp strm, int flush)
 	retlibnx_t rc;
 	nx_streamp s;
 	const int combine_cksum = 1;
-	unsigned int avail_in_slot, avail_out_slot;
 	long loop_cnt = 0, loop_max = 0xffff;
+	void *temp = NULL;
 
 	/* check flush */
 	if (flush > Z_BLOCK || flush < 0)
@@ -1521,21 +1543,35 @@ int nx_deflate(z_streamp strm, int flush)
 	if (NULL == (s = (nx_streamp) strm->state))
 		return Z_STREAM_ERROR;
 
-	/* statistic*/
-	if (nx_gzip_gather_statistics()) {
-		pthread_mutex_lock(&zlib_stats_mutex);
-		avail_in_slot = strm->avail_in / 4096;
-		if (avail_in_slot >= ZLIB_SIZE_SLOTS)
-			avail_in_slot = ZLIB_SIZE_SLOTS - 1;
-		zlib_stats.deflate_avail_in[avail_in_slot]++;
+	/* check for sw deflate first*/
+	if( (has_nx_state(strm)) && s->switchable && (0 == use_nx_deflate(strm))){
+		/*Use software zlib, switch the sw and hw state*/
+		s = (nx_streamp) strm->state;
+                s->switchable = 0; /*decided to use sw zlib and not switchable */
+		temp  = s->bak_stream;	/*sw*/
+		s->bak_stream = NULL;
 
-		avail_out_slot = strm->avail_out / 4096;
-		if (avail_out_slot >= ZLIB_SIZE_SLOTS)
-			avail_out_slot = ZLIB_SIZE_SLOTS - 1;
-		zlib_stats.deflate_avail_out[avail_out_slot]++;
-		zlib_stats.deflate++;
-		pthread_mutex_unlock(&zlib_stats_mutex);
+		rc = nx_deflateEnd(strm);
+		prt_info("call nx_deflateEnd to clean the hw resource,rc=%d\n",rc);
+
+		strm->state = temp;
+		prt_info("call software deflate,len=%d\n", strm->avail_in);
+		rc = s_deflate(strm,flush);
+		prt_info("call software deflate, rc=%d\n", rc);
+		return rc;
+	}else if(s->bak_stream){
+		/*decide to use nx here, release the sw resource */
+		temp  = (void *)strm->state;
+		strm->state = s->bak_stream;
+
+		rc = s_deflateEnd(strm);
+		prt_info("call s_deflateEnd to clean the sw resource,rc=%d\n",rc);
+		strm->state = temp;
+		s->bak_stream = NULL;
 	}
+
+	s->switchable = 0;
+
 
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 
@@ -1598,6 +1634,7 @@ s1:
 		if (LIBNX_OK == nx_copy_fifo_out_to_nxstrm_out(s))
 			loop_cnt = 0;
 		print_dbg_info(s, __LINE__);
+
 		/* TODO:
 		 * The logic is a little confused here. Like some patches to pass the test.
 		 * Maybe need a new design and recombination.
@@ -1872,10 +1909,22 @@ unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 int nx_deflateSetHeader(z_streamp strm, gz_headerp head)
 {
 	nx_streamp s;
+	void *temp = NULL;
+	int rc;
 
 	if (strm == NULL) return Z_STREAM_ERROR;
 
 	s = (nx_streamp) strm->state;
+	if (s == NULL) return Z_STREAM_ERROR;
+
+	if(s->bak_stream){
+		temp = (void *)strm->state;
+		strm->state = s->bak_stream;
+		rc = s_deflateSetHeader(strm, head);
+		prt_info("call s_deflateSetHeader, rc=%d\n",rc);
+
+		strm->state = temp;
+	}
 
 	if (s->wrap != 2)
 		return Z_STREAM_ERROR;
@@ -2129,44 +2178,174 @@ mem_error:
 #ifdef ZLIB_API
 int deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
 {
-	return nx_deflateInit_(strm, level, version, stream_size);
+	return deflateInit2_(strm, level, Z_DEFLATED, MAX_WBITS, DEF_MEM_LEVEL,
+                         Z_DEFAULT_STRATEGY, version, stream_size);
 }
 
 int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		int memLevel, int strategy, const char *version,
 		int stream_size)
 {
-	return nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+	int rc;
+
+	/* statistic */
+	zlib_stats_inc(&zlib_stats.deflateInit);
+
+
+	strm->state = NULL;
+	if(gzip_selector == GZIP_MIX){
+		/*call sw and nx initialization */
+		rc = s_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+	}else if(gzip_selector == GZIP_NX){
+		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+	}else{
+		rc = s_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+	}
+
+	return rc;
 }
 
 int deflateReset(z_streamp strm)
 {
-	return nx_deflateReset(strm);
+	int rc;
+
+	if (0 == has_nx_state(strm)){
+		rc = s_deflateReset(strm);
+	}else{
+		rc = nx_deflateReset(strm);
+	}
+
+	return rc;
 }
+
+int deflateResetKeep(z_streamp strm)
+{
+	int rc;
+
+	if (0 == has_nx_state(strm)){
+		rc = s_deflateResetKeep(strm);
+	}else{
+		rc = nx_deflateResetKeep(strm);
+	}
+
+	return rc;
+}
+
 
 int deflateEnd(z_streamp strm)
 {
-	return nx_deflateEnd(strm);
+	int rc;
+
+	/* statistic*/
+	zlib_stats_inc(&zlib_stats.deflateEnd);
+
+
+	if (0 == has_nx_state(strm)){
+		rc = s_deflateEnd(strm);
+		prt_info("call s_deflateEnd,rc=%d\n", rc);
+	}else{
+		rc = nx_deflateEnd(strm);
+	}
+
+	return rc;
 }
 
 int deflate(z_streamp strm, int flush)
 {
-	return nx_deflate(strm, flush);
+	int rc;
+	unsigned int avail_in_slot, avail_out_slot;
+	uint64_t t1=0, t2, t_diff;
+	unsigned int avail_in=0, avail_out=0;
+
+	/* statistic*/
+	if (nx_gzip_gather_statistics()) {
+		avail_in = strm->avail_in;
+		avail_out = strm->avail_out;
+		t1 = nx_get_time();
+	}
+
+	if (0 == has_nx_state(strm)){
+		prt_info("call s_deflate,len=%d\n", strm->avail_in);
+		rc = s_deflate(strm, flush);
+		prt_info("call s_deflate,rc=%d\n", rc);
+	}else{
+		rc = nx_deflate(strm, flush);
+	}
+
+	/* statistic*/
+	if (nx_gzip_gather_statistics() && (rc == Z_OK || rc == Z_STREAM_END)) {
+		avail_in_slot = avail_in / 4096;
+		if (avail_in_slot >= ZLIB_SIZE_SLOTS)
+			avail_in_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats_inc(&zlib_stats.deflate_avail_in[avail_in_slot]);
+
+		avail_out_slot = avail_out / 4096;
+		if (avail_out_slot >= ZLIB_SIZE_SLOTS)
+			avail_out_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats_inc(&zlib_stats.deflate_avail_out[avail_out_slot]);
+		zlib_stats_inc(&zlib_stats.deflate);
+
+		if (0 == has_nx_state(strm)){
+			zlib_stats_inc(&zlib_stats.deflate_sw);
+		}else{
+			zlib_stats_inc(&zlib_stats.deflate_nx);
+		}
+
+		__atomic_fetch_add(&zlib_stats.deflate_len, avail_in,  __ATOMIC_RELAXED);
+
+                t2 = nx_get_time();
+                t_diff = nx_time_to_us(nx_time_diff(t1,t2));
+
+                __atomic_fetch_add(&zlib_stats.deflate_time, t_diff, __ATOMIC_RELAXED);
+
+	}
+
+	return rc;
 }
 
 unsigned long deflateBound(z_streamp strm, unsigned long sourceLen)
 {
-	return nx_deflateBound(strm, sourceLen);
+	unsigned long rc;
+
+	if (strm == NULL) {
+		return NX_MAX(nx_deflateBound(NULL, sourceLen),
+		           s_deflateBound(NULL, sourceLen));
+	}
+
+	if (0 == has_nx_state(strm)){
+		rc = s_deflateBound(strm, sourceLen);
+	}else{
+		rc = nx_deflateBound(strm, sourceLen);
+	}
+
+	return rc;
 }
 
 int deflateSetHeader(z_streamp strm, gz_headerp head)
 {
-	return nx_deflateSetHeader(strm, head);
+	int rc;
+
+	if (0 == has_nx_state(strm)){
+		rc = s_deflateSetHeader(strm, head);
+	}else{
+		rc = nx_deflateSetHeader(strm, head);
+	}
+
+	return rc;
 }
 
 int deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength)
 {
-	return nx_deflateSetDictionary(strm, dictionary, dictLength);
+	int rc;
+
+	if (0 == has_nx_state(strm)){
+		rc = s_deflateSetDictionary(strm, dictionary, dictLength);
+	}else{
+		rc = nx_deflateSetDictionary(strm, dictionary, dictLength);
+	}
+
+	return rc;
 }
 
 int deflateCopy(z_streamp dest, z_streamp source)

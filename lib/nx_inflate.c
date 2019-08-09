@@ -180,6 +180,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	int ret;
 	nx_streamp s;
 	nx_devp_t h;
+	void *temp = NULL;
 
 	prt_info("%s:%d strm %p\n", __FUNCTION__, __LINE__, strm);
 
@@ -189,8 +190,14 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 
-	/* statistic */
-	zlib_stats_inc(&zlib_stats.inflateInit);
+	/*If the stream has been initialized by sw*/
+	if(strm->state && (0 == has_nx_state(strm))){
+		temp = (void *)strm->state; /*keep this pointer*/
+		strm->state = NULL;
+		prt_info("this stream has been initialized by sw\n");
+	}
+
+	nx_hw_init();
 
 	strm->msg = Z_NULL; /* in case we return an error */
 
@@ -204,6 +211,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
 
+	s->magic1  = MAGIC1;
+	s->magic2  = MAGIC2;
 	s->zstrm   = strm;
 	s->nxcmdp  = &s->nxcmd0;
 	s->page_sz = nx_config.page_sz;
@@ -221,6 +230,14 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	s->fifo_out = NULL;
 
 	strm->state = (void *) s;
+
+	s->switchable = 0;
+	s->bak_stream = NULL;
+
+	if(temp){ /*keep the software state*/
+		s->bak_stream = temp;
+		s->switchable = 1;
+	}
 
 	ret = nx_inflateReset2(strm, windowBits);
 	if (ret != Z_OK) {
@@ -247,6 +264,8 @@ int nx_inflateInit_(z_streamp strm, const char *version, int stream_size)
 int nx_inflateEnd(z_streamp strm)
 {
 	nx_streamp s;
+	void *temp = NULL;
+	int rc;
 
 	prt_info("%s:%d strm %p\n", __FUNCTION__, __LINE__, strm);
 
@@ -254,8 +273,14 @@ int nx_inflateEnd(z_streamp strm)
 	s = (nx_streamp) strm->state;
 	if (s == NULL) return Z_STREAM_ERROR;
 
-	/* statistic */
-	zlib_stats_inc(&zlib_stats.inflateEnd);
+	if(s->bak_stream){ /*in case call inflateEnd without a inflate call*/
+		temp  = (void *)strm->state;
+		strm->state = s->bak_stream;
+		rc = s_inflateEnd(strm);
+		prt_info("call s_inflateEnd to release sw resource,rc=%d\n",rc);
+		strm->state = temp;
+		s->bak_stream = NULL;
+	}
 
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
@@ -278,12 +303,49 @@ int nx_inflate(z_streamp strm, int flush)
 {
 	int rc = Z_OK;
 	nx_streamp s;
-	unsigned int avail_in_slot, avail_out_slot;
-	uint64_t t1=0, t2=0;
+	void *temp = NULL;
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
 	if (s == NULL) return Z_STREAM_ERROR;
+
+	/* check for sw deflate first*/
+	//if( has_nx_state(strm) && s->switchable && (strm->avail_in <= DECOMPRESS_THRESHOLD)){
+	if(has_nx_state(strm) && s->switchable && (0 == use_nx_inflate(strm))){
+		/*Use software zlib, switch the sw and hw state*/
+		s = (nx_streamp) strm->state;
+		s->switchable = 0; /*decided to use sw zlib and not switchable */
+		temp  = s->bak_stream;  /*sw pointer*/
+		s->bak_stream = NULL;
+
+		/*free the hw resource, copied from nx_inflateEnd()*/
+		nx_free_buffer(s->fifo_in, s->len_in, 0);
+		nx_free_buffer(s->fifo_out, s->len_out, 0);
+		nx_close(s->nxdevp);
+
+		if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
+		nx_free_buffer(s, sizeof(*s), 0);
+
+		prt_info("clean the hw resource,rc=%d\n",rc);
+
+		strm->state = temp;
+		prt_info("call software inflate,len=%d\n", strm->avail_in);
+		rc = s_inflate(strm,flush);
+		prt_info("call software inflate, rc=%d\n", rc);
+		return rc;
+	}else if(s->bak_stream){
+		/*decide to use nx here, release the sw resource */
+		temp  = (void *)strm->state;
+		strm->state = s->bak_stream;
+
+		rc = s_inflateEnd(strm);
+		prt_info("call s_inflateEnd to clean the sw resource,rc=%d\n",rc);
+		strm->state = temp;
+		s->bak_stream = NULL;
+	}
+
+	s->switchable = 0;
+
 
 	if (flush == Z_BLOCK || flush == Z_TREES) {
 		strm->msg = (char *)"Z_BLOCK or Z_TREES not implemented";
@@ -301,25 +363,6 @@ int nx_inflate(z_streamp strm, int flush)
 			prt_err("nx_alloc_buffer for inflate fifo_out\n");
 			return Z_MEM_ERROR;
 		}
-	}
-
-	/* statistic */
-	if (nx_gzip_gather_statistics()) {
-		pthread_mutex_lock(&zlib_stats_mutex);
-		avail_in_slot = strm->avail_in / 4096;
-		if (avail_in_slot >= ZLIB_SIZE_SLOTS)
-			avail_in_slot = ZLIB_SIZE_SLOTS - 1;
-		zlib_stats.inflate_avail_in[avail_in_slot]++;
-
-		avail_out_slot = strm->avail_out / 4096;
-		if (avail_out_slot >= ZLIB_SIZE_SLOTS)
-			avail_out_slot = ZLIB_SIZE_SLOTS - 1;
-		zlib_stats.inflate_avail_out[avail_out_slot]++;
-		zlib_stats.inflate++;
-
-		zlib_stats.inflate_len += strm->avail_in;
-		t1 = nx_get_time();
-		pthread_mutex_unlock(&zlib_stats_mutex);
 	}
 
 	/* copy in from user stream to internal structures */
@@ -736,13 +779,6 @@ inf_return:
 	copy_stream_in(s->zstrm, s);
 	copy_stream_out(s->zstrm, s);
 
-	/* statistic */
-	if (nx_gzip_gather_statistics()) {
-		pthread_mutex_lock(&zlib_stats_mutex);
-		t2 = nx_get_time();
-		zlib_stats.inflate_time += nx_time_diff(t1, t2);
-		pthread_mutex_unlock(&zlib_stats_mutex);
-	}
 	return rc;
 }
 
@@ -1865,27 +1901,147 @@ int nx_inflateSyncPoint(z_streamp strm)
 #ifdef ZLIB_API
 int inflateInit_(z_streamp strm, const char *version, int stream_size)
 {
-	return nx_inflateInit_(strm, version, stream_size);
+	return inflateInit2_(strm, DEF_WBITS, version, stream_size);
 }
+
 int inflateInit2_(z_streamp strm, int windowBits, const char *version, int stream_size)
 {
-	return nx_inflateInit2_(strm, windowBits, version, stream_size);
+	int rc;
+
+	/* statistic */
+	zlib_stats_inc(&zlib_stats.inflateInit);
+
+	strm->state = NULL;
+	if(gzip_selector == GZIP_MIX){
+		rc = s_inflateInit2_(strm, windowBits, version, stream_size);
+		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
+	}else if(gzip_selector == GZIP_NX){
+		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
+	}else{
+		rc = s_inflateInit2_(strm, windowBits, version, stream_size);
+	}
+	return rc;
 }
 int inflateReset(z_streamp strm)
 {
-	return nx_inflateReset(strm);
+	int rc;
+
+	if (0 == has_nx_state(strm)){
+		rc = s_inflateReset(strm);
+	}else{
+		rc = nx_inflateReset(strm);
+	}
+
+	return rc;
 }
+
+int inflateReset2(z_streamp strm, int windowBits)
+{
+	int rc;
+
+	if (0 == has_nx_state(strm)){
+		rc = s_inflateReset2(strm,windowBits);
+	}else{
+		rc = nx_inflateReset2(strm,windowBits);
+	}
+
+	return rc;
+}
+
+int inflateResetKeep(z_streamp strm)
+{
+	int rc;
+
+	if (0 == has_nx_state(strm)){
+		rc = s_inflateResetKeep(strm);
+	}else{
+		rc = nx_inflateResetKeep(strm);
+	}
+
+	return rc;
+}
+
+
 int inflateEnd(z_streamp strm)
 {
-	return nx_inflateEnd(strm);
+	int rc;
+
+	/* statistic */
+	zlib_stats_inc(&zlib_stats.inflateEnd);
+
+	if (0 == has_nx_state(strm)){
+		rc = s_inflateEnd(strm);
+	}else{
+		rc =nx_inflateEnd(strm);
+	}
+
+	return rc;
 }
 int inflate(z_streamp strm, int flush)
 {
-	return nx_inflate(strm, flush);
+	int rc;
+	unsigned int avail_in_slot, avail_out_slot;
+	uint64_t t1=0, t2, t_diff;
+	unsigned int avail_in=0, avail_out=0;
+
+	if (strm == NULL || strm->state == NULL) return Z_STREAM_ERROR;
+
+	/* statistic */
+	if (nx_gzip_gather_statistics()) {
+		avail_in = strm->avail_in;
+		avail_out = strm->avail_out;
+		t1 = nx_get_time();
+	}
+
+
+	if (0 == has_nx_state(strm)){
+		prt_info("call s_inflate,len=%d\n", strm->avail_in);
+		rc = s_inflate(strm, flush);
+		prt_info("call s_inflate,rc=%d\n", rc);
+	}else{
+		rc = nx_inflate(strm, flush);
+	}
+
+	/* statistic */
+	if (nx_gzip_gather_statistics() && (rc == Z_OK || rc == Z_STREAM_END)) {
+
+		avail_in_slot = avail_in / 4096;
+		if (avail_in_slot >= ZLIB_SIZE_SLOTS)
+			avail_in_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats_inc(&zlib_stats.inflate_avail_in[avail_in_slot]);
+
+		avail_out_slot = avail_out / 4096;
+		if (avail_out_slot >= ZLIB_SIZE_SLOTS)
+			avail_out_slot = ZLIB_SIZE_SLOTS - 1;
+		zlib_stats_inc(&zlib_stats.inflate_avail_out[avail_out_slot]);
+		zlib_stats_inc(&zlib_stats.inflate);
+		if (0 == has_nx_state(strm)){
+			zlib_stats_inc(&zlib_stats.inflate_sw);
+		}else{
+			zlib_stats_inc(&zlib_stats.inflate_nx);
+		}
+
+		__atomic_fetch_add(&zlib_stats.inflate_len, avail_in,  __ATOMIC_RELAXED);
+
+		t2 = nx_get_time();
+		t_diff = nx_time_to_us(nx_time_diff(t1,t2));
+
+		__atomic_fetch_add(&zlib_stats.inflate_time, t_diff,  __ATOMIC_RELAXED);
+	}
+
+	return rc;
 }
 int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLength)
 {
-	return nx_inflateSetDictionary(strm, dictionary, dictLength);
+	int rc;
+
+	if (0 == has_nx_state(strm)){
+		rc = s_inflateSetDictionary(strm, dictionary, dictLength);
+	}else{
+		rc = nx_inflateSetDictionary(strm, dictionary, dictLength);
+	}
+
+	return rc;
 }
 
 int inflateCopy(z_streamp dest, z_streamp source)

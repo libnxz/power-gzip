@@ -61,7 +61,13 @@
 #ifndef _NX_ZLIB_H
 #define _NX_ZLIB_H
 
-#define NX_GZIP_TYPE  9  /* 9 for P9 */
+#define GZIP_SW		0x01 /* software gzip */
+#define GZIP_NX		0x02 /* nx gzip */
+#define GZIP_MIX	0x03 /* mix sw and nx*/
+
+#define COMPRESS_THRESHOLD	(64*1024)
+#define DECOMPRESS_THRESHOLD	(64*1024)
+
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
@@ -99,6 +105,8 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg);
 
 #define zlib_version zlibVersion()
 extern const char *zlibVersion OF((void));
+
+extern int gzip_selector;
 
 /* common config variables for all streams */
 struct nx_config_t {
@@ -153,15 +161,20 @@ typedef struct nx_dev_t *nx_devp_t;
 /* save recent header bytes for hcrc calculations */
 typedef struct ckbuf_t { char buf[128]; } ckbuf_t;
 
+#define MAGIC1 0x1234567812345678ull
+#define MAGIC2 0xfeedbeeffeedbeefull
+
 /* z_stream equivalent of NX hardware */
 typedef struct nx_stream_s {
         /* parameters for the supported functions */
+	uint64_t        magic1;
 	int             level;          /* compression level */
 	int             method;         /* must be Z_DEFLATED for zlib */
 	int             windowBits;     /* also encodes zlib/gzip/raw */
 
 	int             memLevel;       /* 1...9 (default=8) */
 	int             strategy;       /* force compression algorithm */
+	uint64_t        magic2;
 
 	/* stream data management */
 	unsigned char   *next_in;       /* next input byte */
@@ -282,8 +295,56 @@ typedef struct nx_stream_s {
 	nx_dde_t        *ddl_out;
 	nx_dde_t        dde_out[4] __attribute__ ((aligned (128)));
 
+	/* software zlib switch and pointer */
+
+	/* true means stream can be switched between sw and hw */
+	char            switchable;
+
+	void		*bak_stream;
+
 } nx_stream;
 typedef struct nx_stream_s *nx_streamp;
+
+inline int has_nx_state(z_streamp strm)
+{
+	nx_streamp nx_state;
+
+	if (strm == NULL) return 0;
+	nx_state = (struct nx_stream_s *)strm->state;
+	if (nx_state == NULL) return 0;
+
+	return ((nx_state->magic1 == MAGIC1) && (nx_state->magic2 == MAGIC2));
+}
+
+static inline int use_nx_inflate(z_streamp strm)
+{
+	uint64_t rnd;
+	assert(strm != NULL);
+
+	/*TBD: add more strategy here for determining use nx or sw zlib*/
+
+	/* #1 Threshold*/
+	if(strm->avail_in <= DECOMPRESS_THRESHOLD) return 0;
+
+	/* #2 Percentage*/
+	rnd = __ppc_get_timebase();
+	if( rnd%4 < 2){ /*50% - 50%*/
+		return 0;
+	}else{
+		return 1;
+	}
+}
+
+static inline int use_nx_deflate(z_streamp strm)
+{
+	assert(strm != NULL);
+
+	/*TBD: add more strategy here for determining use nx or sw zlib*/
+
+	/* #1 Threshold */
+	if(strm->avail_in <= COMPRESS_THRESHOLD) return 0;
+	return 1;
+}
 
 /* stream pointers and lengths manipulated */
 #define update_stream_out(s,b) do{(s)->next_out += (b); (s)->total_out += (b); (s)->avail_out -= (b);}while(0)
@@ -389,6 +450,8 @@ typedef enum {
 struct zlib_stats {
 	unsigned long deflateInit;
 	unsigned long deflate;
+	unsigned long deflate_sw;
+	unsigned long deflate_nx;
 	unsigned long deflate_avail_in[ZLIB_SIZE_SLOTS];
 	unsigned long deflate_avail_out[ZLIB_SIZE_SLOTS];
 	unsigned long deflateReset;
@@ -401,9 +464,12 @@ struct zlib_stats {
 	unsigned long deflatePrime;
 	unsigned long deflateCopy;
 	unsigned long deflateEnd;
+	unsigned long compress;
 
 	unsigned long inflateInit;
 	unsigned long inflate;
+	unsigned long inflate_sw;
+	unsigned long inflate_nx;
 	unsigned long inflate_avail_in[ZLIB_SIZE_SLOTS];
 	unsigned long inflate_avail_out[ZLIB_SIZE_SLOTS];
 	unsigned long inflateReset;
@@ -417,6 +483,8 @@ struct zlib_stats {
 	unsigned long inflatePrime;
 	unsigned long inflateCopy;
 	unsigned long inflateEnd;
+
+	unsigned long uncompress;
 
 	uint64_t deflate_len;
 	uint64_t deflate_time;
@@ -497,5 +565,37 @@ extern void *dht_begin(char *ifile, char *ofile);
 extern void dht_end(void *handle);
 extern int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 extern void *dht_copy(void *handle);
+
+/* sw_zlib.c*/
+extern void sw_zlib_init(void);
+extern void sw_zlib_close(void);
+extern const char *s_zlibVersion(void);
+extern int s_deflateInit_(z_streamp strm, int level, const char* version, int stream_size);
+extern int s_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
+			int memLevel, int strategy,    const char *version, int stream_size);
+extern int s_deflate(z_streamp strm, int flush);
+extern int s_deflateEnd(z_streamp strm);
+extern int s_deflateReset(z_streamp strm);
+extern int s_deflateResetKeep(z_streamp strm);
+extern int s_deflateSetHeader(z_streamp strm, gz_headerp head);
+extern uLong s_deflateBound(z_streamp strm, uLong sourceLen);
+extern int s_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
+extern int s_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+extern int s_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+
+
+extern int s_inflateInit_(z_streamp strm, const char *version, int stream_size);
+extern int s_inflateInit2_(z_streamp strm, int  windowBits, const char *version, int stream_size);
+extern int s_inflateReset(z_streamp strm);
+extern int s_inflateReset2(z_streamp strm, int windowBits);
+extern int s_inflateResetKeep(z_streamp strm);
+extern int s_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
+extern int s_inflate(z_streamp strm, int flush);
+extern int s_inflateEnd(z_streamp strm);
+extern int s_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+extern int s_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);
+extern uLong s_compressBound(uLong sourceLen);
+
+
 
 #endif /* _NX_ZLIB_H */

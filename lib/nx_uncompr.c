@@ -30,11 +30,8 @@ int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sou
         dest = buf;
     }
 
+    memset(&stream, 0, sizeof(stream));
     stream.next_in = (z_const Bytef *)source;
-    stream.avail_in = 0;
-    stream.zalloc = (alloc_func)0;
-    stream.zfree = (free_func)0;
-    stream.opaque = (voidpf)0;
 
     err = nx_inflateInit(&stream);
     if (err != Z_OK) return err;
@@ -74,11 +71,24 @@ int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourc
 }
 
 #ifdef ZLIB_API
-
 int uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
 {
-	return nx_uncompress(dest, destLen, source, sourceLen);
+	int rc=0;
+
+	if(gzip_selector == GZIP_MIX){
+		rc = s_uncompress(dest, destLen, source, sourceLen);
+	}else if(gzip_selector == GZIP_NX){
+		rc = nx_uncompress(dest, destLen, source, sourceLen);
+	}else{
+		rc = s_uncompress(dest, destLen, source, sourceLen);
+	}
+
+	/* statistic*/
+	zlib_stats_inc(&zlib_stats.uncompress);
+
+	return rc;
 }
+
 int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen)
 {
 	return nx_uncompress2(dest, destLen, source, sourceLen);

@@ -589,12 +589,8 @@ unsigned long new_crc32b(unsigned long crc, char *buf, size_t len)
     return crc;
 }
 
-int test_little_endian(void)
-{
-    volatile uint32_t e = 0x01234567;
-    return( *((uint8_t *)&e) == 0x67 );
-}
 
+#define assert_little_endian  do { volatile int endian = 0x01234567; assert( *(char *)&endian == 0x67 ); } while(0)
 
 /* https://en.wikipedia.org/wiki/Cyclic_redundancy_check#CRC-32_algorithm
    It is slow. But we use this only for the gzip header which is
@@ -604,10 +600,10 @@ unsigned long new_crc32c(unsigned long crc, char *buf, size_t len)
 {
     unsigned long byte;
 
-    assert( test_little_endian() != 0 );
+    assert_little_endian;
 
     /* initialize */
-    //crc = crc ^ 0xffffffffu; uncomment these in the final version
+    crc = crc ^ 0xffffffffu;
     while (len-- > 0) {
 	byte = *buf++ & 0xff;
 	crc = byte ^ crc; /* for big endian? */
@@ -618,7 +614,7 @@ unsigned long new_crc32c(unsigned long crc, char *buf, size_t len)
 		crc = crc >> 1;
     }
     /* finalize */
-    //crc ^= 0xffffffffu; uncomment these in the final version
+    crc ^= 0xffffffffu;
     return crc;
 }
 
@@ -673,23 +669,22 @@ uint32_t nx_vec_mat(uint32_t v, uint32_t *mat)
 
 /* Take n-th power of a 32x32 matrix using the exponentiation by
    squaring method.
-   https://en.wikipedia.org/wiki/Exponentiation_by_squaring.
 
-   Basically M^n can be written as (M^2)^(n/2) for even n, and as
-   M*(M^2)^((n-1)/2) for odd n. Recursively applying the equation
-   results in a O(log(n)) step exponentiation algorithm
+   Basically M^n can be written as (M*M)^(n/2) for even n, and as
+   M*(M*M)^((n-1)/2) for odd n. Recursively applying the equation
+   results in a O(log(n)) step matrix exponentiation algorithm
 */
-void nx_mat_power(uint32_t *in, uint32_t *out, long n)
+void nx_mat_power(uint32_t *in, uint32_t *out, uint64_t n)
 {
     assert(n > 0);
     if (n == 1) {
 	nx_mat_copy(in, out);
     }
-    else if ( (n % 2) == 0 ) { /* even */
+    else if ( (n % 2) == 0 ) { /* even power */
 	uint32_t t[32];
 	nx_mat_mul(in, in, t);
 	nx_mat_power(t, out, n / 2 );
-    } else if ( (n % 2) == 1 ) { /* odd */
+    } else if ( (n % 2) == 1 ) { /* odd power */
 	uint32_t t[32];
 	nx_mat_mul(in, in, t);
 	nx_mat_power(t, t, (n - 1) / 2 );
@@ -697,11 +692,11 @@ void nx_mat_power(uint32_t *in, uint32_t *out, long n)
     }
 }
 
-/* a matrix for as-if appending a 0 bit to the data buffer and
-   computing its new crc given the old crc.  the first 31 row vectors
-   are basically a diagonal vector for right shifting the crc by 1
-   bit. the last row vector is the crc32 polynomial which xor the crc
-   if the crc least significant is 1 */
+/* a matrix for computing the new crc of appending a 0 bit to the data
+   buffer given the old crc.  the first 31 row vectors are basically a
+   diagonal permutation vector used for right shifting the old crc by
+   1 bit. the last row vector is the crc32 polynomial xor'ed in to the
+   crc if the crc least significant is 1 */
 uint32_t zero_mat[32] = {
     0x40000000u, 0x20000000u, 0x10000000u, 0x08000000u,
     0x04000000u, 0x02000000u, 0x01000000u, 0x00800000u,
@@ -710,7 +705,7 @@ uint32_t zero_mat[32] = {
     0x00004000u, 0x00002000u, 0x00001000u, 0x00000800u,
     0x00000400u, 0x00000200u, 0x00000100u, 0x00000080u,
     0x00000040u, 0x00000020u, 0x00000010u, 0x00000008u,
-    0x00000004u, 0x00000002u, 0x00000001u,  0xedb88320u,
+    0x00000004u, 0x00000002u, 0x00000001u, 0xedb88320u,
 };
     
 
@@ -891,6 +886,73 @@ unsigned long crc_experiment7()
 }
 
 
+
+uLong ZEXPORT new_crc32_combine_b(unsigned long crc1, unsigned long crc2, uint64_t len2)
+{
+	uint32_t mat[32];
+	uint32_t ff_and_zeros;
+	uint32_t crc1_and_zeros;
+	
+	/* crc32 inits crc with 0xffffffff and then xors the final
+	   value with 0xffffffff; we need to undo the contribs of
+	   these init and last 0xffffffff; Basically, use the crc1 XOR
+	   0xffffffff as the initial value of crc(msg2)
+	   calculation. */
+  
+	/* Remove the 0xffffffff at the message ends */
+	crc1 ^= 0xffffffffu;
+	crc2 ^= 0xffffffffu;  
+
+	/* Remove the 0xffffffff initial value of crc2.  Treat
+	   0xffffffff as a len2 long message with (len2-4) zeros at
+	   the end and compute the checksum. XOR it with crc2 which
+	   removes the contrib of 0xffffffff from crc2.  Then compute
+	   the checksum of crc1 and with (len2-4) zeros at the
+	   end. And XOR that with crc2 which initializes crc2 with
+	   crc1. */
+	
+	nx_mat_init(mat);
+
+	/* matrix representing len2 zeros */
+	nx_mat_power(zero_mat, mat, len2*8);
+
+	/* zeros matrix initialized with 0xffffffff  */
+	ff_and_zeros = nx_vec_mat(0xffffffffu, mat);    
+
+	/* zeros matrix initialized with crc1 */
+	crc1_and_zeros = nx_vec_mat(crc1, mat);
+
+	/* remove 0xffffffff from crc2 (0xffffffff was the initial
+	   value) and initialize the crc computation with crc1 as the
+	   initial value of crc2 */
+	crc2 = crc2 ^ ff_and_zeros;
+	crc2 = crc2 ^ crc1_and_zeros;
+
+	/* Add the final 0xffffffff per crc32 spec */
+	crc2 = crc2 ^ 0xffffffffu;
+
+	return crc2;
+}
+
+void crc_experiment8()
+{
+	uint32_t crc1, crc2, len, c1, c2;
+
+	//for (int i=0; i<100000; i++) {
+	while(1) {
+		crc1 = 0xFFFFFFFFU & lrand48();
+		crc2 = 0xFFFFFFFFU & lrand48();
+		len = lrand48() % 10000U; //lrand48() % 1000000000U;
+		c1 = nx_crc32_combine(crc1, crc2, len);
+		c2 = new_crc32_combine_b(crc1, crc2, len);
+		if ( c1 != c2 )
+			printf("%x %x %x %x %d\n", c1, c2, crc1, crc2, len );
+	}
+}
+
+
+
+
 int main()
 {
   long a,b,len;
@@ -903,19 +965,10 @@ int main()
   //crc_experiment3();
   //crc_experiment4();
   //crc_experiment5();
-  crc_experiment7();      
+  //crc_experiment7();
+  crc_experiment8();        
   return 0;
-  
-  while(1) {
-    a = 0xFFFFFFFFUL & lrand48();
-    b = 0xFFFFFFFFUL & lrand48();
-    len = lrand48() % 100000UL;  //0x7FFFFFFFUL & lrand48();
-    if( nx_crc32_combine(a,b,len) !=  new_crc32_combine(a,b,len) ) {
-      printf("%lx %lx %lx %lx %ld\n", nx_crc32_combine(a,b,len), new_crc32_combine(a,b,len), a, b, len );
-    }
-  }
-  
-  return 0;
+
 }
 
   

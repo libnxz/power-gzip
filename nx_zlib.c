@@ -845,7 +845,7 @@ static void _nx_hwinit(void) __attribute__((constructor));
 static void _nx_hwinit(void)
 {
 	nx_hw_init();
-	nx_open(-1);
+	/* nx_open(-1); */
 }
 
 void nx_hw_done(void)
@@ -862,9 +862,9 @@ void nx_hw_done(void)
 	}
 }
 
-static void _done(void) __attribute__((destructor));
+static void _nx_hwdone(void) __attribute__((destructor));
 
-static void _done(void)
+static void _nx_hwdone(void)
 {
 	if (nx_gzip_gather_statistics()) {
 		print_stats();

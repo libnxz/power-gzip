@@ -47,14 +47,17 @@ gzip_nxfht_test: 	$(FHT_O)
 gzip_nxdht_test: 	$(DHT_O)
 	$(CC) $(CFLAGS) -lm -o gzip_nxdht_test $(DHT_O)
 
-#nxlite_test:	 $(DHT_O)
-#	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -o nxlite_test nxlite.c gzip_vas.o nx_dht.o nx_dht_builtin.o nx_dhtgen.o
-
 gunzip_nx_test: 	$(GUN_O)
 	$(CC) $(CFLAGS) -o gunzip_nx_test $(GUN_O)
 
 zpipe:	../libnxz.a zpipe.c
 	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe zpipe.c ../libnxz.a -lpthread
+
+zpipe_dict:  zpipe_dict.c
+	$(CC) $(CFLAGS) -o zpipe_dict zpipe_dict.c -lz
+
+makedata:  makedata.c
+	$(CC) $(CFLAGS) -o makedata makedata.c
 
 gzm:	../libnxz.a gzm.c
 	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o gzm gzm.c ../libnxz.a -lpthread
@@ -66,4 +69,4 @@ compdecomp_th: compdecomp_th.c  ../libnxz.a
 	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp_th compdecomp_th.c ../libnxz.a -lpthread
 
 clean:
-	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th nxlite_test 
+	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th makedata zpipe_dict

@@ -740,8 +740,9 @@ int nx_deflateEnd(z_streamp strm)
 	nx_close(s->nxdevp);
 
 	nx_free_buffer(s, sizeof(*s), 0);
-	
-	return status == NX_BUSY_STATE ? Z_DATA_ERROR : Z_OK;
+
+	/* FIXME check for correctness */
+	return (status == NX_BUSY_STATE) ? Z_DATA_ERROR : Z_OK;
 }
 
 int nx_deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
@@ -1624,6 +1625,8 @@ int nx_deflate(z_streamp strm, int flush)
 	}
 
 s1:
+	/* FIXME: we never switch to NX_BUSY_STATE from NX_INIT_STATE */
+
 	if (++loop_cnt == loop_max) {
 		prt_err("can not make progress, loop_cnt = %ld\n", loop_cnt);
 		return Z_STREAM_ERROR;
@@ -1843,6 +1846,25 @@ int nx_deflateSetHeader(z_streamp strm, gz_headerp head)
 
 int nx_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength)
 {
+	nx_streamp s;
+
+	if (dictionary == NULL || strm == NULL)
+		return Z_STREAM_ERROR;
+
+	if (NULL == (s = (nx_streamp) strm->state))
+		return Z_STREAM_ERROR;
+
+	if (s->status == NX_BFINAL_STATE || s->status == NX_TRAILER_STATE)
+		return Z_STREAM_ERROR;
+
+	/* raw mode allows a dictionary almost everywhere */
+	if (s->wrap == HEADER_RAW && (s->status != NX_INIT_STATE && s->status != NX_RAW_STATE))
+		return Z_STREAM_ERROR;
+	
+	/* gzip doesn't allow dictionaries; zlib allows only in the header */
+	if (s->wrap == HEADER_GZIP || (s->wrap == HEADER_ZLIB && s->status == NX_INIT_STATE))
+		return Z_STREAM_ERROR;
+
 	/* 
 	   deflateSetDictionary() copies the dictionary to fifo_in
 	   using nx_copy(). Nx computes the dictionary ID:
@@ -1881,6 +1903,8 @@ int nx_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictL
 	   nx_copy. But it may have correctness problems. What if user
 	   changes the dictionary contents unbeknownst to us?
 	*/
+
+	
 	return Z_OK;
 }
 

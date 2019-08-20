@@ -1857,14 +1857,18 @@ int nx_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictL
 	if (s->status == NX_BFINAL_STATE || s->status == NX_TRAILER_STATE)
 		return Z_STREAM_ERROR;
 
-	/* raw mode allows a dictionary almost everywhere */
+	/* raw mode allows a dictionary almost everywhere; when we're past deflateInit
+	   and not done allow dictionary insertion */
 	if (s->wrap == HEADER_RAW && (s->status != NX_INIT_STATE && s->status != NX_RAW_STATE))
 		return Z_STREAM_ERROR;
 	
-	/* gzip doesn't allow dictionaries; zlib allows only in the header */
+	/* gzip doesn't allow dictionaries; zlib allows only in the header; when we're
+	   past deflateInit and not done allow dictionary insertion */
 	if (s->wrap == HEADER_GZIP || (s->wrap == HEADER_ZLIB && s->status == NX_INIT_STATE))
 		return Z_STREAM_ERROR;
 
+	
+	
 	/* 
 	   deflateSetDictionary() copies the dictionary to fifo_in
 	   using nx_copy(). Nx computes the dictionary ID:

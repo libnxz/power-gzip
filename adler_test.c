@@ -77,9 +77,28 @@ unsigned long new_adler32_combine(adler1, adler2, len2)
 #include <assert.h>
 #include <stdlib.h>
 
+
+void adler_experiment1()
+{
+    unsigned long adler1, adler2;
+    uint64_t len;
+    
+    adler1 = 1;
+    adler2 = 0x12345678;
+    len = 500;
+    
+    printf("ad1 %lx ad2 %lx len %ld combine %lx\n", adler1, adler2, len, nx_adler32_combine(adler1, adler2, len));
+
+}
+
+
 int main()
 {
   long a,b,len;
+
+  adler_experiment1();
+  return 0;
+  
 #if 0  
   for(a=1; a<(10*BASE); a++)
     for(b=1; b<(10*BASE); b++)

@@ -942,15 +942,13 @@ void crc_experiment8()
 	while(1) {
 		crc1 = 0xFFFFFFFFU & lrand48();
 		crc2 = 0xFFFFFFFFU & lrand48();
-		len = lrand48() % 10000U; //lrand48() % 1000000000U;
+		len = (lrand48() % 10000U)+1; //lrand48() % 1000000000U;
 		c1 = nx_crc32_combine(crc1, crc2, len);
 		c2 = new_crc32_combine_b(crc1, crc2, len);
 		if ( c1 != c2 )
 			printf("%x %x %x %x %d\n", c1, c2, crc1, crc2, len );
 	}
 }
-
-
 
 
 int main()

@@ -1843,6 +1843,44 @@ int nx_deflateSetHeader(z_streamp strm, gz_headerp head)
 
 int nx_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength)
 {
+	/* 
+	   deflateSetDictionary() copies the dictionary to fifo_in
+	   using nx_copy(). Nx computes the dictionary ID:
+	   cpbout.adler32 is to be inserted in the zlib header.
+	   deflate() then uses fifo_in as the history behind user
+	   data. An alternative to fifo_in might be having a separate
+	   dictionary buffer; then deflate needs to be cognizant of
+	   using fifo_in or dict_buf (this will probably be easier
+	   than messing around with fifo_in)
+
+	   Things to worry about: 
+
+	   If dictLength is larger than 32KB, silently use the last
+	   32KB; beginning of the dictionary will not be used.
+
+	   If dictlength is not a multiple of 16 bytes (see the user
+	   manual history alignment requirements) then I must
+	   manipulate the dde pointers so that we drop 1 to 15 bytes
+	   from the beginning to round down the length to 16 byte
+	   multiple (no correctness problem). 
+
+	   We may append dictionary behind existing fifo_in data which
+	   seems possible in the raw mode according to the
+	   deflateSetDictionary source code. In that case the 16 byte
+	   round down and adler32 requirements are in conflict with
+	   each other.  As a solution I must save the 1-15 bytes at
+	   the fifo_in tail because we may clobber them during nx_copy
+	   (hence adler32 computation).  After overwritten by nx_copy,
+	   put the saved bytes back in to the tail. If we use a
+	   separate dict_buf, we won't need to deal with this.
+
+	   nx_copy and deflate with history results in passing the
+	   dictionary through twice. It's a waste of bandwidth.
+	   Perhaps we can leave the dictionary in the dict_buf and for
+	   the next deflateSetDictionary call we use it as is without
+	   nx_copy. But it may have correctness problems. What if user
+	   changes the dictionary contents unbeknownst to us?
+	*/
 	return Z_OK;
 }
 

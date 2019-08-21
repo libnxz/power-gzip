@@ -211,7 +211,7 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 	if (buf == NULL)
 		return;
 
-	/* retrieve the hidden address which is the actually address to
+	/* retrieve the hidden address which is the actual address to
 	   be freed */
 	h = (nx_alloc_header_t *)((char *)buf - sizeof(nx_alloc_header_t));
 
@@ -739,9 +739,9 @@ void nx_hw_init(void)
 	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
 	nx_config.deflate_fifo_in_len = 1<<17; /* ((1<<20)*2); /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
-	nx_config.retry_max = 50;	
+	nx_config.retry_max = INT_MAX;	
 	nx_config.window_max = (1<<15);
-	nx_config.pgfault_retries = 50;         
+	nx_config.pgfault_retries = INT_MAX;         
 	nx_config.verbose = 0;	
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;

@@ -87,6 +87,7 @@
 #  define DEF_WBITS MAX_WBITS
 #endif
 
+#define NX_MAX_DICT_LEN ((1L<<15)-272)
 
 extern FILE *nx_gzip_log;
 
@@ -206,8 +207,12 @@ typedef struct nx_stream_s {
 
 	int             zlib_cmf;
 	int             zlib_flg;
-	int             havedict;
-	uint32_t        dictid;
+
+	int             have_dict;
+	unsigned int    dict_len;
+	uint32_t        dict_id;
+	char            *dict;
+	
 	
 	int             status;         /* stream status */
 	
@@ -228,7 +233,7 @@ typedef struct nx_stream_s {
 
         int32_t         len_out;
         int32_t         used_out;
-        int32_t         cur_out;        
+        int32_t         cur_out;
 
 	/* locate the BFINAL bit */ 	
 	/* char            *last_block_head;    /* the byte offset */

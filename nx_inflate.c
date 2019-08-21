@@ -116,7 +116,7 @@ int nx_inflateReset(z_streamp strm)
 	s->adler32 = INIT_ADLER;
 	s->ckidx = 0;
 	s->cksum = INIT_CRC;	
-	s->havedict = 0;
+	s->have_dict = 0;
 
 	s->total_time = 0;
 		
@@ -583,7 +583,7 @@ inf_forever:
 		/* FIXME: Need double check and test here */
 		if (c & 1<<5) {
 			s->inf_state = inf_state_zlib_dictid;
-			s->dictid = 0;			
+			s->dict_id = 0;			
 		}
 		else {
 			s->inf_state = inf_state_inflate; /* go to inflate proper */
@@ -596,17 +596,17 @@ inf_forever:
 
 		while( s->inf_held < 4) { 
 			nx_inflate_get_byte(s, c);
-			s->dictid = (s->dictid << 8) | (c & 0xff);
+			s->dict_id = (s->dict_id << 8) | (c & 0xff);
 			++ s->inf_held;
 		}
 
-		strm->adler = s->dictid; /* ask user to supply this dictionary */		
+		strm->adler = s->dict_id; /* ask user to supply this dictionary */		
 		s->inf_state = inf_state_zlib_dict;
 		s->inf_held = 0;
 
 	case inf_state_zlib_dict:				
 
-		if (s->havedict == 0) {
+		if (s->have_dict == 0) {
 			/* RESTORE(); ?? */
 			return Z_NEED_DICT;
 		}

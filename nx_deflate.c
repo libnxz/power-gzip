@@ -107,7 +107,6 @@ static uint32_t nx_max_byte_count_low = (1UL<<30);
 static uint32_t nx_max_byte_count_high = (1UL<<30);
 static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
-static uint32_t nx_compress_threshold = (10*1024);  /* collect as much input */
 static int      nx_pgfault_retries = INT_MAX;         
 
 typedef int retlibnx_t;
@@ -843,6 +842,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	else if (wrap == 2) s->status = NX_GZIP_INIT_ST;	
 	
 	s->fifo_in = NULL;
+	s->len_in = 0;
 
 	s->dict = NULL;
 	s->dict_len = 0;
@@ -946,7 +946,7 @@ static inline void small_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 	s->used_in += copy_bytes;
 }
 
-
+/* unused */
 static int nx_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 {
 	int rc;
@@ -1017,8 +1017,11 @@ static int nx_copy_nxstrm_in_to_fifo_in(nx_streamp s)
    input. The deflate() input data order is history (optional),
    fifo_in (first and last segments if any), and finally the strm
    next_in. Fifo_in contains input buffered during earlier calls.
+   resume_buf contains either the history or the dictionary data.
+   resume_len must be rounded down to 16 byte multiple as required by
+   NX-gzip
 */
-static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, uint32_t history)
+static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, char *resume_buf, uint32_t resume_len)
 {
 	uint32_t avail_in;
 	uint32_t total=0;
@@ -1027,9 +1030,14 @@ static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, uint32_t history)
 	   to prevent CC=13 */
 	
 	avail_in = NX_MIN(s->avail_in, nx_config.strm_def_bufsz);	
+
 	clearp_dde(s->ddl_in);
-	/* TODO add history */
+
+	if (resume_buf != NULL && resume_len != 0)
+		total = nx_append_dde(s->ddl_in, resume_buf, resume_len);
+	
 	total = nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in, s->used_in);
+
 	if (avail_in > 0)
 		total = nx_append_dde(s->ddl_in, s->next_in, avail_in);
 
@@ -1266,7 +1274,8 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	int cc, pgfault_retries;
 	nx_dde_t *ddl_in, *ddl_out;
 	long pgsz;
-	int histbytes;
+	uint32_t resume_len;
+	char *resume_buf;
 	int rc = LIBNX_OK;
 		
 	if (s == NULL)
@@ -1288,9 +1297,18 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	if (s->avail_in == 0 && s->used_in == 0)
 		goto do_no_update; 
 	
-	/* with no history TODO alignment Section 2.8.1 */
-	histbytes = 0;
-	putnn(nxcmdp->cpb, in_histlen, histbytes/sizeof(nx_qw_t));
+	if (s->dict_len > 0) {
+		/* round down to 16 byte multiple */
+		resume_len = (s->dict_len / sizeof(nx_qw_t)) * sizeof(nx_qw_t);
+		resume_buf = s->dict + (s->dict_len - resume_len);
+	}
+	else {
+		/* with no history TODO alignment Section 2.8.1 */
+		resume_len = 0;
+		resume_buf = NULL;
+	}
+	/* Tell NX size of the history (resume) buffer */
+	putnn(nxcmdp->cpb, in_histlen, resume_len/sizeof(nx_qw_t));
 
 	/* TODO init final, function code, CPB, init crc, and other fields */
 
@@ -1298,7 +1316,7 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	pgfault_retries = nx_pgfault_retries; 
 	
 	/* setup ddes */
-	bytes_in = nx_compress_nxstrm_to_ddl_in(s, 0);
+	bytes_in = nx_compress_nxstrm_to_ddl_in(s, resume_buf, resume_len);
 	bytes_out = nx_compress_nxstrm_to_ddl_out(s);
 
 	/* limit the input size; mainly for sampling LZcounts */
@@ -1401,7 +1419,7 @@ restart:
 		/* else just use the compressed data even when
 		   expanding by fall through */
 
-		// s->need_stored_block = bytes_in - histbytes;
+		// s->need_stored_block = bytes_in - resume_len;
 		rc = LIBNX_OK_BIG_TARGET;
 		prt_info("ERR_NX_TPBC_GT_SPBC\n");
 		// FIXME: treat as ERR_NX_OK currently
@@ -1699,23 +1717,26 @@ s2:
 	/*  avail_out > 0 and used_out == 0 */
 	// assert(s->avail_out > 0 && s->used_out == 0);
 
-	if ( ((s->used_in + s->avail_in) > nx_compress_threshold) || /* large input */
+	if ( ((s->used_in + s->avail_in) > nx_config.compress_threshold) || /* large input */
 	     (flush == Z_SYNC_FLUSH)    ||      /* or requesting flush */
 	     (flush == Z_PARTIAL_FLUSH) ||	     
 	     (flush == Z_FULL_FLUSH)    ||
 	     (flush == Z_FINISH)        || 	/* or requesting finish */
-	     (s->level == 0) ) {                /* or raw copy */
-		goto s3; /* compress */
+	     (s->level == 0)) {                  /* or raw copy */
+		     goto s3; /* compress */
 	}
 	else {
-		if (s->fifo_in == NULL) {
-			s->len_in = nx_config.deflate_fifo_in_len;
-			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, s->page_sz, 0)))
-				return Z_MEM_ERROR;
+		if (s->dict_len == 0) {
+			/* if dictionary present do not buffer small input */
+			if (s->fifo_in == NULL) {
+				s->len_in = nx_config.deflate_fifo_in_len;
+				if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, s->page_sz, 0)))
+					return Z_MEM_ERROR;
+			}
+			/* small input and no request made for flush or finish */
+			small_copy_nxstrm_in_to_fifo_in(s);
+			return Z_OK;
 		}
-		/* small input and no request made for flush or finish */
-		small_copy_nxstrm_in_to_fifo_in(s);
-		return Z_OK;
 	}
 
 s3:
@@ -1888,20 +1909,26 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 		   when using any of the flush options Z_BLOCK,
 		   Z_PARTIAL_FLUSH, Z_SYNC_FLUSH, or Z_FULL_FLUSH. */
 
-		if (s->status != NX_DEFLATE_ST && s->status != NX_RAW_INIT_ST)
+		if (s->status != NX_DEFLATE_ST && s->status != NX_RAW_INIT_ST) {
+			prt_err("deflateSetDictionary error: data must be consumed or flushed first\n");
 			return Z_STREAM_ERROR;
+		}
 
 		/* used_out > 0 means some output has not been
 		   delivered to the caller yet; this will happen when
 		   the deflate caller didn't have sufficient
-		   avail_out */
+		   avail_out; zlib spec above also says caller should
+		   have flushed the stream */
 		   
-		if (s->used_out > 0)
+		if (s->used_out > 0 || s->used_in > 0) {
+			prt_err("deflateSetDictionary: data must be consumed or flushed first\n");
 			return Z_STREAM_ERROR;
+		}
 	}
 	
 	else if (s->wrap == HEADER_GZIP) {
 		/* gzip doesn't allow dictionaries; */
+		prt_err("deflateSetDictionary error: gzip format does not allow dictionary\n");		
 		return Z_STREAM_ERROR;
 	}
 
@@ -1911,8 +1938,10 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 		   called immediately after deflateInit, deflateInit2
 		   or deflateReset, and before any call of
 		   deflate." */
-		if (s->status != NX_ZLIB_INIT_ST)
+		if (s->status != NX_ZLIB_INIT_ST) {
+			prt_err("deflateSetDictionary must be called before any deflate()\n");					
 			return Z_STREAM_ERROR;
+		}
 	}
 
 	if (s->dict == NULL) {
@@ -1933,7 +1962,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	
 	cc = nx_copy(s->dict, (char *)dictionary, dictLength, NULL, &adler, s->nxdevp);
 	if (cc != ERR_NX_OK) {
-		prt_err("cannot copy dictionary\n");
+		prt_err("nx_copy dictionary error\n");
 		return Z_STREAM_ERROR;
 	}
 

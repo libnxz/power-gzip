@@ -281,7 +281,6 @@ int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 	uint32_t bytes;
 
 	if (addr == NULL || len == 0) {
-		// clearp_dde(ddl);
 		return 0;
 	}
 
@@ -724,7 +723,6 @@ void nx_hw_init(void)
 	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
 	nx_config.line_sz = 128;
-	nx_config.stored_block_len = (1<<15);
 	nx_config.max_byte_count_low = (1UL<<30);
 	nx_config.max_byte_count_high = (1UL<<30);
 	nx_config.max_byte_count_current = (1UL<<30);

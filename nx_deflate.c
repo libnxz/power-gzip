@@ -75,9 +75,18 @@ do { if ((s)->cur_in > (s)->len_in/2) { \
 } while(0)
 
 
-#define put_byte(s, c) {(s)->fifo_out[(s)->used_out++] = (Bytef)(c);}
-#define put_short_msb(s, b) \
-do { put_byte(s, (Byte)(b >> 8)); put_byte(s, (Byte)(b & 0xff)); } while(0)
+#define put_byte(s, c) {(s)->fifo_out[(s)->used_out++] = (Bytef)((c) & 0xff);}
+#define put_short_msb(s, b) do { \
+	put_byte(s, (Byte)(((b) >> 8) & 0xff));	\
+	put_byte(s, (Byte)(((b) >> 0) & 0xff));	\
+} while(0)
+
+#define put_int_msb(s, b) do {	\
+	put_byte(s, (Byte)(((b) >> 24) & 0xff)); \
+	put_byte(s, (Byte)(((b) >> 16) & 0xff)); \
+	put_byte(s, (Byte)(((b) >>  8) & 0xff)); \
+	put_byte(s, (Byte)(((b) >>  0) & 0xff)); \
+} while(0)
 
 #define NXGZIP_TYPE  9  /* 9 for P9 */
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
@@ -1432,7 +1441,7 @@ static int nx_deflate_add_header(nx_streamp s)
 		s->status == NX_RAW_INIT_ST);
 	
 	if (s->status == NX_ZLIB_INIT_ST) {
-		/* zlib header */
+		/* zlib header RFC1950 */
 		uInt header = (Z_DEFLATED + ((s->windowBits-8)<<4)) << 8;
 		uInt level_flags;
 		
@@ -1442,10 +1451,17 @@ static int nx_deflate_add_header(nx_streamp s)
 		else level_flags = 3;
 
 		header |= (level_flags << 6);
-		// if (s->strstart != 0) header |= PRESET_DICT;
-		header += 31 - (header % 31);
+
+		if (s->dict_len != 0)  /* FDICT present */
+			header |= 0x20;
 		
+		header += 31 - (header % 31);
+
+		/* puts header in fifo_out not the stream */
 		put_short_msb(s, header);
+
+		if (s->dict_len != 0) /* append ID to the header */
+			put_int_msb(s, s->dict_id);
 
 		/* adler contains either crc32 or adler32 in the zlib
 		   z_stream structure */
@@ -1876,8 +1892,10 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 			return Z_STREAM_ERROR;
 
 		/* used_out > 0 means some output has not been
-		   delivered yet, because the deflate caller didn't
-		   have avail_out > 0 before the call */		
+		   delivered to the caller yet; this will happen when
+		   the deflate caller didn't have sufficient
+		   avail_out */
+		   
 		if (s->used_out > 0)
 			return Z_STREAM_ERROR;
 	}
@@ -1906,7 +1924,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	}
 
 	if (dictLength > NX_MAX_DICT_LEN) {
-		/* using the last 32KB as the dictionary */
+		/* using the last part of user as the dictionary */
 		dictionary = (dictionary + dictLength) - NX_MAX_DICT_LEN;
 		dictLength = NX_MAX_DICT_LEN;
 	}
@@ -1919,13 +1937,16 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 		return Z_STREAM_ERROR;
 	}
 
-	s->dict_len = dictLength; /* indicates if dictionary is present */
+	s->dict_len = dictLength; /* non-zero indicates dictionary is present */
 	s->dict_id = adler;
+
+	return Z_OK;
+
 	
 	/* 
 	   deflateSetDictionary() copies the dictionary to s->dict
-	   using nx_copy(). Nx computes the dictionary ID:
-	   cpbout.adler32 is to be inserted in the zlib header.
+	   using nx_copy(). nx_copy also computes the dictionary ID:
+	   adler32 which is to be inserted in the zlib header.
 	   nx_deflate() then needs to insert s->dict in to the
 	   indirect dde list after s->fifo_in data but before next_in
 	   data.  (An alternative to s->dict might be copying
@@ -1934,7 +1955,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	   In the zlib implementation, this is what I see: user data
 	   in next_in is temporarily set aside. dictionary is copied
 	   in to some "window" using fill_window(s). Then next_in data
-	   is put back in to the user pointer.  So it appears that
+	   is put back in to the user pointer.  It appears that
 	   dictionary comes before the user data in next_in. So we
 	   must make the dde_list in this order: fifo_in, dictionary,
 	   next_in.
@@ -1948,15 +1969,16 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 
 	   NX has a requirement: if dictlength is not a multiple of 16
 	   bytes (see the user manual history alignment requirements)
-	   then I must manipulate the dde pointers so that we drop 1
+	   then we must manipulate the dde pointers so that we drop 1
 	   to 15 bytes from the beginning to round down the length to
 	   16 bytes multiple (not a correctness problem; there is no
-	   requirement to use entire dictionary). Accordingly let's
-	   change 262 bytes to 272 bytes to make the length divisible
-	   by 16 bytes.
+	   requirement to use the entire dictionary). Accordingly
+	   let's change 262 bytes to 272 bytes to make the max dict
+	   length divisible by 16 bytes (32K-272)
 
-	   s-dict_len may be not a multiple of 16. Be prepared to
-	   do the rounding when appending s->dict to dde. 
+	   s-dict_len may be not a multiple of 16 if user gives a
+	   dictionary smaller than the max. Be prepared to do the
+	   rounding down when appending s->dict to dde.
 
 	   In the ZLIB format case, what is the initial value of the
 	   adler32 sum before deflate(). Is it going to be 1 or the
@@ -1965,7 +1987,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 
 	   nx_copy and deflate with history results in passing the
 	   dictionary through twice. It's a waste of bandwidth.
-	   Perhaps we can leave the dictionary in the dict_buf and for
+	   Perhaps we can leave the dictionary in s->dict and for
 	   the next deflateSetDictionary call we use it as is without
 	   nx_copy. But it may have correctness problems. What if user
 	   changes the dictionary contents unbeknownst to us?
@@ -1980,8 +2002,6 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	   options Z_BLOCK, Z_PARTIAL_FLUSH, Z_SYNC_FLUSH, or
 	   Z_FULL_FLUSH."
 	*/
-	
-	return Z_OK;
 }
 
 #ifdef ZLIB_API

@@ -210,6 +210,7 @@ typedef struct nx_stream_s {
 
 	int             have_dict;
 	unsigned int    dict_len;
+	unsigned int    dict_alloc_len;  
 	uint32_t        dict_id;
 	char            *dict;
 	

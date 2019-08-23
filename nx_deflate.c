@@ -76,16 +76,16 @@ do { if ((s)->cur_in > (s)->len_in/2) { \
 
 
 #define put_byte(s, c) {(s)->fifo_out[(s)->used_out++] = (Bytef)((c) & 0xff);}
-#define put_short_msb(s, b) do { \
-	put_byte(s, (Byte)(((b) >> 8) & 0xff));	\
-	put_byte(s, (Byte)(((b) >> 0) & 0xff));	\
+#define put_short(s, b) do {					\
+		put_byte((s), (Byte)(((b) >> 8) & 0xff));	\
+		put_byte((s), (Byte)(((b) >> 0) & 0xff));	\
 } while(0)
 
-#define put_int_msb(s, b) do {	\
-	put_byte(s, (Byte)(((b) >> 24) & 0xff)); \
-	put_byte(s, (Byte)(((b) >> 16) & 0xff)); \
-	put_byte(s, (Byte)(((b) >>  8) & 0xff)); \
-	put_byte(s, (Byte)(((b) >>  0) & 0xff)); \
+#define put_int(s, b) do {					\
+		put_byte((s), (Byte)(((b) >> 24) & 0xff));	\
+		put_byte((s), (Byte)(((b) >> 16) & 0xff));	\
+		put_byte((s), (Byte)(((b) >>  8) & 0xff));	\
+		put_byte((s), (Byte)(((b) >>  0) & 0xff));	\
 } while(0)
 
 #define NXGZIP_TYPE  9  /* 9 for P9 */
@@ -709,7 +709,10 @@ static int nx_deflateResetKeep(z_streamp strm)
 	s->adler32 = INIT_ADLER;
 	s->need_stored_block = 0;
 	s->dict_len = 0;
-	
+
+	if (s->wrap == 1)      strm->adler = s->adler32;
+	else if (s->wrap == 2) strm->adler = s->crc32;
+
 	s->invoke_cnt = 0;
 	
 	return Z_OK;
@@ -837,9 +840,10 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->nxdevp     = h;
 	s->gzhead     = NULL;
 
-	if (wrap == 0)      s->status = NX_RAW_INIT_ST;
-	else if (wrap == 1) s->status = NX_ZLIB_INIT_ST;
-	else if (wrap == 2) s->status = NX_GZIP_INIT_ST;	
+	// Delete candidate
+	//if (wrap == 0)      s->status = NX_RAW_INIT_ST;
+	//else if (wrap == 1) s->status = NX_ZLIB_INIT_ST;
+	//else if (wrap == 2) s->status = NX_GZIP_INIT_ST;	
 	
 	s->fifo_in = NULL;
 	s->len_in = 0;
@@ -861,9 +865,10 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->ddl_in = s->dde_in;
 	s->ddl_out = s->dde_out;
 
-	s->crc32 = INIT_CRC;
-	s->adler32 = INIT_ADLER;
-	s->need_stored_block = 0;
+	// Delete candidate
+	//s->crc32 = INIT_CRC;
+	//s->adler32 = INIT_ADLER;
+	//s->need_stored_block = 0;
 
 	strm->state = (void *) s; /* remember the hardware state */
 	rc = nx_deflateReset(strm);
@@ -1301,6 +1306,9 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 		/* round down to 16 byte multiple */
 		resume_len = (s->dict_len / sizeof(nx_qw_t)) * sizeof(nx_qw_t);
 		resume_buf = s->dict + (s->dict_len - resume_len);
+		/* if we use dict once, we don't reuse it until the
+		   next setDictionary */
+		s->dict_len = 0;
 	}
 	else {
 		/* with no history TODO alignment Section 2.8.1 */
@@ -1476,14 +1484,17 @@ static int nx_deflate_add_header(nx_streamp s)
 		header += 31 - (header % 31);
 
 		/* puts header in fifo_out not the stream */
-		put_short_msb(s, header);
+		put_short(s, header);
 
-		if (s->dict_len != 0) /* append ID to the header */
-			put_int_msb(s, s->dict_id);
-
+		if (s->dict_len != 0) { /* append ID to the header */
+			put_short(s, s->dict_id >> 16);
+			put_short(s, s->dict_id & 0xffff);			
+		}
+		
 		/* adler contains either crc32 or adler32 in the zlib
 		   z_stream structure */
-		s->adler = s->adler32;
+		s->zstrm->adler = s->adler32 = INIT_ADLER;		
+		
 		s->status = NX_DEFLATE_ST;
 
 	}
@@ -1568,11 +1579,12 @@ static int nx_deflate_add_header(nx_streamp s)
                                 /* TODO */
                         }
                 }
-		s->adler = s->crc32;
+		s->zstrm->adler = s->crc32;
 		s->status = NX_DEFLATE_ST;
 	}
 	else if (s->status == NX_RAW_INIT_ST) {
-		s->adler = s->adler32; /* let's store adler anyway */
+		/* what is the adler init value for raw mode? */
+		s->zstrm->adler = 0; /* s->adler32; */
 		s->status = NX_DEFLATE_ST;
 	}
 	return Z_OK;
@@ -1593,6 +1605,11 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 		s->adler32 = get32(nxcmdp->cpb, out_adler );
 		s->crc32   = get32(nxcmdp->cpb, out_crc );
 	}
+
+	/* update the caller structure */
+	if (s->wrap == 1)      s->zstrm->adler = s->adler32;
+	else if (s->wrap == 2) s->zstrm->adler = s->crc32;
+	
 	prt_info("nx_compress_update_checksum crc32 %08x adler32 %08x\n", s->crc32, s->adler32);	
 }
 
@@ -1925,13 +1942,11 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 			return Z_STREAM_ERROR;
 		}
 	}
-	
 	else if (s->wrap == HEADER_GZIP) {
 		/* gzip doesn't allow dictionaries; */
 		prt_err("deflateSetDictionary error: gzip format does not allow dictionary\n");		
 		return Z_STREAM_ERROR;
 	}
-
 	else if (s->wrap == HEADER_ZLIB) {
 		/* zlib allows only in the header; from zlib.h: "When
 		   using the zlib format, deflateSetDictionary must be
@@ -1945,29 +1960,53 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	}
 
 	if (s->dict == NULL) {
-		/* one time allocation until deflateEnd */
-		if (NULL == (s->dict = nx_alloc_buffer(NX_MAX_DICT_LEN, s->page_sz, 0)))
+		/* one time allocation until deflateEnd() */
+		s->dict_alloc_len = NX_MAX( NX_MAX_DICT_LEN, dictLength);
+		/* we don't need larger than NX_MAX_DICT_LEN in
+		   principle; however nx_copy needs a target buffer to
+		   be able to compute adler32 */
+		if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
+			s->dict_alloc_len = 0;
 			return Z_MEM_ERROR;
+		}
+		s->dict_len = 0;
+		s->dict_id = 0;
+	}
+	else {
+		if (dictLength > s->dict_alloc_len) { /* resize */
+			nx_free_buffer(s->dict, s->dict_alloc_len, 0);
+			s->dict_alloc_len = NX_MAX( NX_MAX_DICT_LEN, dictLength);
+			if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
+				s->dict_alloc_len = 0;
+				return Z_MEM_ERROR;
+			}
+		}
 		s->dict_len = 0;
 		s->dict_id = 0;
 	}
 
-	if (dictLength > NX_MAX_DICT_LEN) {
-		/* using the last part of user as the dictionary */
-		dictionary = (dictionary + dictLength) - NX_MAX_DICT_LEN;
-		dictLength = NX_MAX_DICT_LEN;
-	}
-
 	adler = INIT_ADLER;
-	
 	cc = nx_copy(s->dict, (char *)dictionary, dictLength, NULL, &adler, s->nxdevp);
 	if (cc != ERR_NX_OK) {
 		prt_err("nx_copy dictionary error\n");
 		return Z_STREAM_ERROR;
 	}
 
-	s->dict_len = dictLength; /* non-zero indicates dictionary is present */
-	s->dict_id = adler;
+	/* Using only the last part of user buffer as the dictionary,
+	   because deflate pointers cannot reach past 32KB */	
+	if (dictLength > NX_MAX_DICT_LEN) {
+		dictionary = (dictionary + dictLength) - NX_MAX_DICT_LEN;
+		dictLength = NX_MAX_DICT_LEN;
+	}
+
+	/* Non-zero dict_len indicates to downstream code that a
+	   dictionary is present; deflate() will insert dict_id in the
+	   zlib format header; raw format doesn't use an ID */	
+	s->dict_len = dictLength;
+	s->dict_id = adler; 
+
+	/* copy dictionary id back to the caller of setDictionary */
+	strm->adler = adler;
 
 	return Z_OK;
 

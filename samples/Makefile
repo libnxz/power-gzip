@@ -54,7 +54,8 @@ zpipe:	../libnxz.a zpipe.c
 	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe zpipe.c ../libnxz.a -lpthread
 
 zpipe_dict:  zpipe_dict.c
-	$(CC) $(CFLAGS) -o zpipe_dict zpipe_dict.c -lz
+	$(CC) $(CFLAGS) -o zpipe_dict_zlib zpipe_dict.c -lz
+	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe_dict_nx zpipe_dict.c ../libnxz.a -lpthread
 
 makedata:  makedata.c
 	$(CC) $(CFLAGS) -o makedata makedata.c
@@ -69,4 +70,4 @@ compdecomp_th: compdecomp_th.c  ../libnxz.a
 	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp_th compdecomp_th.c ../libnxz.a -lpthread
 
 clean:
-	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th makedata zpipe_dict
+	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th makedata zpipe_dict_nx zpipe_dict_zlib

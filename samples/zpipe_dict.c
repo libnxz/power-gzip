@@ -106,7 +106,7 @@ int def(FILE *source, FILE *dest, FILE *dictfp, int level)
 	CHECK_ERR(ret, "deflateSetDictionary");
 	return ret;
     }
-
+    
     fprintf(stderr, "deflate dictId %08lx\n", strm.adler);
     
     DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "deflateSetDictionary") );

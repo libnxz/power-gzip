@@ -1301,21 +1301,23 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	   or go to flushes and final */
 	if (s->avail_in == 0 && s->used_in == 0)
 		goto do_no_update; 
-	
+
+	/* with no history TODO alignment Section 2.8.1 */
+	resume_len = 0;
+	resume_buf = NULL;
+
 	if (s->dict_len > 0) {
+		resume_len = NX_MIN(s->dict_len, NX_MAX_DICT_LEN);
 		/* round down to 16 byte multiple */
-		resume_len = (s->dict_len / sizeof(nx_qw_t)) * sizeof(nx_qw_t);
+		resume_len = (resume_len / sizeof(nx_qw_t)) * sizeof(nx_qw_t);
+		/* use the last ~32KB of the dictionary */
 		resume_buf = s->dict + (s->dict_len - resume_len);
 		/* if we use dict once, we don't reuse it until the
 		   next setDictionary */
 		s->dict_len = 0;
 	}
-	else {
-		/* with no history TODO alignment Section 2.8.1 */
-		resume_len = 0;
-		resume_buf = NULL;
-	}
-	/* Tell NX size of the history (resume) buffer */
+
+	/* Tell NX size of the history (resume) buffer; needs to be 16 byte integral */
 	putnn(nxcmdp->cpb, in_histlen, resume_len/sizeof(nx_qw_t));
 
 	/* TODO init final, function code, CPB, init crc, and other fields */
@@ -1754,6 +1756,7 @@ s2:
 			small_copy_nxstrm_in_to_fifo_in(s);
 			return Z_OK;
 		}
+		goto s3; /* compress */
 	}
 
 s3:
@@ -1792,8 +1795,10 @@ s3:
 
 		goto s1;
 
-	} else if (s->strategy == Z_FIXED) {
-
+	} else if (s->strategy == Z_FIXED ||
+		   ((s->strategy == Z_DEFAULT_STRATEGY) &&
+		    (s->dict_len > 0) && (s->avail_in < NX_DICT_THRESHOLD))) {
+		/* for small input data and with a dictionary Z_FIXED should yield smaller output */
 		print_dbg_info(s, __LINE__);
 
 		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_FHT, nx_config.per_job_len);
@@ -1990,13 +1995,6 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	if (cc != ERR_NX_OK) {
 		prt_err("nx_copy dictionary error\n");
 		return Z_STREAM_ERROR;
-	}
-
-	/* Using only the last part of user buffer as the dictionary,
-	   because deflate pointers cannot reach past 32KB */	
-	if (dictLength > NX_MAX_DICT_LEN) {
-		dictionary = (dictionary + dictLength) - NX_MAX_DICT_LEN;
-		dictLength = NX_MAX_DICT_LEN;
 	}
 
 	/* Non-zero dict_len indicates to downstream code that a

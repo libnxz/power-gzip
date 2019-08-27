@@ -116,7 +116,6 @@ int nx_inflateReset(z_streamp strm)
 	s->adler32 = INIT_ADLER;
 	s->ckidx = 0;
 	s->cksum = INIT_CRC;	
-	s->have_dict = 0;
 
 	s->total_time = 0;
 		
@@ -131,6 +130,9 @@ static int nx_inflateReset2(z_streamp strm, int windowBits)
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
 	if (s == NULL) return Z_STREAM_ERROR;
+
+	/* Note: NX-GZIP does not do windows smaller than 32KB;
+	   silently accept all window sizes */
 	
 	/* extract wrap request from windowBits parameter */
 	if (windowBits < 0) {
@@ -239,6 +241,7 @@ int nx_inflateEnd(z_streamp strm)
 	
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
+	nx_free_buffer(s->dict, s->dict_alloc_len, 0);
 	nx_close(s->nxdevp);
 	
 	if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
@@ -330,7 +333,7 @@ inf_forever:
 				s->gzhead->done = -1;			
 		}
 		else if (s->wrap == HEADER_GZIP) {
-			/* look for a gzip header */			
+			/* look for a gzip header */
 			if (s->gzhead != NULL)
 				s->gzhead->done = 0;
 			s->inf_state = inf_state_gzip_id1;
@@ -339,7 +342,7 @@ inf_forever:
 			/* raw inflate doesn't use checksums but we do
 			 * it anyway since comes for free */
 			s->crc32 = INIT_CRC;
-			s->adler32 = INIT_ADLER;			
+			s->adler32 = INIT_ADLER;
 			s->inf_state = inf_state_inflate; /* go to inflate proper */
 		}
 		break;
@@ -348,7 +351,7 @@ inf_forever:
 
 		nx_inflate_get_byte(s, c);
 		if (c != 0x1f) {
-			strm->msg = (char *)"incorrect gzip header";			
+			strm->msg = (char *)"incorrect gzip header";
 			s->inf_state = inf_state_data_error;
 			break;
 		}
@@ -360,7 +363,7 @@ inf_forever:
 
 		nx_inflate_get_byte(s, c);
 		if (c != 0x8b) {
-			strm->msg = (char *)"incorrect gzip header"; 			
+			strm->msg = (char *)"incorrect gzip header";
 			s->inf_state = inf_state_data_error;
 			break;
 		}
@@ -415,28 +418,28 @@ inf_forever:
 			   fires right away or in the year 2038 if we're still
 			   alive */
 		}
-		s->inf_state = inf_state_gzip_xfl;		
+		s->inf_state = inf_state_gzip_xfl;
 		/* fall thru */
 
-	case inf_state_gzip_xfl:		
+	case inf_state_gzip_xfl:
 
 		nx_inflate_get_byte(s, c);
 		if (s->gzhead != NULL)
 			s->gzhead->xflags = c;
 
-		s->inf_state = inf_state_gzip_os;					
+		s->inf_state = inf_state_gzip_os;
 		/* fall thru */
 		
 	case inf_state_gzip_os:
 
-		nx_inflate_get_byte(s, c);		
+		nx_inflate_get_byte(s, c);
 		if (s->gzhead != NULL)
 			s->gzhead->os = c;
 
 		s->inf_held = 0;
-		s->length = 0;		
+		s->length = 0;
 		s->inf_state = inf_state_gzip_xlen;
-		/* fall thru */		
+		/* fall thru */
 
 	case inf_state_gzip_xlen:
 
@@ -583,7 +586,9 @@ inf_forever:
 		/* FIXME: Need double check and test here */
 		if (c & 1<<5) {
 			s->inf_state = inf_state_zlib_dictid;
-			s->dict_id = 0;			
+			s->dict_id = 0;
+			s->dict_len = 0;
+			fprintf(stderr, "%d, need dictionary\n", __LINE__);
 		}
 		else {
 			s->inf_state = inf_state_inflate; /* go to inflate proper */
@@ -592,22 +597,22 @@ inf_forever:
 		s->inf_held = 0;
 		break;
 
-	case inf_state_zlib_dictid:		
+	case inf_state_zlib_dictid:
 
 		while( s->inf_held < 4) { 
 			nx_inflate_get_byte(s, c);
 			s->dict_id = (s->dict_id << 8) | (c & 0xff);
 			++ s->inf_held;
 		}
-
-		strm->adler = s->dict_id; /* ask user to supply this dictionary */		
+		fprintf(stderr, "%d, dictionary id %x\n", __LINE__, s->dict_id);
+		strm->adler = s->dict_id; /* asking user to supply this dict with dict_id */
 		s->inf_state = inf_state_zlib_dict;
 		s->inf_held = 0;
+		s->dict_len = 0;
 
-	case inf_state_zlib_dict:				
+	case inf_state_zlib_dict:
 
-		if (s->have_dict == 0) {
-			/* RESTORE(); ?? */
+		if (s->dict_len == 0) {
 			return Z_NEED_DICT;
 		}
 		s->adler = s->adler32 = INIT_ADLER;
@@ -631,7 +636,7 @@ inf_forever:
 	case inf_state_buf_error:
 
 		rc = Z_BUF_ERROR;
-		break;		
+		break;
 		
 	default:
 
@@ -644,14 +649,14 @@ inf_return:
 
 	/* copy out to user stream */
 	copy_stream_in(s->zstrm, s);
-	copy_stream_out(s->zstrm, s);	
+	copy_stream_out(s->zstrm, s);
 	
 	/* statistic */
 	if (nx_gzip_gather_statistics()) {
 		pthread_mutex_lock(&zlib_stats_mutex);
 		t2 = get_nxtime_now();
 		zlib_stats.inflate_time += get_nxtime_diff(t1,t2);
-		pthread_mutex_unlock(&zlib_stats_mutex);	
+		pthread_mutex_unlock(&zlib_stats_mutex);
 	}
 	return rc;
 }	
@@ -662,12 +667,12 @@ static inline void nx_inflate_update_checksum(nx_streamp s)
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 
 	s->crc32 = cmdp->cpb.out_crc;
-	s->adler32 = cmdp->cpb.out_adler;	
+	s->adler32 = cmdp->cpb.out_adler;
 
 	if (s->wrap == HEADER_GZIP)
 		s->zstrm->adler = s->adler = s->crc32;
 	else if (s->wrap == HEADER_ZLIB)
-		s->zstrm->adler = s->adler = s->adler32;			
+		s->zstrm->adler = s->adler = s->adler32;
 }
 
 /* 0 is verify only, 1 is copy only, 2 is both copy and verify */
@@ -702,14 +707,14 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 			fifo_in_len_check(s);
 		}
 
-		/* copy any remaining from next_in */		
+		/* copy any remaining from next_in */
 		got = NX_MIN(s->avail_in, need - got);
 		if (got > 0) {
 			memcpy(s->trailer + s->trailer_len, s->next_in, got);
 			s->trailer_len    += got;
 			update_stream_in(s, got);
 		}
-		if (copy == 1) 
+		if (copy == 1)
 			return Z_OK; /* copy only */
 	}
 
@@ -743,7 +748,7 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 			prt_info("computed checksum %08x\n", cmdp->cpb.out_adler);
 			prt_info("stored   checksum %08x\n", cksum);
 
-			nx_inflate_update_checksum(s);			
+			nx_inflate_update_checksum(s);
 
 			if (cksum == cmdp->cpb.out_adler)
 				return Z_STREAM_END;
@@ -788,7 +793,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 		/* returning from avail_out==0 */
 		return nx_inflate_verify_checksum(s, 2); /* copy and verify */
 	}
-	
+
 copy_fifo_out_to_next_out:
 
 	if (++loop_cnt == loop_max) {
@@ -834,12 +839,12 @@ small_next_in:
 		if (s->fifo_in == NULL) {
 			s->len_in = nx_config.soft_copy_threshold * 2;
 			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
-				prt_err("nx_alloc_buffer for inflate fifo_in\n");		
+				prt_err("nx_alloc_buffer for inflate fifo_in\n");
 				return Z_MEM_ERROR;
 			}
 		}
 		/* reset fifo head to reduce unnecessary wrap arounds */
-		s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;	
+		s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;
 		fifo_in_len_check(s);
 		free_space = s->len_in - s->cur_in - s->used_in;
 
@@ -852,7 +857,7 @@ small_next_in:
 		}
 	}
 	print_dbg_info(s, __LINE__);
-	
+
 decomp_state:
 
 	/* NX decompresses input data */
@@ -1052,7 +1057,7 @@ restart_nx:
 			prt_err("history length error cc= %d\n", cc);
 			goto err5;
 		}
-		
+
 	case ERR_NX_TARGET_SPACE:
 		/* Target buffer not large enough; retry smaller input
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
@@ -1099,7 +1104,7 @@ ok_cc3:
 	*/
 	switch (sfbt) { 
 		int dhtlen;
-		
+
 	case 0b0000: /* Deflate final EOB received */
 
 		/* Calculating the checksum start position. */
@@ -1110,7 +1115,7 @@ ok_cc3:
 		/* Resume decompression cases are below. Basically
 		   indicates where NX has suspended and how to resume
 		   the input stream */
-		
+
 	case 0b1000: /* Within a literal block; use rembytecount */
 	case 0b1001: /* Within a literal block; use rembytecount; bfinal=1 */
 
@@ -1127,7 +1132,7 @@ ok_cc3:
 		putnn(cmdp->cpb, in_sfbt, sfbt);
 		putnn(cmdp->cpb, in_rembytecnt, getnn( cmdp->cpb, out_rembytecnt));
 		break;
-		
+
 	case 0b1010: /* Within a FH block; */
 	case 0b1011: /* Within a FH block; bfinal=1 */
 
@@ -1137,24 +1142,24 @@ ok_cc3:
 		cmdp->cpb.in_subc = 0;
 		cmdp->cpb.in_sfbt = 0;		
 		putnn(cmdp->cpb, in_subc, subc % 8);
-		putnn(cmdp->cpb, in_sfbt, sfbt);		
+		putnn(cmdp->cpb, in_sfbt, sfbt);
 		break;
-		
+
 	case 0b1100: /* Within a DH block; */
 	case 0b1101: /* Within a DH block; bfinal=1 */
 
-		source_sz = source_sz - ((subc + 7) / 8);		
+		source_sz = source_sz - ((subc + 7) / 8);
 
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen */
 		cmdp->cpb.in_subc = 0;
 		cmdp->cpb.in_sfbt = 0;				
 		putnn(cmdp->cpb, in_subc, subc % 8);
 		putnn(cmdp->cpb, in_sfbt, sfbt);
-		
+
 		dhtlen = getnn(cmdp->cpb, out_dhtlen);
 		putnn(cmdp->cpb, in_dhtlen, dhtlen);
 		ASSERT(dhtlen >= 42);
-		
+
 		/* Round up to a qword */
 		dhtlen = (dhtlen + 127) / 128;
 
@@ -1167,19 +1172,19 @@ ok_cc3:
 			cmdp->cpb.in_dht[dhtlen] = cmdp->cpb.out_dht[dhtlen];
 		}
 		break;		
-		
+
 	case 0b1110: /* Within a block header; bfinal=0; */
 		     /* Also given if source data exactly ends (SUBC=0) with EOB code */
 		     /* with BFINAL=0. Means the next byte will contain a block header. */
 	case 0b1111: /* within a block header with BFINAL=1. */
 
 		source_sz = source_sz - ((subc + 7) / 8);
-		
+
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen */
 		cmdp->cpb.in_subc = 0;
 		cmdp->cpb.in_sfbt = 0;
 		putnn(cmdp->cpb, in_subc, subc % 8);
-		putnn(cmdp->cpb, in_sfbt, sfbt);		
+		putnn(cmdp->cpb, in_sfbt, sfbt);
 	}
 
 offsets_state:	
@@ -1197,7 +1202,7 @@ offsets_state:
 	}
 
 	nx_inflate_update_checksum(s);
-	
+
 	int overflow_len = tpbc - len_next_out;
 	if (overflow_len <= 0) { /* there is no overflow */
 		assert(s->used_out == 0);
@@ -1238,7 +1243,7 @@ offsets_state:
 			   fifo_out as a result of previous memcpy */
 			memcpy(s->fifo_out + s->cur_out - len_next_out, s->next_out, len_next_out);
 		}
-			
+
 		s->used_out += overflow_len;
 		update_stream_out(s, len_next_out);
 	}
@@ -1273,14 +1278,14 @@ offsets_state:
 			goto copy_fifo_out_to_next_out;
 		}
 	}
-	
+
 	if (s->avail_in > 0 && s->avail_out > 0) {
 		goto copy_fifo_out_to_next_out;
 	}
 
 #if 0
 	/* why target_space_retries? */
-	if (s->used_in > 1 && s->avail_out > 0 && target_space_retries > 0 ) { 
+	if (s->used_in > 1 && s->avail_out > 0 && target_space_retries > 0 ) {
 		goto copy_fifo_out_to_next_out;
 	}
 #endif
@@ -1295,7 +1300,117 @@ err5:
 
 int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLength)
 {
-        return Z_OK;
+	nx_streamp s;
+	uint32_t adler;
+	int cc;
+
+	if (dictionary == NULL || strm == NULL)
+		return Z_STREAM_ERROR;
+
+	if (NULL == (s = (nx_streamp) strm->state))
+		return Z_STREAM_ERROR;
+
+	if (s->wrap == HEADER_GZIP) {
+		/* gzip doesn't allow dictionaries; */
+		prt_err("inflateSetDictionary error: gzip format does not permit dictionary\n");
+		return Z_STREAM_ERROR;
+	}
+
+	if (s->inf_state != inf_state_zlib_dict && s->wrap == HEADER_ZLIB ) {
+		prt_err("inflateSetDictionary error: inflate did not ask for a dictionary\n");
+		return Z_STREAM_ERROR;
+	}
+
+	if (s->dict == NULL) {
+		/* one time allocation until inflateEnd() */
+		s->dict_alloc_len = NX_MAX( NX_MAX_DICT_LEN, dictLength);
+		/* we don't need larger than NX_MAX_DICT_LEN in
+		   principle; however nx_copy needs a target buffer to
+		   be able to compute adler32 */
+		if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
+			s->dict_alloc_len = 0;
+			return Z_MEM_ERROR;
+		}
+	}
+	else {
+		if (dictLength > s->dict_alloc_len) { /* resize */
+			nx_free_buffer(s->dict, s->dict_alloc_len, 0);
+			s->dict_alloc_len = NX_MAX( NX_MAX_DICT_LEN, dictLength);
+			if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
+				s->dict_alloc_len = 0;
+				return Z_MEM_ERROR;
+			}
+		}
+	}
+	s->dict_len = 0;
+
+	/* copy dictionary in and also calculate it's checksum */
+	adler = INIT_ADLER;
+	cc = nx_copy(s->dict, (char *)dictionary, dictLength, NULL, &adler, s->nxdevp);
+	if (cc != ERR_NX_OK) {
+		prt_err("nx_copy dictionary error\n");
+		return Z_STREAM_ERROR;
+	}
+
+	/* Got here due to inflate returning Z_NEED_DICT which should
+	   have saved the dict_id found in the zlib header to
+	   s->dict_id; raw header does carry a dictionary id */
+
+	if (s->dict_id != adler && s->wrap == HEADER_ZLIB) {
+		prt_err("supplied dictionary ID does not match the inflate header\n");
+		return Z_DATA_ERROR;
+	}
+	s->dict_len = dictLength;
+
+	/* TODO
+	   zlib says "window is amended" with the dictionary; it means
+	   that we must truncate the history in fifo_out to the maximum
+	   of 32KB and dictLength; recall the NX rounding requirements */
+
+	return Z_OK;
+
+
+	/*
+	   Notes: if there is historical data in fifo_out, I need to
+	   truncate it by the dictlen amount (see the amend comment)
+
+	   zlib.h: inflate
+
+	   If a preset dictionary is needed after this call (see
+	   inflateSetDictionary below), inflate sets strm->adler to
+	   the Adler-32 checksum of the dictionary chosen by the
+	   compressor and returns Z_NEED_DICT; otherwise it sets
+	   strm->adler to the Adler-32 checksum of all output produced
+	   so far (that is, total_out bytes) and returns Z_OK,
+	   Z_STREAM_END or an error code as described below.  At the
+	   end of the stream, inflate() checks that its computed
+	   Adler-32 checksum is equal to that saved by the compressor
+	   and returns Z_STREAM_END only if the checksum is correct.
+
+	   inflateSetDictionary
+
+	   Initializes the decompression dictionary from the given
+	   uncompressed byte sequence.  This function must be called
+	   immediately after a call of inflate, if that call returned
+	   Z_NEED_DICT.  The dictionary chosen by the compressor can
+	   be determined from the Adler-32 value returned by that call
+	   of inflate.  The compressor and decompressor must use
+	   exactly the same dictionary (see deflateSetDictionary).
+	   For raw inflate, this function can be called at any time to
+	   set the dictionary.  If the provided dictionary is smaller
+	   than the window and there is already data in the window,
+	   then the provided dictionary will amend what's there.  The
+	   application must insure that the dictionary that was used
+	   for compression is provided.
+
+	   inflateSetDictionary returns Z_OK if success,
+	   Z_STREAM_ERROR if a parameter is invalid (e.g.  dictionary
+	   being Z_NULL) or the stream state is inconsistent,
+	   Z_DATA_ERROR if the given dictionary doesn't match the
+	   expected one (incorrect Adler-32 value).
+	   inflateSetDictionary does not perform any decompression:
+	   this will be done by subsequent calls of inflate().
+	*/
 }
 
 #ifdef ZLIB_API

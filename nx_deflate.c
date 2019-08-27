@@ -749,7 +749,7 @@ int nx_deflateEnd(z_streamp strm)
 
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
-	nx_free_buffer(s->dict, NX_MAX_DICT_LEN, 0);
+	nx_free_buffer(s->dict, s->dict_alloc_len, 0);
 
 	nx_close(s->nxdevp);
 

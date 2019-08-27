@@ -1608,6 +1608,17 @@ int nx_deflate(z_streamp strm, int flush)
 		return Z_BUF_ERROR;
 	}
 
+	/* issue 99 */
+	if (s->avail_out > 0 && s->used_out == 0 && s->avail_in == 0 && s->used_in == 0) {
+		if (s->flush == Z_FINISH)
+			return Z_STREAM_END;
+		else if (s->flush == Z_NO_FLUSH)
+			return Z_BUF_ERROR;
+		else if (s->flush == Z_PARTIAL_FLUSH || s->flush == Z_SYNC_FLUSH || s->flush == Z_FULL_FLUSH)
+			return Z_OK;
+	}
+	
+	
 	/* Generate a header */
 	if ((s->status & (NX_ZLIB_STATE | NX_GZIP_STATE | NX_RAW_STATE)) != 0) {
 		prt_info("nx_deflate_add_header s->flush %d s->status %d \n", s->flush, s->status);

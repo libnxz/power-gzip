@@ -588,7 +588,7 @@ inf_forever:
 			s->inf_state = inf_state_zlib_dictid;
 			s->dict_id = 0;
 			s->dict_len = 0;
-			fprintf(stderr, "%d, need dictionary\n", __LINE__);
+			//fprintf(stderr, "%d, need dictionary\n", __LINE__);
 		}
 		else {
 			s->inf_state = inf_state_inflate; /* go to inflate proper */
@@ -604,7 +604,7 @@ inf_forever:
 			s->dict_id = (s->dict_id << 8) | (c & 0xff);
 			++ s->inf_held;
 		}
-		fprintf(stderr, "%d, dictionary id %x\n", __LINE__, s->dict_id);
+		//fprintf(stderr, "%d, dictionary id %x\n", __LINE__, s->dict_id);
 		strm->adler = s->dict_id; /* asking user to supply this dict with dict_id */
 		s->inf_state = inf_state_zlib_dict;
 		s->inf_held = 0;
@@ -763,6 +763,29 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 	return Z_STREAM_END;
 }
 
+#if 0
+/* we need to overlay any dictionary on top of the inflate history */
+static int nx_amend_history_with_dict(nx_streamp s)
+{
+	if (s->history_len <= s->dict_len) {
+		/* dictionary takes over inflate history */
+		hist_len = 0;
+		/* round up per NX-gzip restrictions */
+		dict_len = ((s->dict_len + 15) / 16) * 16;
+		/* we need to append this many bytes to the beginning
+		   of the dictionary otherwise segfault may occur */
+		dict_len_fraction = s->dict_len - dict_len;
+
+	}  
+	else { /* s->history_len > s->dict_len */
+
+		s->history_len = (s->history_len + 15) / 16;
+		s->history_len = s->history_len * 16; /* convert to bytes */
+			
+	return 0;
+}
+#endif
+
 static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
@@ -774,7 +797,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 	
 	/* nx hardware */
 	uint32_t sfbt, subc, spbc, tpbc, nx_ce, fc;
-	//int history_len = 0;
+
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
         nx_dde_t *ddl_in = s->ddl_in;
         nx_dde_t *ddl_out = s->ddl_out;
@@ -879,12 +902,20 @@ decomp_state:
 		cmdp->cpb.in_crc   = cmdp->cpb.out_crc;
 		cmdp->cpb.in_adler = cmdp->cpb.out_adler;
 
+		/* TODO: What guarantees do I have that rounding up
+		   does not segfault?  I may need to add a dummy 16
+		   byte in front of the DDL or rely on nx_alloc_buffer
+		   already padding the beginning of the buffer with
+		   nx_alloc_header_t.  TODO add an assert touching the
+		   calculated address */
+		
 		/* Round up the history size to quadword. Section 2.10 */
 		s->history_len = (s->history_len + 15) / 16;
 		putnn(cmdp->cpb, in_histlen, s->history_len);
 		s->history_len = s->history_len * 16; /* convert to bytes */
 
 		if (s->history_len > 0) {
+			/* deflate history goes in first */
 			assert(s->cur_out >= s->history_len);
 			nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - s->history_len),
 					      s->history_len);
@@ -898,7 +929,7 @@ decomp_state:
 		s->history_len = 0;
 		/* writing a 0 clears out subc as well */
 		cmdp->cpb.in_histlen = 0;
-		s->total_out = 0;
+		//s->total_out = 0; already cleared in inflateReset
 
 		/* initialize the crc values */
 		put32(cmdp->cpb, in_crc, INIT_CRC );
@@ -921,8 +952,10 @@ decomp_state:
 	/*
 	 * NX source buffers
 	 */
-	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in); /* prepend history */
-	nx_append_dde(ddl_in, s->next_in, s->avail_in); /* add user data */
+	/* buffered user input is next */	
+	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
+	/* then current user input */
+	nx_append_dde(ddl_in, s->next_in, s->avail_in); 
 	source_sz = getp32(ddl_in, ddebc); /* total bytes going in to engine */
 	ASSERT( source_sz > s->history_len );
 
@@ -1362,11 +1395,11 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 	}
 	s->dict_len = dictLength;
 
-	/* TODO
-	   zlib says "window is amended" with the dictionary; it means
-	   that we must truncate the history in fifo_out to the maximum
-	   of 32KB and dictLength; recall the NX rounding requirements */
-
+	/* TODO zlib says "window is amended" with the dictionary; it
+	   means that we must truncate the history in fifo_out to the
+	   maximum of 32KB and dictLength; recall the NX rounding
+	   requirements */
+	
 	return Z_OK;
 
 

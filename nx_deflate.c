@@ -97,7 +97,7 @@ do { if ((s)->cur_in > (s)->len_in/2) { \
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
 #define DBGLINE fprintf(stderr, "code at %s:%d\n", __FILE__, __LINE__ )
-#define ASSERT(X) assert(X)
+//#define ASSERT(X) assert(X)
 
 #ifndef __unused
 #  define __unused __attribute__((unused))
@@ -1141,7 +1141,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	   update the input pointers
 	*/
 	/* advance fifo_in head */
-	assert(spbc >= s->used_in);
+	ASSERT(spbc >= s->used_in);
 	spbc = spbc - s->used_in;
 	s->used_in = 0;
 
@@ -1469,7 +1469,7 @@ err_exit:
  */
 static int nx_deflate_add_header(nx_streamp s)
 {
-	assert( s->status == NX_ZLIB_INIT_ST ||
+	ASSERT( s->status == NX_ZLIB_INIT_ST ||
 		s->status == NX_GZIP_INIT_ST ||
 		s->status == NX_RAW_INIT_ST);
 	
@@ -1894,7 +1894,7 @@ s3:
 		goto s1; break;
 	}
 		
-	assert(!"nx_deflate should not get here");
+	ASSERT(!"nx_deflate should not get here");
 	
 	return Z_STREAM_ERROR;
 }

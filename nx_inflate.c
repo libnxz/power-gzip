@@ -764,27 +764,38 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 	return Z_STREAM_END;
 }
 
-#if 0
 /* we need to overlay any dictionary on top of the inflate history
    and calculate lengths rounding up to 16 byte integrals */
-static int nx_amend_history_with_dict(nx_streamp s)
+static int nx_amend_history_with_dict(nx_streamp s, int *hlen, int *dlen )
 {
-	if (s->history_len <= s->dict_len) {
+	int dict_len = NX_MIN(s->dict_len, INF_MAX_DICT_LEN);
+	int hist_len;
+
+	*hlen = *dlen = 0;
+	
+	ASSERT(s->history_len >= 0);
+	
+	if (s->history_len <= dict_len) {
 		/* dictionary takes over inflate history */
 		hist_len = 0;
 		/* round up per NX-gzip history alignment requirements;
-		   no segfaults since nx_alloc_buffer padding */
-		dict_len = ((s->dict_len + NXQWSZ - 1) / NXQWSZ) * NXQWSZ;
+		   no segfaults since nx_alloc_buffer is padded in front */
+		dict_len = ((dict_len + NXQWSZ - 1) / NXQWSZ) * NXQWSZ;
 	}  
-	else { /* s->history_len > s->dict_len */
+	else {
+		/* dictionary overlays history; round up to 16 byte integral */
 		hist_len = ((s->history_len + NXQWSZ - 1) / NXQWSZ) * NXQWSZ;
-		dict_len = s->dict_len;
-		hist_len = hist_len - s->dict_len;
-		
+		hist_len = hist_len - dict_len;
+		/* at this point hist_len + dict_len are 16 byte integral;
+		   we need to add histlen bytes from s->fifo_out to the ddl;
+		   then add dict_len bytes from s->dict to the ddl;
+		   then comes the user data in next_in; */
 	}
+	*hlen = hist_len;
+	*dlen = dict_len;
+	
 	return 0;
 }
-#endif
 
 static int nx_inflate_(nx_streamp s, int flush)
 {
@@ -890,7 +901,7 @@ decomp_state:
 	clearp_dde(ddl_out);	
 	
 	/* FC, CRC, HistLen, Table 6-6 */
-	if (s->resuming) {
+	if (s->resuming || (s->dict_len > 0)) {
 		/* Resuming a partially decompressed input.  The key
 		   to resume is supplying the max 32KB dictionary
 		   (history) to NX, which is basically the last 32KB
@@ -898,25 +909,58 @@ decomp_state:
 		   make sure partial checksums are carried forward
 		*/
 		fc = GZIP_FC_DECOMPRESS_RESUME; 
+
 		/* Crc of prev job passed to the job to be resumed */
-		cmdp->cpb.in_crc   = cmdp->cpb.out_crc;
-		cmdp->cpb.in_adler = cmdp->cpb.out_adler;
-
-		/* Rounding up will not segfault because
-		   nx_alloc_buffer has padding at the beginning */
+		//cmdp->cpb.in_crc   = cmdp->cpb.out_crc;
+		//cmdp->cpb.in_adler = cmdp->cpb.out_adler;
+		cmdp->cpb.in_crc   = s->crc32;
+		cmdp->cpb.in_adler = s->adler32;
 		
-		/* Round up the history size to quadword. Section 2.10 */
-		s->history_len = (s->history_len + NXQWSZ - 1) / NXQWSZ;
-		putnn(cmdp->cpb, in_histlen, s->history_len);
-		s->history_len = s->history_len * NXQWSZ; /* convert to bytes */
+		/* Round up the sizes to quadword. Section 2.10
+		   Rounding up will not segfault because
+		   nx_alloc_buffer has padding at the beginning */
 
-		if (s->history_len > 0) {
-			/* deflate history goes in first */
-			assert(s->cur_out >= s->history_len);
-			nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - s->history_len),
-					      s->history_len);
+		if (s->dict_len > 0) {
+			int hlen, dlen;
+
+			nx_amend_history_with_dict(s, &hlen, &dlen );
+
+			/* sum is integral of 16 */
+			putnn(cmdp->cpb, in_histlen, ((hlen + dlen) / NXQWSZ));
+			ASSERT(!!s->dict && !!s->fifo_out);
+
+			if (dlen > 0)
+				nx_append_dde(ddl_in, s->dict, dlen);
+
+			if (hlen > 0)
+				nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - s->history_len), hlen);
+
+			if (s->wrap == HEADER_ZLIB) {
+				/* in the raw mode pass crc as is; in the zlib mode
+				   initialize them */
+				put32(cmdp->cpb, in_crc, INIT_CRC );
+				put32(cmdp->cpb, in_adler, INIT_ADLER);
+				put32(cmdp->cpb, out_crc, INIT_CRC );
+				put32(cmdp->cpb, out_adler, INIT_ADLER);
+			}
+			/* raw mode will set this again for the next dictionary */
+			s->dict_len = 0;
+			
+			print_dbg_info(s, __LINE__);				
 		}
-		print_dbg_info(s, __LINE__);
+		else {
+			s->history_len = (s->history_len + NXQWSZ - 1) / NXQWSZ;
+			putnn(cmdp->cpb, in_histlen, s->history_len);
+			s->history_len = s->history_len * NXQWSZ; /* convert to bytes */
+			
+			if (s->history_len > 0) {
+				/* deflate history goes in first */
+				ASSERT(s->cur_out >= s->history_len);
+				nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - s->history_len),
+					      s->history_len);
+			}
+			print_dbg_info(s, __LINE__);
+		}
 	}
 	else {
 		/* First decompress job */
@@ -941,6 +985,7 @@ decomp_state:
 		   must retry with smaller input size. 1000 is 100%  */
 		s->last_comp_ratio = 1000UL;
 	}
+
 	/* clear then copy fc to the crb */
 	cmdp->crb.gzip_fc = 0; 
 	putnn(cmdp->crb, gzip_fc, fc);
@@ -1381,9 +1426,9 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 		return Z_STREAM_ERROR;
 	}
 
-	/* Got here due to inflate returning Z_NEED_DICT which should
+	/* Got here due to inflate() returning Z_NEED_DICT which should
 	   have saved the dict_id found in the zlib header to
-	   s->dict_id; raw header does carry a dictionary id */
+	   s->dict_id; raw blocks do not have a dictionary id */
 
 	if (s->dict_id != adler && s->wrap == HEADER_ZLIB) {
 		prt_err("supplied dictionary ID does not match the inflate header\n");

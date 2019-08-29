@@ -87,9 +87,7 @@
 #  define DEF_WBITS MAX_WBITS
 #endif
 
-/* setDictionary constants */
-#define NX_MAX_DICT_LEN   ((1L<<15)-272)
-#define NX_DICT_THRESHOLD (1<<8)
+#define NXQWSZ  (sizeof(nx_qw_t))
 
 extern FILE *nx_gzip_log;
 

@@ -59,6 +59,7 @@
 #include "nx_dbg.h"
 
 #define INF_HIS_LEN (1<<15) /* Fixed 32K history length */
+#define INF_MAX_DICT_LEN  INF_HIS_LEN
 
 /* move the overflow from the current fifo head-32KB to the fifo_out
    buffer beginning. Fifo_out starts with 32KB history then */
@@ -764,24 +765,23 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 }
 
 #if 0
-/* we need to overlay any dictionary on top of the inflate history */
+/* we need to overlay any dictionary on top of the inflate history
+   and calculate lengths rounding up to 16 byte integrals */
 static int nx_amend_history_with_dict(nx_streamp s)
 {
 	if (s->history_len <= s->dict_len) {
 		/* dictionary takes over inflate history */
 		hist_len = 0;
-		/* round up per NX-gzip restrictions */
-		dict_len = ((s->dict_len + 15) / 16) * 16;
-		/* we need to append this many bytes to the beginning
-		   of the dictionary otherwise segfault may occur */
-		dict_len_fraction = s->dict_len - dict_len;
-
+		/* round up per NX-gzip history alignment requirements;
+		   no segfaults since nx_alloc_buffer padding */
+		dict_len = ((s->dict_len + NXQWSZ - 1) / NXQWSZ) * NXQWSZ;
 	}  
 	else { /* s->history_len > s->dict_len */
-
-		s->history_len = (s->history_len + 15) / 16;
-		s->history_len = s->history_len * 16; /* convert to bytes */
-			
+		hist_len = ((s->history_len + NXQWSZ - 1) / NXQWSZ) * NXQWSZ;
+		dict_len = s->dict_len;
+		hist_len = hist_len - s->dict_len;
+		
+	}
 	return 0;
 }
 #endif
@@ -902,17 +902,13 @@ decomp_state:
 		cmdp->cpb.in_crc   = cmdp->cpb.out_crc;
 		cmdp->cpb.in_adler = cmdp->cpb.out_adler;
 
-		/* TODO: What guarantees do I have that rounding up
-		   does not segfault?  I may need to add a dummy 16
-		   byte in front of the DDL or rely on nx_alloc_buffer
-		   already padding the beginning of the buffer with
-		   nx_alloc_header_t.  TODO add an assert touching the
-		   calculated address */
+		/* Rounding up will not segfault because
+		   nx_alloc_buffer has padding at the beginning */
 		
 		/* Round up the history size to quadword. Section 2.10 */
-		s->history_len = (s->history_len + 15) / 16;
+		s->history_len = (s->history_len + NXQWSZ - 1) / NXQWSZ;
 		putnn(cmdp->cpb, in_histlen, s->history_len);
-		s->history_len = s->history_len * 16; /* convert to bytes */
+		s->history_len = s->history_len * NXQWSZ; /* convert to bytes */
 
 		if (s->history_len > 0) {
 			/* deflate history goes in first */
@@ -1356,8 +1352,8 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 
 	if (s->dict == NULL) {
 		/* one time allocation until inflateEnd() */
-		s->dict_alloc_len = NX_MAX( NX_MAX_DICT_LEN, dictLength);
-		/* we don't need larger than NX_MAX_DICT_LEN in
+		s->dict_alloc_len = NX_MAX( INF_MAX_DICT_LEN, dictLength);
+		/* we don't need larger than INF_MAX_DICT_LEN in
 		   principle; however nx_copy needs a target buffer to
 		   be able to compute adler32 */
 		if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
@@ -1368,7 +1364,7 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 	else {
 		if (dictLength > s->dict_alloc_len) { /* resize */
 			nx_free_buffer(s->dict, s->dict_alloc_len, 0);
-			s->dict_alloc_len = NX_MAX( NX_MAX_DICT_LEN, dictLength);
+			s->dict_alloc_len = NX_MAX( INF_MAX_DICT_LEN, dictLength);
 			if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
 				s->dict_alloc_len = 0;
 				return Z_MEM_ERROR;

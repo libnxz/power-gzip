@@ -152,7 +152,7 @@ int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 
 #define ROUND_UP(X,ALIGN) ((typeof(X)) ((((uint64_t)(X)+((uint64_t)(ALIGN)-1))/((uint64_t)(ALIGN)))*((uint64_t)(ALIGN))))
 #define NX_MEM_ALLOC_CORRUPTED 0x1109ce98cedd7badUL
-typedef struct nx_alloc_header_t { uint64_t signature; void *allocated_addr; } nx_alloc_header_t; 
+typedef struct nx_alloc_header_t { union { uint64_t signature; nx_qw_t padding;}; void *allocated_addr; } nx_alloc_header_t; 
 
 /* allocate internal buffers and try mlock but ignore failed mlocks */
 void *nx_alloc_buffer(uint32_t len, long alignment, int lock)

@@ -62,7 +62,12 @@
 #define DEF_MEM_LEVEL 8
 #define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), ZLIB_VERSION, (int)sizeof(z_stream))
 
-#define DEF_HIS_LEN (1<<15)
+#define DEF_HIST_LEN (1<<15)
+
+/* deflateSetDictionary constants */
+#define DEF_MAX_DICT_LEN   ((1L<<15)-272)
+#define DEF_DICT_THRESHOLD (1<<8) /* TODO make this config variable */
+
 #define fifo_out_len_check(s) \
 do { if ((s)->cur_out > (s)->len_out/2) { \
         memmove((s)->fifo_out, (s)->fifo_out + (s)->cur_out, (s)->used_out); \
@@ -1307,7 +1312,7 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	resume_buf = NULL;
 
 	if (s->dict_len > 0) {
-		resume_len = NX_MIN(s->dict_len, NX_MAX_DICT_LEN);
+		resume_len = NX_MIN(s->dict_len, DEF_MAX_DICT_LEN);
 		/* round down to 16 byte multiple */
 		resume_len = (resume_len / sizeof(nx_qw_t)) * sizeof(nx_qw_t);
 		/* use the last ~32KB of the dictionary */
@@ -1807,7 +1812,7 @@ s3:
 
 	} else if (s->strategy == Z_FIXED ||
 		   ((s->strategy == Z_DEFAULT_STRATEGY) &&
-		    (s->dict_len > 0) && (s->avail_in < NX_DICT_THRESHOLD))) {
+		    (s->dict_len > 0) && (s->avail_in < DEF_DICT_THRESHOLD))) {
 		/* for small input data and with a dictionary Z_FIXED should yield smaller output */
 		print_dbg_info(s, __LINE__);
 
@@ -1976,8 +1981,8 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 
 	if (s->dict == NULL) {
 		/* one time allocation until deflateEnd() */
-		s->dict_alloc_len = NX_MAX( NX_MAX_DICT_LEN, dictLength);
-		/* we don't need larger than NX_MAX_DICT_LEN in
+		s->dict_alloc_len = NX_MAX( DEF_MAX_DICT_LEN, dictLength);
+		/* we don't need larger than DEF_MAX_DICT_LEN in
 		   principle; however nx_copy needs a target buffer to
 		   be able to compute adler32 */
 		if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
@@ -1990,7 +1995,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	else {
 		if (dictLength > s->dict_alloc_len) { /* resize */
 			nx_free_buffer(s->dict, s->dict_alloc_len, 0);
-			s->dict_alloc_len = NX_MAX( NX_MAX_DICT_LEN, dictLength);
+			s->dict_alloc_len = NX_MAX( DEF_MAX_DICT_LEN, dictLength);
 			if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
 				s->dict_alloc_len = 0;
 				return Z_MEM_ERROR;

@@ -4,7 +4,12 @@
 #include <string.h>
 
 /* change this to the output file size you desire */
-#define OUTFILESZ (1<<20)
+#ifndef LOGFILESZ
+#define LOGFILESZ 20
+#endif
+#ifndef OUTFILESZ
+#define OUTFILESZ (1<<LOGFILESZ)
+#endif
 
 int main(int argc, char **argv)
 {
@@ -35,11 +40,12 @@ int main(int argc, char **argv)
 	srand48(seed);
 
 	size_t len_max = lrand48() % 240;
-
+	size_t dist_max = lrand48() % (1<<18);
+	  
 	while(idx < bufsz) {
 
 		/* pick random point in the buffer and copy */
-		size_t dist = lrand48() % idx;
+		size_t dist = lrand48() % ( (idx > dist_max) ? dist_max: idx );
 		size_t len = (lrand48() % len_max) + 16;
 
 		if (dist > idx) 

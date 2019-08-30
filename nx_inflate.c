@@ -101,7 +101,7 @@ int nx_inflateReset(z_streamp strm)
 		s->adler = s->wrap & 1;
 
 	s->total_in = s->total_out = 0;
-	
+
 	s->used_in = s->used_out = 0;
 	s->cur_in = 0;
 	s->cur_out = INF_HIS_LEN; /* keep a 32k gap here */
@@ -116,10 +116,10 @@ int nx_inflateReset(z_streamp strm)
 	s->crc32 = INIT_CRC;
 	s->adler32 = INIT_ADLER;
 	s->ckidx = 0;
-	s->cksum = INIT_CRC;	
+	s->cksum = INIT_CRC;
 
 	s->total_time = 0;
-		
+
 	return nx_inflateResetKeep(strm);
 }
 
@@ -134,7 +134,7 @@ static int nx_inflateReset2(z_streamp strm, int windowBits)
 
 	/* Note: NX-GZIP does not do windows smaller than 32KB;
 	   silently accept all window sizes */
-	
+
 	/* extract wrap request from windowBits parameter */
 	if (windowBits < 0) {
 		wrap = HEADER_RAW;
@@ -168,7 +168,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 		return Z_VERSION_ERROR;
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
-	
+
 	/* statistic */
 	zlib_stats_inc(&zlib_stats.inflateInit);
 
@@ -198,7 +198,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 
 	/* overflow buffer */
 	s->fifo_out = NULL;
-	
+
 	strm->state = (void *) s;
 
 	ret = nx_inflateReset2(strm, windowBits);
@@ -209,7 +209,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 
 	return ret;
 
-reset_err:	
+reset_err:
 alloc_err:
 	if (s->gzhead)
 		nx_free_buffer(s->gzhead, 0, 0);
@@ -226,7 +226,7 @@ int nx_inflateInit_(z_streamp strm, const char *version, int stream_size)
 
 int nx_inflateEnd(z_streamp strm)
 {
-	nx_streamp s;	
+	nx_streamp s;
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
@@ -239,12 +239,12 @@ int nx_inflateEnd(z_streamp strm)
 	   prematurely (when some input or output was discarded). */
 
 	nx_inflateReset(strm);
-	
+
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
 	nx_free_buffer(s->dict, s->dict_alloc_len, 0);
 	nx_close(s->nxdevp);
-	
+
 	if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
 
 	nx_free_buffer(s, sizeof(*s), 0);
@@ -257,7 +257,7 @@ int nx_inflate(z_streamp strm, int flush)
 	int rc = Z_OK;
 	nx_streamp s;
 	unsigned int avail_in_slot, avail_out_slot;
-	uint64_t t1, t2;	
+	uint64_t t1, t2;
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
@@ -281,7 +281,7 @@ int nx_inflate(z_streamp strm, int flush)
 		}
 	}
 
-	/* statistic */ 
+	/* statistic */
 	if (nx_gzip_gather_statistics()) {
 		pthread_mutex_lock(&zlib_stats_mutex);
 		avail_in_slot = strm->avail_in / 4096;
@@ -302,13 +302,13 @@ int nx_inflate(z_streamp strm, int flush)
 
 	/* copy in from user stream to internal structures */
 	copy_stream_in(s, s->zstrm);
-	copy_stream_out(s, s->zstrm);	
+	copy_stream_out(s, s->zstrm);
 
 inf_forever:
 	/* inflate state machine */
 
 	prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
-	
+
 	switch (s->inf_state) {
 		unsigned int c, copy;
 
@@ -320,8 +320,8 @@ inf_forever:
 			if (c == 0x1f) /* looks like gzip */
 				s->inf_state = inf_state_gzip_id2;
 			/* looks like zlib */
-			else if (((c & 0xf0) == 0x80) && ((c & 0x0f) < 8)) 
-				s->inf_state = inf_state_zlib_flg; 
+			else if (((c & 0xf0) == 0x80) && ((c & 0x0f) < 8))
+				s->inf_state = inf_state_zlib_flg;
 			else {
 				strm->msg = (char *)"incorrect header";
 				s->inf_state = inf_state_data_error;
@@ -331,7 +331,7 @@ inf_forever:
 			/* look for a zlib header */
 			s->inf_state = inf_state_zlib_id1;
 			if (s->gzhead != NULL)
-				s->gzhead->done = -1;			
+				s->gzhead->done = -1;
 		}
 		else if (s->wrap == HEADER_GZIP) {
 			/* look for a gzip header */
@@ -347,7 +347,7 @@ inf_forever:
 			s->inf_state = inf_state_inflate; /* go to inflate proper */
 		}
 		break;
-		
+
 	case inf_state_gzip_id1:
 
 		nx_inflate_get_byte(s, c);
@@ -359,7 +359,7 @@ inf_forever:
 
 		s->inf_state = inf_state_gzip_id2;
 		/* fall thru */
-		
+
 	case inf_state_gzip_id2:
 
 		nx_inflate_get_byte(s, c);
@@ -382,10 +382,10 @@ inf_forever:
 		}
 
 		s->inf_state = inf_state_gzip_flg;
-		/* fall thru */		
-		
+		/* fall thru */
+
 	case inf_state_gzip_flg:
-		
+
 		nx_inflate_get_byte(s, c);
 		s->gzflags = c;
 
@@ -398,7 +398,7 @@ inf_forever:
 		if (s->gzhead != NULL) {
 			/* FLG field of the file says this is compressed text */
 			s->gzhead->text = (int) (s->gzflags & 1);
-			s->gzhead->time = 0;			
+			s->gzhead->time = 0;
 		}
 
 		s->inf_held = 0;
@@ -430,7 +430,7 @@ inf_forever:
 
 		s->inf_state = inf_state_gzip_os;
 		/* fall thru */
-		
+
 	case inf_state_gzip_os:
 
 		nx_inflate_get_byte(s, c);
@@ -452,7 +452,7 @@ inf_forever:
 			}
 
 			s->length = le32toh(s->length);
-			if (s->gzhead != NULL) 
+			if (s->gzhead != NULL)
 				s->gzhead->extra_len = s->length;
 		}
 		else if (s->gzhead != NULL)
@@ -482,7 +482,7 @@ inf_forever:
 		s->length = 0;
 		s->inf_state = inf_state_gzip_name;
 		/* fall thru */
-		
+
 	case inf_state_gzip_name:
 
 		if (s->gzflags & 0x08) { /* fname was set */
@@ -527,7 +527,7 @@ inf_forever:
 		s->inf_held = 0;
 		s->inf_state = inf_state_gzip_hcrc;
 		/* fall thru */
-			
+
 	case inf_state_gzip_hcrc:
 
 		if (s->gzflags & 0x02) { /* fhcrc was set */
@@ -551,13 +551,13 @@ inf_forever:
 		}
 		else if (s->gzhead != NULL)
 			s->gzhead->hcrc = 0;
-		
+
 		s->inf_held = 0;
 		s->adler = s->crc32 = INIT_CRC;
 		s->inf_state = inf_state_inflate; /* go to inflate proper */
-		
+
 		break;
-		
+
 	case inf_state_zlib_id1:
 
 		nx_inflate_get_byte(s, c);
@@ -589,23 +589,22 @@ inf_forever:
 			s->inf_state = inf_state_zlib_dictid;
 			s->dict_id = 0;
 			s->dict_len = 0;
-			//fprintf(stderr, "%d, need dictionary\n", __LINE__);
 		}
 		else {
 			s->inf_state = inf_state_inflate; /* go to inflate proper */
 			s->adler = s->adler32 = INIT_ADLER;
-		} 
+		}
 		s->inf_held = 0;
 		break;
 
 	case inf_state_zlib_dictid:
 
-		while( s->inf_held < 4) { 
+		while (s->inf_held < 4) {
 			nx_inflate_get_byte(s, c);
 			s->dict_id = (s->dict_id << 8) | (c & 0xff);
 			++ s->inf_held;
 		}
-		//fprintf(stderr, "%d, dictionary id %x\n", __LINE__, s->dict_id);
+		prt_info("need dictionary %x\n", s->dict_id);
 		strm->adler = s->dict_id; /* asking user to supply this dict with dict_id */
 		s->inf_state = inf_state_zlib_dict;
 		s->inf_held = 0;
@@ -628,7 +627,7 @@ inf_forever:
 
 		rc = Z_DATA_ERROR;
 		goto inf_return;
-		
+
 	case inf_state_mem_error:
 
 		rc = Z_MEM_ERROR;
@@ -638,20 +637,20 @@ inf_forever:
 
 		rc = Z_BUF_ERROR;
 		break;
-		
+
 	default:
 
 		rc = Z_STREAM_ERROR;
 		break;
 	}
 	goto inf_forever;
-	
+
 inf_return:
 
 	/* copy out to user stream */
 	copy_stream_in(s->zstrm, s);
 	copy_stream_out(s->zstrm, s);
-	
+
 	/* statistic */
 	if (nx_gzip_gather_statistics()) {
 		pthread_mutex_lock(&zlib_stats_mutex);
@@ -660,15 +659,15 @@ inf_return:
 		pthread_mutex_unlock(&zlib_stats_mutex);
 	}
 	return rc;
-}	
+}
 
 
 static inline void nx_inflate_update_checksum(nx_streamp s)
 {
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 
-	s->crc32 = cmdp->cpb.out_crc;
-	s->adler32 = cmdp->cpb.out_adler;
+	s->crc32 = get32(cmdp->cpb, out_crc);
+	s->adler32 = get32(cmdp->cpb, out_adler);
 
 	if (s->wrap == HEADER_GZIP)
 		s->zstrm->adler = s->adler = s->crc32;
@@ -720,7 +719,7 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 	}
 
 	tail = s->trailer;
-	
+
 	if (s->wrap == HEADER_GZIP) {
 		if (s->trailer_len == 8) {
 			/* crc32 and isize are present; compare checksums */
@@ -731,7 +730,7 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 			prt_info("stored   checksum %08x isize %08x\n", cksum, isize);
 
 			nx_inflate_update_checksum(s);
-			
+
 			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(s->total_out % (1ULL<<32)) )
 				return Z_STREAM_END;
 			else {
@@ -772,16 +771,16 @@ static int nx_amend_history_with_dict(nx_streamp s, int *hlen, int *dlen )
 	int hist_len;
 
 	*hlen = *dlen = 0;
-	
+
 	ASSERT(s->history_len >= 0);
-	
+
 	if (s->history_len <= dict_len) {
 		/* dictionary takes over inflate history */
 		hist_len = 0;
 		/* round up per NX-gzip history alignment requirements;
 		   no segfaults since nx_alloc_buffer is padded in front */
 		dict_len = ((dict_len + NXQWSZ - 1) / NXQWSZ) * NXQWSZ;
-	}  
+	}
 	else {
 		/* dictionary overlays history; round up to 16 byte integral */
 		hist_len = ((s->history_len + NXQWSZ - 1) / NXQWSZ) * NXQWSZ;
@@ -793,7 +792,7 @@ static int nx_amend_history_with_dict(nx_streamp s, int *hlen, int *dlen )
 	}
 	*hlen = hist_len;
 	*dlen = dict_len;
-	
+
 	return 0;
 }
 
@@ -805,15 +804,16 @@ static int nx_inflate_(nx_streamp s, int flush)
 
 	/* inflate benefits from large jobs; memcopies must be amortized */
 	uint32_t inflate_per_job_len = 64 * nx_config.per_job_len;
-	
+
 	/* nx hardware */
 	uint32_t sfbt, subc, spbc, tpbc, nx_ce, fc;
 
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
-        nx_dde_t *ddl_in = s->ddl_in;
-        nx_dde_t *ddl_out = s->ddl_out;
+	nx_dde_t *ddl_in = s->ddl_in;
+	nx_dde_t *ddl_out = s->ddl_out;
 	int pgfault_retries, target_space_retries;
 	int cc, rc;
+	int nx_history_len; /* includes dictionary and history going in to nx-gzip */
 
 	print_dbg_info(s, __LINE__);
 
@@ -895,11 +895,13 @@ small_next_in:
 decomp_state:
 
 	/* NX decompresses input data */
-	
+
 	/* address/len lists */
 	clearp_dde(ddl_in);
-	clearp_dde(ddl_out);	
-	
+	clearp_dde(ddl_out);
+
+	nx_history_len = s->history_len;
+
 	/* FC, CRC, HistLen, Table 6-6 */
 	if (s->resuming || (s->dict_len > 0)) {
 		/* Resuming a partially decompressed input.  The key
@@ -908,14 +910,12 @@ decomp_state:
 		   or less of the output earlier produced. And also
 		   make sure partial checksums are carried forward
 		*/
-		fc = GZIP_FC_DECOMPRESS_RESUME; 
+		fc = GZIP_FC_DECOMPRESS_RESUME;
 
 		/* Crc of prev job passed to the job to be resumed */
-		//cmdp->cpb.in_crc   = cmdp->cpb.out_crc;
-		//cmdp->cpb.in_adler = cmdp->cpb.out_adler;
-		cmdp->cpb.in_crc   = s->crc32;
-		cmdp->cpb.in_adler = s->adler32;
-		
+		put32(cmdp->cpb, in_crc, s->crc32);
+		put32(cmdp->cpb, in_adler, s->adler32);
+
 		/* Round up the sizes to quadword. Section 2.10
 		   Rounding up will not segfault because
 		   nx_alloc_buffer has padding at the beginning */
@@ -923,17 +923,24 @@ decomp_state:
 		if (s->dict_len > 0) {
 			int hlen, dlen;
 
+			/* lays dict on top of hist */
 			nx_amend_history_with_dict(s, &hlen, &dlen );
 
 			/* sum is integral of 16 */
-			putnn(cmdp->cpb, in_histlen, ((hlen + dlen) / NXQWSZ));
+			nx_history_len = hlen + dlen;
+			ASSERT( (nx_history_len % 16) == 0 );
+
+			cmdp->cpb.in_histlen = 0;
+			putnn(cmdp->cpb, in_histlen, nx_history_len / NXQWSZ);
 			ASSERT(!!s->dict && !!s->fifo_out);
 
-			if (dlen > 0)
-				nx_append_dde(ddl_in, s->dict, dlen);
-
+			/* add hlen bytes from the beginning of the history */
 			if (hlen > 0)
 				nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - s->history_len), hlen);
+
+			/* add dlen bytes from the dictionary */
+			if (dlen > 0)
+				nx_append_dde(ddl_in, s->dict, dlen);
 
 			if (s->wrap == HEADER_ZLIB) {
 				/* in the raw mode pass crc as is; in the zlib mode
@@ -943,33 +950,33 @@ decomp_state:
 				put32(cmdp->cpb, out_crc, INIT_CRC );
 				put32(cmdp->cpb, out_adler, INIT_ADLER);
 			}
-			/* raw mode will set this again for the next dictionary */
-			s->dict_len = 0;
-			
-			print_dbg_info(s, __LINE__);				
+
+			s->last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 100L );
+
+			print_dbg_info(s, __LINE__);
 		}
 		else {
-			s->history_len = (s->history_len + NXQWSZ - 1) / NXQWSZ;
-			putnn(cmdp->cpb, in_histlen, s->history_len);
-			s->history_len = s->history_len * NXQWSZ; /* convert to bytes */
-			
-			if (s->history_len > 0) {
+			/* no dictionary here */
+			ASSERT( s->dict_len == 0 );
+			nx_history_len = (nx_history_len + NXQWSZ - 1) / NXQWSZ;
+			putnn(cmdp->cpb, in_histlen, nx_history_len);
+			nx_history_len = nx_history_len * NXQWSZ; /* convert to bytes */
+
+			if (nx_history_len > 0) {
 				/* deflate history goes in first */
-				ASSERT(s->cur_out >= s->history_len);
-				nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - s->history_len),
-					      s->history_len);
+				ASSERT(s->cur_out >= nx_history_len);
+				nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - nx_history_len), nx_history_len);
 			}
 			print_dbg_info(s, __LINE__);
 		}
 	}
 	else {
 		/* First decompress job */
-		fc = GZIP_FC_DECOMPRESS; 
+		fc = GZIP_FC_DECOMPRESS;
 
-		s->history_len = 0;
+		nx_history_len = s->history_len = 0;
 		/* writing a 0 clears out subc as well */
 		cmdp->cpb.in_histlen = 0;
-		//s->total_out = 0; already cleared in inflateReset
 
 		/* initialize the crc values */
 		put32(cmdp->cpb, in_crc, INIT_CRC );
@@ -977,33 +984,32 @@ decomp_state:
 		put32(cmdp->cpb, out_crc, INIT_CRC );
 		put32(cmdp->cpb, out_adler, INIT_ADLER);
 
-		/* Assuming 10% compression ratio initially; I use the
-		   most recently measured compression ratio as a
-		   heuristic to estimate the input and output
+		/* We use the most recently measured compression ratio
+		   as a heuristic to estimate the input and output
 		   sizes. If we give too much input, the target buffer
 		   overflows and NX cycles are wasted, and then we
-		   must retry with smaller input size. 1000 is 100%  */
+		   must retry with smaller input size. 1000 is 100% */
 		s->last_comp_ratio = 1000UL;
 	}
 
 	/* clear then copy fc to the crb */
-	cmdp->crb.gzip_fc = 0; 
+	cmdp->crb.gzip_fc = 0;
 	putnn(cmdp->crb, gzip_fc, fc);
 
 	/*
 	 * NX source buffers
 	 */
-	/* buffered user input is next */	
+	/* buffered user input is next */
 	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
 	/* then current user input */
-	nx_append_dde(ddl_in, s->next_in, s->avail_in); 
+	nx_append_dde(ddl_in, s->next_in, s->avail_in);
 	source_sz = getp32(ddl_in, ddebc); /* total bytes going in to engine */
-	ASSERT( source_sz > s->history_len );
+	ASSERT( source_sz > nx_history_len );
 
 	/*
 	 * NX target buffers
 	 */
-	assert(s->used_out == 0);
+	ASSERT(s->used_out == 0);
 
 	uint32_t len_next_out = s->avail_out;
 	nx_append_dde(ddl_out, s->next_out, len_next_out); /* decomp in to user buffer */
@@ -1013,7 +1019,7 @@ decomp_state:
 	target_sz = len_next_out + s->len_out - s->cur_out - s->used_out;
 
 	prt_info("len_next_out %d len_out %d cur_out %d used_out %d source_sz %d history_len %d\n",
-		len_next_out, s->len_out, s->cur_out, s->used_out, source_sz, s->history_len);
+		 len_next_out, s->len_out, s->cur_out, s->used_out, source_sz, nx_history_len);
 
 	/* We want exactly the History size amount of 32KB to overflow
 	   in to fifo_out.  If overflow is less, the history spans
@@ -1030,23 +1036,23 @@ decomp_state:
 	uint32_t target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
 
 	target_sz_expected = NX_MIN(target_sz_expected, inflate_per_job_len);
-	
+
 	/* e.g. if we want 100KB at the output and if the compression
 	   ratio is 10% we want 10KB if input */
 	uint32_t source_sz_expected = (uint32_t)(((uint64_t)target_sz_expected * s->last_comp_ratio + 1000L)/1000UL);
 
 	/* do not include input side history in the estimation */
-	source_sz = source_sz - s->history_len;
+	source_sz = source_sz - nx_history_len;
 
 	assert(source_sz > 0);
-	
+
 	source_sz = NX_MIN(source_sz, source_sz_expected);
 
 	target_sz_expected = NX_MIN(target_sz_expected, target_sz);
 
 	/* add the history back */
-	source_sz = source_sz + s->history_len;
-	
+	source_sz = source_sz + nx_history_len;
+
 	/* Some NX condition codes require submitting the NX job
 	  again. Kernel doesn't fault-in NX page faults. Expects user
 	  code to touch pages */
@@ -1055,15 +1061,15 @@ decomp_state:
 
 restart_nx:
 
- 	putp32(ddl_in, ddebc, source_sz);  
+	putp32(ddl_in, ddebc, source_sz);
 
 	/* fault in pages */
 	nx_touch_pages( (void *)cmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_in, source_sz, nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_out, target_sz, nx_config.page_sz, 1);
 
-	/* 
-	 * send job to NX 
+	/*
+	 * send job to NX
 	 */
 	cc = nx_submit_job(ddl_in, ddl_out, cmdp, s->nxdevp);
 
@@ -1090,8 +1096,11 @@ restart_nx:
 			goto restart_nx;
 		}
 		else if (pgfault_retries > 0) {
-			/* if still faulting try fewer input pages
-			 * assuming memory outage */
+			/* if still faulting try fewer input pages *
+			   assuming memory outage; TODO make source go
+			   smaller than page size but accounting for
+			   history; TO first cut the source pages down
+			   then cut the target pages down */
 			if (source_sz > nx_config.page_sz)
 				source_sz = NX_MAX(source_sz / 2, nx_config.page_sz);
 			--pgfault_retries;
@@ -1125,7 +1134,7 @@ restart_nx:
 			goto ok_cc3; /* not an error */
 		}
 		else {
-			/* History length error when CE(1)=1 CE(0)=0. 
+			/* History length error when CE(1)=1 CE(0)=0.
 			   We have a bug */
 			rc = Z_ERRNO;
 			prt_err("history length error cc= %d\n", cc);
@@ -1135,9 +1144,9 @@ restart_nx:
 	case ERR_NX_TARGET_SPACE:
 		/* Target buffer not large enough; retry smaller input
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
-		ASSERT( source_sz > s->history_len );
-		source_sz = ((source_sz - s->history_len + 2) / 2) + s->history_len;
-		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, s->history_len);
+		ASSERT( source_sz > nx_history_len );
+		source_sz = ((source_sz - nx_history_len + 2) / 2) + nx_history_len;
+		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, nx_history_len);
 		target_space_retries++;
 		goto restart_nx;
 
@@ -1148,9 +1157,9 @@ restart_nx:
 		prt_info("ERR_NX_OK\n");
 		spbc = get32(cmdp->cpb, out_spbc_decomp);
 		tpbc = get32(cmdp->crb.csb, tpbc);
-		ASSERT(target_sz >= tpbc);			
+		ASSERT(target_sz >= tpbc);
 		ASSERT(spbc >= s->history_len);
-		source_sz = spbc - s->history_len;		
+		source_sz = spbc - nx_history_len;
 		goto offsets_state;
 
 	default:
@@ -1159,15 +1168,15 @@ restart_nx:
 		for(int i = 0; i < 4; i++) /* dump first 32 bits of csb */
 			prt_err("CSB: 0x %02x %02x %02x %02x\n", csb[0], csb[1], csb[2], csb[3]);
 		rc = Z_ERRNO;
-		goto err5; 
+		goto err5;
 	}
 
 ok_cc3:
 
 	prt_info("cc3: sfbt: %x\n", sfbt);
 
-	ASSERT(spbc > s->history_len);
-	source_sz = spbc - s->history_len;
+	ASSERT(spbc > nx_history_len);
+	source_sz = spbc - nx_history_len;
 
 	/* Table 6-4: Source Final Block Type (SFBT) describes the
 	   last processed deflate block and clues the software how to
@@ -1176,7 +1185,7 @@ ok_cc3:
 	   bytes of source were given to the accelerator including
 	   history bytes.
 	*/
-	switch (sfbt) { 
+	switch (sfbt) {
 		int dhtlen;
 
 	case 0b0000: /* Deflate final EOB received */
@@ -1214,7 +1223,7 @@ ok_cc3:
 
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen */
 		cmdp->cpb.in_subc = 0;
-		cmdp->cpb.in_sfbt = 0;		
+		cmdp->cpb.in_sfbt = 0;
 		putnn(cmdp->cpb, in_subc, subc % 8);
 		putnn(cmdp->cpb, in_sfbt, sfbt);
 		break;
@@ -1226,7 +1235,7 @@ ok_cc3:
 
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen */
 		cmdp->cpb.in_subc = 0;
-		cmdp->cpb.in_sfbt = 0;				
+		cmdp->cpb.in_sfbt = 0;
 		putnn(cmdp->cpb, in_subc, subc % 8);
 		putnn(cmdp->cpb, in_sfbt, sfbt);
 
@@ -1245,7 +1254,7 @@ ok_cc3:
 			--dhtlen;
 			cmdp->cpb.in_dht[dhtlen] = cmdp->cpb.out_dht[dhtlen];
 		}
-		break;		
+		break;
 
 	case 0b1110: /* Within a block header; bfinal=0; */
 		     /* Also given if source data exactly ends (SUBC=0) with EOB code */
@@ -1261,7 +1270,7 @@ ok_cc3:
 		putnn(cmdp->cpb, in_sfbt, sfbt);
 	}
 
-offsets_state:	
+offsets_state:
 
 	/* Adjust the source and target buffer offsets and lengths  */
 	/* source_sz is the real used in size */
@@ -1326,12 +1335,16 @@ offsets_state:
 		update_stream_out(s, len_next_out);
 	}
 
-	s->history_len = (s->total_out + s->used_out > nx_config.window_max) ? nx_config.window_max : (s->total_out + s->used_out);
+
+	s->history_len = (s->total_out + s->used_out > INF_HIS_LEN) ? INF_HIS_LEN : (s->total_out + s->used_out);
 
 	s->last_comp_ratio = (1000UL * ((uint64_t)source_sz + 1)) / ((uint64_t)tpbc + 1);
 	s->last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 1 ); /* bounds check */
 
 	s->resuming = 1;
+
+	/* raw mode will set this again for the next dictionary */
+	s->dict_len = 0;
 
 	if (s->is_final == 1 || cc == ERR_NX_OK) {
 
@@ -1421,6 +1434,7 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 	/* copy dictionary in and also calculate it's checksum */
 	adler = INIT_ADLER;
 	cc = nx_copy(s->dict, (char *)dictionary, dictLength, NULL, &adler, s->nxdevp);
+	s->zstrm->adler = adler;
 	if (cc != ERR_NX_OK) {
 		prt_err("nx_copy dictionary error\n");
 		return Z_STREAM_ERROR;
@@ -1440,7 +1454,7 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 	   means that we must truncate the history in fifo_out to the
 	   maximum of 32KB and dictLength; recall the NX rounding
 	   requirements */
-	
+
 	return Z_OK;
 
 
@@ -1498,7 +1512,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 }
 int inflateReset(z_streamp strm)
 {
-        return nx_inflateReset(strm);
+	return nx_inflateReset(strm);
 }
 int inflateEnd(z_streamp strm)
 {
@@ -1510,7 +1524,6 @@ int inflate(z_streamp strm, int flush)
 }
 int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLength)
 {
-        return nx_inflateSetDictionary(strm, dictionary, dictLength);
+	return nx_inflateSetDictionary(strm, dictionary, dictLength);
 }
 #endif
-

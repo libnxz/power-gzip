@@ -14,10 +14,10 @@ echo "   dictionary file:" $1
 echo "   source file:" $2
 
 echo
-echo "   ./zpipe_dict_zlib"
+echo "deflate with ./zpipe_dict_zlib"
 ./zpipe_dict_zlib $1 < $2 > junk.zlib
 
-echo "   ./zpipe_dict_nx"
+echo "deflate with ./zpipe_dict_nx"
 ./zpipe_dict_nx $1 < $2 > junk.nx
 
 echo "   File sizes are"
@@ -33,12 +33,25 @@ xxd junk.nx | head -2
 echo "   libnxz tail"
 xxd junk.nx | tail -2
 
-echo "   inflate"
+echo "   inflate the junk.zlib file two ways"
+echo
+
 echo "   ./zpipe_dict_zlib"
-./zpipe_dict_zlib $1 -d < junk.zlib > junk.zlib.txt
+./zpipe_dict_zlib $1 -d < junk.zlib > junk.zlib.txt.zlib
 
 echo "   ./zpipe_dict_nx"
-./zpipe_dict_zlib $1 -d < junk.nx > junk.nx.txt
+./zpipe_dict_nx $1 -d < junk.zlib > junk.zlib.txt.nx
 echo "   checksums of inflated"
-sha1sum junk.zlib.txt junk.nx.txt
+sha1sum junk.zlib.txt.zlib junk.zlib.txt.nx
+
+echo "   inflate the junk.nx file two ways"
+echo
+
+echo "   ./zpipe_dict_zlib"
+./zpipe_dict_zlib $1 -d < junk.nx > junk.nx.txt.zlib
+
+echo "   ./zpipe_dict_nx"
+./zpipe_dict_nx $1 -d < junk.nx > junk.nx.txt.nx
+echo "   checksums of inflated"
+sha1sum junk.nx.txt.zlib junk.nx.txt.nx
 

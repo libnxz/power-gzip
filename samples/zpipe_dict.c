@@ -5,14 +5,14 @@
 /* Version history:
    1.0  30 Oct 2004  First version
    1.1   8 Nov 2004  Add void casting for unused return values
-                     Use switch statement for inflate() return values
+		     Use switch statement for inflate() return values
    1.2   9 Nov 2004  Add assertions to document zlib guarantees
    1.3   6 Apr 2005  Remove incorrect assertion in inf()
    1.4  11 Dec 2005  Add hack to avoid MSDOS end-of-line conversions
-                     Avoid some compiler warnings for input and output buffers
+		     Avoid some compiler warnings for input and output buffers
  */
 
-/*  
+/*
     Example:
 
     Make a small file fragment that normally wouldn't compress well
@@ -57,7 +57,7 @@
 #  define SET_BINARY_MODE(file)
 #endif
 
-#define CHUNK 16384
+#define CHUNK (1<<20) /* 16384 */
 
 #define CHECK_ERR(err, msg) do {if (err != Z_OK) { fprintf(stderr, "%s error: %d\n", msg, err); }} while(0)
 
@@ -90,13 +90,13 @@ int def(FILE *source, FILE *dest, FILE *dictfp, int level)
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
     ret = deflateInit2(&strm,
-                       Z_DEFAULT_COMPRESSION, /* Z_BEST_COMPRESSION, */
-                       Z_DEFLATED,
+		       Z_DEFAULT_COMPRESSION, /* Z_BEST_COMPRESSION, */
+		       Z_DEFLATED,
 		       15, /* zlib format */
-                       8,
-                       Z_DEFAULT_STRATEGY );  /* Z_FIXED ); //Z_DEFAULT_STRATEGY ); */
+		       8,
+		       Z_DEFAULT_STRATEGY );  /* Z_FIXED ); //Z_DEFAULT_STRATEGY ); */
     if (ret != Z_OK)
-        return ret;
+	return ret;
 
     /* DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "deflateInit") ); */
 
@@ -106,37 +106,37 @@ int def(FILE *source, FILE *dest, FILE *dictfp, int level)
 	CHECK_ERR(ret, "deflateSetDictionary");
 	return ret;
     }
-    
+
     fprintf(stderr, "deflate dictId %08lx\n", strm.adler);
-    
+
     DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "deflateSetDictionary") );
 
     /* compress until end of file */
     do {
-        strm.avail_in = fread(in, 1, CHUNK, source);
-        if (ferror(source)) {
-            (void)deflateEnd(&strm);
-            return Z_ERRNO;
-        }
-        flush = feof(source) ? Z_FINISH : Z_NO_FLUSH;
-        strm.next_in = in;
+	strm.avail_in = fread(in, 1, CHUNK, source);
+	if (ferror(source)) {
+	    (void)deflateEnd(&strm);
+	    return Z_ERRNO;
+	}
+	flush = feof(source) ? Z_FINISH : Z_NO_FLUSH;
+	strm.next_in = in;
 
-        /* run deflate() on input until output buffer not full, finish
-           compression if all of source has been read in */
-        do {
-            strm.avail_out = CHUNK;
-            strm.next_out = out;
-            ret = deflate(&strm, flush);    /* no bad return value */
-            assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
-            have = CHUNK - strm.avail_out;
-            if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
-                (void)deflateEnd(&strm);
-                return Z_ERRNO;
-            }
-        } while (strm.avail_out == 0);
-        assert(strm.avail_in == 0);     /* all input will be used */
+	/* run deflate() on input until output buffer not full, finish
+	   compression if all of source has been read in */
+	do {
+	    strm.avail_out = CHUNK;
+	    strm.next_out = out;
+	    ret = deflate(&strm, flush);    /* no bad return value */
+	    assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+	    have = CHUNK - strm.avail_out;
+	    if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
+		(void)deflateEnd(&strm);
+		return Z_ERRNO;
+	    }
+	} while (strm.avail_out == 0);
+	assert(strm.avail_in == 0);     /* all input will be used */
 
-        /* done when last data in file processed */
+	/* done when last data in file processed */
     } while (flush != Z_FINISH);
     assert(ret == Z_STREAM_END);        /* stream will be complete */
 
@@ -173,8 +173,8 @@ int inf(FILE *source, FILE *dest, FILE *dictfp)
     /* check the ID of the external dictionary */
     dictId = adler32(0L, Z_NULL, 0);
     dictId = adler32(dictId, dictionary, dict_len);
-    fprintf(stderr, "dict file has dictId %08lx\n", dictId);    
-    
+    fprintf(stderr, "dict file has dictId %08lx\n", dictId);
+
     /* allocate inflate state */
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
@@ -183,29 +183,29 @@ int inf(FILE *source, FILE *dest, FILE *dictfp)
     strm.next_in = Z_NULL;
     ret = inflateInit(&strm);
     if (ret != Z_OK)
-        return ret;
+	return ret;
 
     /* DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "inflateInit") ); */
 
     /* decompress until deflate stream ends or end of file */
     do {
-        strm.avail_in = fread(in, 1, CHUNK, source);
-        if (ferror(source)) {
-            (void)inflateEnd(&strm);
-            return Z_ERRNO;
-        }
-        if (strm.avail_in == 0)
-            break;
-        strm.next_in = in;
+	strm.avail_in = fread(in, 1, CHUNK, source);
+	if (ferror(source)) {
+	    (void)inflateEnd(&strm);
+	    return Z_ERRNO;
+	}
+	if (strm.avail_in == 0)
+	    break;
+	strm.next_in = in;
 
-        /* run inflate() on input until output buffer not full */
-        do {
-            strm.avail_out = CHUNK;
-            strm.next_out = out;
-            ret = inflate(&strm, Z_NO_FLUSH);
-            assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+	/* run inflate() on input until output buffer not full */
+	do {
+	    strm.avail_out = CHUNK;
+	    strm.next_out = out;
+	    ret = inflate(&strm, Z_NO_FLUSH);
+	    assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
 
-            if (ret == Z_NEED_DICT) {
+	    if (ret == Z_NEED_DICT) {
 		DBGDICT( fprintf(stderr, "compressed file contains dictId %08lx\n", strm.adler) );
 		ret = inflateSetDictionary(&strm, dictionary, dict_len);
 		if (ret != Z_OK) {
@@ -224,14 +224,14 @@ int inf(FILE *source, FILE *dest, FILE *dictfp)
 		return ret;
 	    }
 
-            have = CHUNK - strm.avail_out;
-            if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
+	    have = CHUNK - strm.avail_out;
+	    if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
 		(void)inflateEnd(&strm);
 		return Z_ERRNO;
-            }
-        } while (strm.avail_out == 0);
+	    }
+	} while (strm.avail_out == 0);
 
-        /* done when inflate() says it's done */
+	/* done when inflate() says it's done */
     } while (ret != Z_STREAM_END);
 
     /* clean up and return */
@@ -245,22 +245,22 @@ void zerr(int ret)
     fputs("zpipe_dict: ", stderr);
     switch (ret) {
     case Z_ERRNO:
-        if (ferror(stdin))
-            fputs("error reading stdin\n", stderr);
-        if (ferror(stdout))
-            fputs("error writing stdout\n", stderr);
-        break;
+	if (ferror(stdin))
+	    fputs("error reading stdin\n", stderr);
+	if (ferror(stdout))
+	    fputs("error writing stdout\n", stderr);
+	break;
     case Z_STREAM_ERROR:
-        fputs("invalid compression level\n", stderr);
-        break;
+	fputs("invalid compression level\n", stderr);
+	break;
     case Z_DATA_ERROR:
-        fputs("invalid or incomplete deflate data\n", stderr);
-        break;
+	fputs("invalid or incomplete deflate data\n", stderr);
+	break;
     case Z_MEM_ERROR:
-        fputs("out of memory\n", stderr);
-        break;
+	fputs("out of memory\n", stderr);
+	break;
     case Z_VERSION_ERROR:
-        fputs("zlib version mismatch!\n", stderr);
+	fputs("zlib version mismatch!\n", stderr);
     }
 }
 
@@ -285,26 +285,26 @@ int main(int argc, char **argv)
 	print_usage();
 	return -1;
     }
-    
+
     /* do compression if no arguments */
     if (argc == 2) {
 	ret = def(stdin, stdout, dictfp, Z_DEFAULT_COMPRESSION);
-        if (ret != Z_OK)
-            zerr(ret);
-        return ret;
+	if (ret != Z_OK)
+	    zerr(ret);
+	return ret;
     }
 
     /* do decompression if -d specified */
     else if (argc == 3 && strcmp(argv[2], "-d") == 0) {
-        ret = inf(stdin, stdout, dictfp);
-        if (ret != Z_OK)
-            zerr(ret);
-        return ret;
+	ret = inf(stdin, stdout, dictfp);
+	if (ret != Z_OK)
+	    zerr(ret);
+	return ret;
     }
 
     /* otherwise, report usage */
     else {
 	print_usage();
-        return 1;
+	return 1;
     }
 }

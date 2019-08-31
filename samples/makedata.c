@@ -27,6 +27,11 @@ int main(int argc, char **argv)
 		fprintf(stderr,"usage: %s -s rngseed < seedfile > outputfile\n", argv[0]);
 		return -1;
 	}
+
+	srand48(seed);
+
+	/* randomize buffer size too; some power of 2; some arbitrary */
+	bufsz = bufsz + (lrand48() % 2) * (lrand48() % (bufsz/10));
 	
 	assert(NULL != (buf = malloc(bufsz)));
 
@@ -37,8 +42,6 @@ int main(int argc, char **argv)
 	/* next free location */
 	idx = readsz;
 	
-	srand48(seed);
-
 	size_t len_max = lrand48() % 240;
 	size_t dist_max = lrand48() % (1<<18);
 	  

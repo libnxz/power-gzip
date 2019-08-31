@@ -1675,8 +1675,9 @@ int nx_deflate(z_streamp strm, int flush)
 
 	/* issue 99 */
 	if (s->avail_out > 0 && s->used_out == 0 && s->avail_in == 0 && s->used_in == 0) {
-		if (s->flush == Z_FINISH)
-			return Z_STREAM_END;
+		if (s->flush == Z_FINISH) {
+			goto s1;
+		}
 		else if (s->flush == Z_NO_FLUSH)
 			return Z_BUF_ERROR;
 		else if (s->flush == Z_PARTIAL_FLUSH || s->flush == Z_SYNC_FLUSH || s->flush == Z_FULL_FLUSH)

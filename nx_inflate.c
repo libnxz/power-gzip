@@ -811,7 +811,8 @@ static int nx_inflate_(nx_streamp s, int flush)
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 	nx_dde_t *ddl_in = s->ddl_in;
 	nx_dde_t *ddl_out = s->ddl_out;
-	int pgfault_retries, target_space_retries;
+
+	int pgfault_retries, target_space_retries, partial_bits;
 	int cc, rc;
 	int nx_history_len; /* includes dictionary and history going in to nx-gzip */
 
@@ -1041,10 +1042,12 @@ decomp_state:
 	   ratio is 10% we want 10KB if input */
 	uint32_t source_sz_expected = (uint32_t)(((uint64_t)target_sz_expected * s->last_comp_ratio + 1000L)/1000UL);
 
+	prt_info("target_sz_expected %d source_sz_expected %d source_sz %d last_comp_ratio %d nx_history_len %d\n", target_sz_expected, source_sz_expected, source_sz, s->last_comp_ratio, nx_history_len);
+
 	/* do not include input side history in the estimation */
 	source_sz = source_sz - nx_history_len;
 
-	assert(source_sz > 0);
+	ASSERT(source_sz > 0);
 
 	source_sz = NX_MIN(source_sz, source_sz_expected);
 
@@ -1087,7 +1090,7 @@ restart_nx:
 		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
 		/* get64 does the endian conversion */
 
-		prt_info(" pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
+		prt_info("pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
 			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz);
 
 		if (pgfault_retries == nx_config.retry_max) {
@@ -1173,10 +1176,13 @@ restart_nx:
 
 ok_cc3:
 
-	prt_info("cc3: sfbt: %x\n", sfbt);
+	prt_info("cc3: sfbt %x subc %d\n", sfbt, subc);
+	print_dbg_info(s, __LINE__);
 
 	ASSERT(spbc > nx_history_len);
 	source_sz = spbc - nx_history_len;
+
+	partial_bits = 0;
 
 	/* Table 6-4: Source Final Block Type (SFBT) describes the
 	   last processed deflate block and clues the software how to
@@ -1204,6 +1210,7 @@ ok_cc3:
 
 		/* Supply the partially processed source byte again */
 		source_sz = source_sz - ((subc + 7) / 8);
+		partial_bits = subc;
 
 		/* SUBC LS 3bits: number of bits in the first source
 		 * byte need to be processed. */
@@ -1220,6 +1227,7 @@ ok_cc3:
 	case 0b1011: /* Within a FH block; bfinal=1 */
 
 		source_sz = source_sz - ((subc + 7) / 8);
+		partial_bits = subc;
 
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen */
 		cmdp->cpb.in_subc = 0;
@@ -1232,6 +1240,7 @@ ok_cc3:
 	case 0b1101: /* Within a DH block; bfinal=1 */
 
 		source_sz = source_sz - ((subc + 7) / 8);
+		partial_bits = subc;
 
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen */
 		cmdp->cpb.in_subc = 0;
@@ -1262,6 +1271,7 @@ ok_cc3:
 	case 0b1111: /* within a block header with BFINAL=1. */
 
 		source_sz = source_sz - ((subc + 7) / 8);
+		partial_bits = subc;
 
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen */
 		cmdp->cpb.in_subc = 0;
@@ -1271,6 +1281,9 @@ ok_cc3:
 	}
 
 offsets_state:
+
+	print_dbg_info(s, __LINE__);
+	prt_info("== %d source_sz %d used_in %d cur_in %d\n", __LINE__, source_sz, s->used_in, s->cur_in );
 
 	/* Adjust the source and target buffer offsets and lengths  */
 	/* source_sz is the real used in size */
@@ -1283,6 +1296,9 @@ offsets_state:
 		s->cur_in  += source_sz;
 		fifo_in_len_check(s);
 	}
+
+	print_dbg_info(s, __LINE__);
+	prt_info("== %d source_sz %d used_in %d cur_in %d\n", __LINE__, source_sz, s->used_in, s->cur_in );
 
 	nx_inflate_update_checksum(s);
 
@@ -1302,6 +1318,8 @@ offsets_state:
 			fifo_out_len_check(s);
 		}
 		update_stream_out(s, tpbc);
+
+		print_dbg_info(s, __LINE__);
 	}
 	else if (overflow_len > 0 && overflow_len < INF_HIS_LEN){
 		int need_len = INF_HIS_LEN - overflow_len;
@@ -1329,24 +1347,40 @@ offsets_state:
 
 		s->used_out += overflow_len;
 		update_stream_out(s, len_next_out);
+
+		print_dbg_info(s, __LINE__);
 	}
 	else { /* overflow_len > 1<<15 */
 		s->used_out += overflow_len;
 		update_stream_out(s, len_next_out);
+
+		print_dbg_info(s, __LINE__);
 	}
 
+	print_dbg_info(s, __LINE__);
 
 	s->history_len = (s->total_out + s->used_out > INF_HIS_LEN) ? INF_HIS_LEN : (s->total_out + s->used_out);
 
-	s->last_comp_ratio = (1000UL * ((uint64_t)source_sz + 1)) / ((uint64_t)tpbc + 1);
-	s->last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 1 ); /* bounds check */
+	prt_info("== %d source_sz %d tpbc %d last_comp_ratio %d\n", __LINE__, source_sz, tpbc, s->last_comp_ratio);
 
-	s->resuming = 1;
+	if (source_sz != 0 || tpbc != 0) {
+		/* if both are zero estimate is probably wrong; so keep it as is */
+		s->last_comp_ratio = (1000UL * ((uint64_t)source_sz + 1)) / ((uint64_t)tpbc + 1);
+		s->last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 1 ); /* bounds check */
+	}
+
+	prt_info("== %d source_sz %d tpbc %d last_comp_ratio %d\n", __LINE__, source_sz, tpbc, s->last_comp_ratio);
+
+	if (!s->is_final) s->resuming = 1;
 
 	/* raw mode will set this again for the next dictionary */
 	s->dict_len = 0;
 
+	print_dbg_info(s, __LINE__);
+
 	if (s->is_final == 1 || cc == ERR_NX_OK) {
+
+		print_dbg_info(s, __LINE__);
 
 		/* copy trailer bytes to temp storage */
 		nx_inflate_verify_checksum(s, 1);
@@ -1370,16 +1404,29 @@ offsets_state:
 		goto copy_fifo_out_to_next_out;
 	}
 
-#if 0
-	/* why target_space_retries? */
-	if (s->used_in > 1 && s->avail_out > 0 && target_space_retries > 0 ) {
+	print_dbg_info(s, __LINE__);
+	prt_info("== %d flush %d is_final %d last_comp_ratio %d\n", __LINE__, s->flush, s->is_final, s->last_comp_ratio);
+
+	if (((s->used_in + s->avail_in) > ((partial_bits + 7) / 8)) &&
+	    (s->avail_out > 0)) {
+		/* if more input is available than the required bits */
+		print_dbg_info(s, __LINE__);
 		goto copy_fifo_out_to_next_out;
 	}
-#endif
+	else {
+		/* need more bits from user */
+		print_dbg_info(s, __LINE__);
+		return Z_OK;
+	}
+
+#if 0
+	/* dead code */
 	if (flush == Z_FINISH) return Z_STREAM_END;
 
 	print_dbg_info(s, __LINE__);
 	return Z_OK;
+#endif
+
 err5:
 	prt_err("rc %d\n", rc);
 	return rc;

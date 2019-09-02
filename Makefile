@@ -10,9 +10,9 @@ ZLIB = -DZLIB_API
 CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) -mcpu=power9 #-DNXTIMER
 
 SRCS = nx_inflate.c nx_deflate.c nx_zlib.c nx_crc.c nx_dht.c nx_dhtgen.c nx_dht_builtin.c \
-       nx_adler_combine.c gzip_vas.c nx_compress.c nx_uncompr.c
+       nx_adler32.c gzip_vas.c nx_compress.c nx_uncompr.c
 OBJS = nx_inflate.o nx_deflate.o nx_zlib.o nx_crc.o nx_dht.o nx_dhtgen.o nx_dht_builtin.o \
-       nx_adler_combine.o gzip_vas.o nx_compress.o nx_uncompr.o
+       nx_adler32.o gzip_vas.o nx_compress.o nx_uncompr.o
 
 STATICLIB = libnxz.a
 SHAREDLIB = libnxz.so
@@ -33,5 +33,5 @@ $(SHAREDLIB): $(OBJS)
 	$(CC) -shared  -Wl,-soname,libnxz.so,--version-script,zlib.map -o $@ $(OBJS)	
 
 clean:
-	/bin/rm -f *.o *.gcda *.gcno *.so *.a
+	/bin/rm -f *.o *.gcda *.gcno *.so *.a *~
 

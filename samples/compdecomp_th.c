@@ -77,7 +77,8 @@
 
 
 #ifdef SIMPLE_CHECKSUM
-unsigned long nx_crc32( unsigned long crc, const unsigned char *buf, uint64_t len);
+/* extern unsigned long crc32(unsigned long crc, const unsigned char *buf, uint64_t len); 
+   extern unsigned long adler32(unsigned long adler, const char *buf, unsigned int len); */
 #endif
 
 /* Caller must free the allocated buffer 
@@ -307,10 +308,10 @@ void *decomp_file_multith(void *argsv)
 			return (void *) -1;
 		}
 
-#ifdef SIMPLE_CHECKSUM2
-#pragma GCC warning "Verifying crc will reduce decomp throughput"
+#ifdef SIMPLE_CHECKSUM
+
 		cksum = 1;		
-		cksum = nx_crc32(cksum, decompbuf, decompdata_len);
+		cksum = crc32(cksum, decompbuf, decompdata_len);
 		/* fprintf(stderr, "target checksum %016lx\n", cksum); */
 		assert( cksum == argsp->checksum );
 #endif
@@ -332,7 +333,7 @@ void *decomp_file_multith(void *argsv)
 
 #ifdef SIMPLE_CHECKSUM
 	cksum = 1;
-	cksum = nx_crc32(cksum, decompbuf, decompdata_len);
+	cksum = crc32(cksum, decompbuf, decompdata_len);
 	assert( cksum == argsp->checksum );
 #endif
 	
@@ -376,8 +377,8 @@ int main(int argc, char **argv)
 
 	unsigned long cksum = 1;	
 #ifdef SIMPLE_CHECKSUM
-	cksum = nx_crc32(cksum, inbuf, inlen);	
-	fprintf(stderr, "source checksum %016lx\n", cksum);
+	cksum = crc32(cksum, inbuf, inlen);	
+	fprintf(stderr, "source checksum %08lx; note: checksum verif will reduce throughput; assert thrown on mismatch\n", cksum);
 #endif
 	
 	fprintf(stderr, "starting %d compress threads %ld iterations\n", num_threads, iterations);

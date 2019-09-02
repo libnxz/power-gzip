@@ -4,7 +4,12 @@
 #include <string.h>
 
 /* change this to the output file size you desire */
-#define OUTFILESZ (1<<20)
+#ifndef LOGFILESZ
+#define LOGFILESZ 20
+#endif
+#ifndef OUTFILESZ
+#define OUTFILESZ (1<<LOGFILESZ)
+#endif
 
 int main(int argc, char **argv)
 {
@@ -22,6 +27,11 @@ int main(int argc, char **argv)
 		fprintf(stderr,"usage: %s -s rngseed < seedfile > outputfile\n", argv[0]);
 		return -1;
 	}
+
+	srand48(seed);
+
+	/* randomize buffer size too; some power of 2; some arbitrary */
+	bufsz = bufsz + (lrand48() % 2) * (lrand48() % (bufsz/10));
 	
 	assert(NULL != (buf = malloc(bufsz)));
 
@@ -32,14 +42,13 @@ int main(int argc, char **argv)
 	/* next free location */
 	idx = readsz;
 	
-	srand48(seed);
-
 	size_t len_max = lrand48() % 240;
-
+	size_t dist_max = lrand48() % (1<<18);
+	  
 	while(idx < bufsz) {
 
 		/* pick random point in the buffer and copy */
-		size_t dist = lrand48() % idx;
+		size_t dist = lrand48() % ( (idx > dist_max) ? dist_max: idx );
 		size_t len = (lrand48() % len_max) + 16;
 
 		if (dist > idx) 

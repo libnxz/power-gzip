@@ -11,6 +11,8 @@
 #define OUTFILESZ (1<<LOGFILESZ)
 #endif
 
+typedef unsigned long ulong;
+
 int main(int argc, char **argv)
 {
 	size_t bufsz = OUTFILESZ;
@@ -19,12 +21,13 @@ int main(int argc, char **argv)
 	size_t idx;
 	int seed;
 
-	if (argc == 3 && strcmp(argv[1], "-s") == 0) {
+	if (argc == 5 && strcmp(argv[1], "-s") == 0 && strcmp(argv[3], "-b") == 0) {
 		seed = atoi(argv[2]);
+		bufsz = 1UL << atoi(argv[4]);
 	}	
 	if ((argc == 1) || (argc == 2 && strcmp(argv[1], "-h") == 0)) {
 		fprintf(stderr,"randomly produces a data file using a seed number and any input file\n");
-		fprintf(stderr,"usage: %s -s rngseed < seedfile > outputfile\n", argv[0]);
+		fprintf(stderr,"usage: %s -s rngseed -b log2bufsize < seedfile > outputfile\n", argv[0]);
 		return -1;
 	}
 
@@ -32,6 +35,8 @@ int main(int argc, char **argv)
 
 	/* randomize buffer size too; some power of 2; some arbitrary */
 	bufsz = bufsz + (lrand48() % 2) * (lrand48() % (bufsz/10));
+
+	fprintf(stderr, "seed %d bufsz %ld\n", seed, bufsz);
 	
 	assert(NULL != (buf = malloc(bufsz)));
 
@@ -42,14 +47,16 @@ int main(int argc, char **argv)
 	/* next free location */
 	idx = readsz;
 	
-	size_t len_max = lrand48() % 240;
-	size_t dist_max = lrand48() % (1<<18);
+	ulong len_max = (lrand48() % 240UL) + 10;
+	ulong dist_max = (lrand48() % (1UL<<16)) + 1;
 	  
 	while(idx < bufsz) {
 
 		/* pick random point in the buffer and copy */
-		size_t dist = lrand48() % ( (idx > dist_max) ? dist_max: idx );
-		size_t len = (lrand48() % len_max) + 16;
+		ulong dist = lrand48() % ( (idx > dist_max) ? dist_max: idx );
+		ulong len = (lrand48() % len_max) + 16;
+
+		/* fprintf(stderr, "dist_max %ld len_max %ld dist %ld len %ld\n", dist_max, len_max, dist, len); */
 
 		if (dist > idx) 
 			dist = idx; /* out of bounds */

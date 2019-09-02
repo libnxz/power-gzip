@@ -1,10 +1,21 @@
 #!/bin/bash
 let "seed = 1"
 
+#gcc -O3 -o makedata makedata.c
+
+#HOW TO RUN
+#./runtests.sh &> /mnt/ramdisk/test-result.txt &
+# It may take a day depending on the FSZ and n parameters
+# Watch errors like this
+# while [ 1 ]; do sleep 30; printf "."; grep EEE /mnt/ramdisk/test-result.txt; done
+# Once complete check any mismatches like this.
+# Second count should be exactly half of first
+# cat test-result.txt | egrep -v "read|file|<fileowner>|seed" | wc -l
+# cat test-result.txt | egrep -v "read|file|<fileowner>|seed" | uniq | wc -l
+ 
 for FSZ in `seq 8 30`
 do
     echo "file size " $FSZ
-    gcc -O3 -o makedata makedata.c -DLOGFILESZ=$FSZ
 
     for n in `seq 1 1000`
     do    
@@ -16,7 +27,7 @@ do
 	    let "++seed"
 	    echo "seed" $seed
 	    rm -f /mnt/ramdisk/jun*
-	    ./makedata -s $seed < ./test/$fname > /mnt/ramdisk/junk
+	    ./makedata -s $seed -b $FSZ < ./test/$fname > /mnt/ramdisk/junk
 	    rc=$?; if [[ $rc != 0 ]]; then echo "EEEEEE makedata bad return code: filename size seed:" $fname, $FSZ, $seed; echo; echo; fi
 	    ls -l /mnt/ramdisk/junk
 	    

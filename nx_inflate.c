@@ -829,6 +829,13 @@ static int nx_inflate_(nx_streamp s, int flush)
 		return nx_inflate_verify_checksum(s, 2); /* copy and verify */
 	}
 
+	/* duplicating zlib behavior */
+	if ((s->avail_in > 0 && s->next_in == NULL) || (s->next_out == NULL))
+		return Z_STREAM_ERROR;
+
+	if (s->next_in != NULL && s->next_out != NULL && s->avail_out == 0)
+		return Z_BUF_ERROR;
+
 copy_fifo_out_to_next_out:
 
 	if (++loop_cnt == loop_max) {

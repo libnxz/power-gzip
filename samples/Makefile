@@ -1,8 +1,8 @@
 OPTCC = /opt/at11.0/bin/gcc
 ifneq ("$(wildcard $(OPTCC))","")
-	CC = $(OPTCC)
+        CC = $(OPTCC)
 else
-	CC = gcc
+        CC = gcc
 endif
 
 CFLAGS = -O3

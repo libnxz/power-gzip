@@ -33,6 +33,7 @@
 #include <stdint.h>
 #include <stddef.h>  /* ptrdiff_t */
 #include <byteswap.h>
+#include "crc32_ppc.h"
 
 /* make crc32.c work without external zlib headers */
 #undef MAKECRCH
@@ -481,7 +482,7 @@ unsigned long crc32(crc, buf, len)
     const unsigned char FAR *buf;
     uint64_t len;
 {
-    return nx_crc32(crc, buf, len);
+    return crc32_ppc(crc, (unsigned char *)buf, len);
 }
 
 uLong crc32_combine(crc1, crc2, len2)

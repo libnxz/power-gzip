@@ -41,29 +41,38 @@ gzip_nxdht.o:	gzip_nxdht.c
 gunzip_nx.o:	gunzip_nx.c
 	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c gunzip_nx.c
 
-gzip_nxfht_test: 	$(FHT_O)
+gzip_nxfht_test:	$(FHT_O)
 	$(CC) $(CFLAGS) -o gzip_nxfht_test $(FHT_O)
 
-gzip_nxdht_test: 	$(DHT_O)
+gzip_nxdht_test:	$(DHT_O)
 	$(CC) $(CFLAGS) -lm -o gzip_nxdht_test $(DHT_O)
 
-#nxlite_test:	 $(DHT_O)
-#	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -o nxlite_test nxlite.c gzip_vas.o nx_dht.o nx_dht_builtin.o nx_dhtgen.o
-
-gunzip_nx_test: 	$(GUN_O)
+gunzip_nx_test:		$(GUN_O)
 	$(CC) $(CFLAGS) -o gunzip_nx_test $(GUN_O)
 
 zpipe:	../libnxz.a zpipe.c
 	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe zpipe.c ../libnxz.a -lpthread
 
+zpipe_dict:  zpipe_dict.c
+	$(CC) $(CFLAGS) -o zpipe_dict_zlib zpipe_dict.c -lz
+	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe_dict_nx zpipe_dict.c ../libnxz.a -lpthread
+
+crc_perf_test:  crc_perf_test.c
+	$(CC) $(CFLAGS) -o crc_perf_test_zlib crc_perf_test.c -lz
+	$(CC) $(CFLAGS) -o crc_perf_test_vmx  crc_perf_test.c ../libnxz.a -lpthread
+
+makedata:  makedata.c
+	$(CC) $(CFLAGS) -o makedata makedata.c
+
 gzm:	../libnxz.a gzm.c
 	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o gzm gzm.c ../libnxz.a -lpthread
 
-compdecomp: 	compdecomp.c ../libnxz.a
+compdecomp:	compdecomp.c ../libnxz.a
 	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp compdecomp.c ../libnxz.a -lpthread
 
 compdecomp_th: compdecomp_th.c  ../libnxz.a
 	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp_th compdecomp_th.c ../libnxz.a -lpthread
 
 clean:
-	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th nxlite_test 
+	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th makedata \
+	zpipe_dict_nx zpipe_dict_zlib crc_perf_test_zlib crc_perf_test_vmx gzm

@@ -63,6 +63,13 @@
 #define barrier()
 #define hwsync()    asm volatile("hwsync" ::: "memory")
 
+#ifndef NX_NO_CPU_PRI
+#define cpu_pri_default()  __ppc_set_ppr_med()
+#define cpu_pri_low()      __ppc_set_ppr_very_low()
+#else
+#define cpu_pri_default()  do{;}while(0)
+#define cpu_pri_low()      do{;}while(0)
+#endif
 
 void *nx_fault_storage_address;
 uint64_t dbgtimer=0;
@@ -165,6 +172,13 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 {
 	volatile long poll = 0;
 	uint64_t t;
+
+	/* Save power and let other threads use the h/w. top may show
+	   100% but only because OS doesn't know we slowed the this
+	   h/w thread while polling. We're letting other threads have
+	   higher throughput on the core.
+	*/
+	cpu_pri_low();
 	
 #define CSB_MAX_POLL 200000000UL
 #define USLEEP_TH     300000UL
@@ -175,12 +189,16 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	{
 		++poll;
 		hwsync();
+
+		cpu_pri_low();
 		
 		/* usleep(0) takes around 29000 ticks ~60 us.
 		   300000 is spinning for about 600 us then
 		   start sleeping */
-		if ( (__ppc_get_timebase() - t) > USLEEP_TH)
+		if ( (__ppc_get_timebase() - t) > USLEEP_TH) {
+			cpu_pri_default();		  
 			usleep(1);
+		}
 
 		if( poll > CSB_MAX_POLL )
 			break;
@@ -190,11 +208,15 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 		   return -EAGAIN; */
 
 		/* fault address from signal handler */		
-		if( nx_fault_storage_address )
+		if( nx_fault_storage_address ) {
+			cpu_pri_default();
 			return -EAGAIN;
+		}
 		
 	}
 
+	cpu_pri_default();
+	
 	/* hw has updated csb and output buffer */
 	hwsync();
 
@@ -279,6 +301,8 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 	}
 
 out:
+	cpu_pri_default();
+	
 	return ret;
 }
 

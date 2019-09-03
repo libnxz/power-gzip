@@ -12,6 +12,38 @@
 		     Avoid some compiler warnings for input and output buffers
  */
 
+/*
+    Example:
+
+    Make a small file fragment that normally wouldn't compress well
+    head -c 50 zlib_how.html > small_file
+    tail -c 50 zlib_how.html >> small_file
+    ls -l small_file
+    -rw-rw-r-- 1 abalib abalib 100 Dec 12 15:38 small_file
+
+    Compress it and check the size. Notice that the file actually expanded
+    gzip small_file
+    ls -l small_file.gz
+    -rw-rw-r-- 1 abalib abalib 124 Dec 12 15:38 small_file.gz
+
+    Let's try using a dictionary to compressed the same file.
+    I will use the original file as a dictionary, a bit unrealistic
+    nevertheless demonstrates the idea:
+    ./zpipe_dict zlib_how.html < small_file > junk.z
+
+    Note the new size, 19 bytes. Compare that to the original size of 100
+    bytes. It's a factor of 5x thanks to the dictionary
+    ls -l junk.z
+    -rw-rw-r-- 1 abalib abalib 19 Dec 12 15:42 junk.z
+
+    Now verify that the file can be decompressed correctly
+    ./zpipe_dict zlib_how.html -d <  junk.z > junk
+    sum junk small_file
+    08615     1 junk
+    08615     1 small_file
+
+*/
+
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
@@ -25,10 +57,11 @@
 #  define SET_BINARY_MODE(file)
 #endif
 
-#define CHUNK (1024*1024)
+#define CHUNK (1<<20) /* 16384 */
 
-unsigned char in[CHUNK];
-unsigned char out[CHUNK];
+#define CHECK_ERR(err, msg) do {if (err != Z_OK) { fprintf(stderr, "%s error: %d\n", msg, err); }} while(0)
+
+#define DBGDICT(X) do { X;}while(0)
 
 /* Compress from file source to file dest until EOF on source.
    def() returns Z_OK on success, Z_MEM_ERROR if memory could not be
@@ -36,19 +69,47 @@ unsigned char out[CHUNK];
    level is supplied, Z_VERSION_ERROR if the version of zlib.h and the
    version of the library linked do not match, or Z_ERRNO if there is
    an error reading or writing the files. */
-int def(FILE *source, FILE *dest, int level)
+int def(FILE *source, FILE *dest, FILE *dictfp, int level)
 {
     int ret, flush;
     unsigned have;
     z_stream strm;
+    unsigned char in[CHUNK];
+    unsigned char out[CHUNK];
+    unsigned char dictionary[32769];
+    int dict_len;
+
+    dict_len = fread(dictionary, 1, 32768, dictfp);
+    if (ferror(dictfp)) {
+	perror("cannot read dictionary");
+	return Z_ERRNO;
+    }
 
     /* allocate deflate state */
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
-    ret = deflateInit(&strm, level);
+    ret = deflateInit2(&strm,
+		       Z_DEFAULT_COMPRESSION, /* Z_BEST_COMPRESSION, */
+		       Z_DEFLATED,
+		       15, /* zlib format */
+		       8,
+		       Z_DEFAULT_STRATEGY );  /* Z_FIXED ); //Z_DEFAULT_STRATEGY ); */
     if (ret != Z_OK)
 	return ret;
+
+    /* DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "deflateInit") ); */
+
+    /* insert the dictionary */
+    ret = deflateSetDictionary(&strm, dictionary, dict_len);
+    if (ret != Z_OK) {
+	CHECK_ERR(ret, "deflateSetDictionary");
+	return ret;
+    }
+
+    fprintf(stderr, "deflate dictId %08lx\n", strm.adler);
+
+    DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "deflateSetDictionary") );
 
     /* compress until end of file */
     do {
@@ -79,7 +140,7 @@ int def(FILE *source, FILE *dest, int level)
     } while (flush != Z_FINISH);
     assert(ret == Z_STREAM_END);        /* stream will be complete */
 
-    fprintf(stderr, "adler %08lx\n", strm.adler);
+    DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "last deflate") );
 
     /* clean up and return */
     (void)deflateEnd(&strm);
@@ -92,11 +153,27 @@ int def(FILE *source, FILE *dest, int level)
    invalid or incomplete, Z_VERSION_ERROR if the version of zlib.h and
    the version of the library linked do not match, or Z_ERRNO if there
    is an error reading or writing the files. */
-int inf(FILE *source, FILE *dest)
+int inf(FILE *source, FILE *dest, FILE *dictfp)
 {
     int ret;
     unsigned have;
     z_stream strm;
+    unsigned char in[CHUNK];
+    unsigned char out[CHUNK];
+    unsigned char dictionary[32769];
+    int dict_len;
+    uLong dictId;
+
+    dict_len = fread(dictionary, 1, 32768, dictfp);
+    if (ferror(dictfp)) {
+	perror("cannot read dictionary");
+	return Z_ERRNO;
+    }
+
+    /* check the ID of the external dictionary */
+    dictId = adler32(0L, Z_NULL, 0);
+    dictId = adler32(dictId, dictionary, dict_len);
+    fprintf(stderr, "dict file has dictId %08lx\n", dictId);
 
     /* allocate inflate state */
     strm.zalloc = Z_NULL;
@@ -107,6 +184,8 @@ int inf(FILE *source, FILE *dest)
     ret = inflateInit(&strm);
     if (ret != Z_OK)
 	return ret;
+
+    /* DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "inflateInit") ); */
 
     /* decompress until deflate stream ends or end of file */
     do {
@@ -125,14 +204,26 @@ int inf(FILE *source, FILE *dest)
 	    strm.next_out = out;
 	    ret = inflate(&strm, Z_NO_FLUSH);
 	    assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
-	    switch (ret) {
-	    case Z_NEED_DICT:
-		ret = Z_DATA_ERROR;     /* and fall through */
-	    case Z_DATA_ERROR:
-	    case Z_MEM_ERROR:
-		(void)inflateEnd(&strm);
+
+	    if (ret == Z_NEED_DICT) {
+		DBGDICT( fprintf(stderr, "compressed file contains dictId %08lx\n", strm.adler) );
+		ret = inflateSetDictionary(&strm, dictionary, dict_len);
+		if (ret != Z_OK) {
+		    CHECK_ERR(ret, "inflateSetDictionary");
+		    return ret;
+		}
+
+		DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "inflateSetDictionary") );
+		ret = inflate(&strm, Z_NO_FLUSH);
+		assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+		DBGDICT( fprintf(stderr, "adler32 %08lx after %s\n", strm.adler, "inflate") );
+	    }
+
+	    else if ((ret == Z_DATA_ERROR) || (ret == Z_MEM_ERROR )) {
+		inflateEnd(&strm);
 		return ret;
 	    }
+
 	    have = CHUNK - strm.avail_out;
 	    if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
 		(void)inflateEnd(&strm);
@@ -143,8 +234,6 @@ int inf(FILE *source, FILE *dest)
 	/* done when inflate() says it's done */
     } while (ret != Z_STREAM_END);
 
-    fprintf(stderr, "adler %08lx\n", strm.adler);
-
     /* clean up and return */
     (void)inflateEnd(&strm);
     return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
@@ -153,7 +242,7 @@ int inf(FILE *source, FILE *dest)
 /* report a zlib or i/o error */
 void zerr(int ret)
 {
-    fputs("zpipe: ", stderr);
+    fputs("zpipe_dict: ", stderr);
     switch (ret) {
     case Z_ERRNO:
 	if (ferror(stdin))
@@ -175,26 +264,39 @@ void zerr(int ret)
     }
 }
 
+void print_usage()
+{
+    fputs("usage: zpipe_dict dictionary.file [-d] < source > dest.z\n", stderr);
+    fputs("       dest.z cannot be decompressed correctly without a matching dictionary\n", stderr);
+}
+
 /* compress or decompress from stdin to stdout */
 int main(int argc, char **argv)
 {
     int ret;
-
+    FILE *dictfp;
     /* avoid end-of-line conversions */
     SET_BINARY_MODE(stdin);
     SET_BINARY_MODE(stdout);
 
+    dictfp = fopen(argv[1], "r");
+    if (dictfp == NULL) {
+	perror("cannot open dictionary.file");
+	print_usage();
+	return -1;
+    }
+
     /* do compression if no arguments */
-    if (argc == 1) {
-	ret = def(stdin, stdout, Z_DEFAULT_COMPRESSION);
+    if (argc == 2) {
+	ret = def(stdin, stdout, dictfp, Z_DEFAULT_COMPRESSION);
 	if (ret != Z_OK)
 	    zerr(ret);
 	return ret;
     }
 
     /* do decompression if -d specified */
-    else if (argc == 2 && strcmp(argv[1], "-d") == 0) {
-	ret = inf(stdin, stdout);
+    else if (argc == 3 && strcmp(argv[2], "-d") == 0) {
+	ret = inf(stdin, stdout, dictfp);
 	if (ret != Z_OK)
 	    zerr(ret);
 	return ret;
@@ -202,7 +304,7 @@ int main(int argc, char **argv)
 
     /* otherwise, report usage */
     else {
-	fputs("zpipe usage: zpipe [-d] < source > dest\n", stderr);
+	print_usage();
 	return 1;
     }
 }

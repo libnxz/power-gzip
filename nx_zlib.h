@@ -87,6 +87,7 @@
 #  define DEF_WBITS MAX_WBITS
 #endif
 
+#define NXQWSZ  (sizeof(nx_qw_t))
 
 extern FILE *nx_gzip_log;
 
@@ -206,8 +207,12 @@ typedef struct nx_stream_s {
 
 	int             zlib_cmf;
 	int             zlib_flg;
-	int             havedict;
-	uint32_t        dictid;
+
+	unsigned int    dict_len;
+	unsigned int    dict_alloc_len;  
+	uint32_t        dict_id;
+	char            *dict;
+	
 	
 	int             status;         /* stream status */
 	
@@ -228,7 +233,7 @@ typedef struct nx_stream_s {
 
         int32_t         len_out;
         int32_t         used_out;
-        int32_t         cur_out;        
+        int32_t         cur_out;
 
 	/* locate the BFINAL bit */ 	
 	/* char            *last_block_head;    /* the byte offset */

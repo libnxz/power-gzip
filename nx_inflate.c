@@ -146,8 +146,14 @@ static int nx_inflateReset2(z_streamp strm, int windowBits)
 		wrap = HEADER_GZIP;
 	else if (windowBits >= 8+32 && windowBits <= 15+32)
 		wrap = HEADER_ZLIB | HEADER_GZIP; /* auto detect header */
-	else
-		return Z_STREAM_ERROR;
+	else if (windowBits == 0) {
+		/* zlib.h states "can also be zero to request that
+		   inflate use the window size in the zlib header of
+		   the compressed stream. */
+		wrap = HEADER_ZLIB;
+		windowBits = 15;
+	}
+	else return Z_STREAM_ERROR;
 
 	s->wrap = wrap;
 	s->windowBits = windowBits;
@@ -317,11 +323,15 @@ inf_forever:
 		if (s->wrap == (HEADER_ZLIB | HEADER_GZIP)) {
 			/* auto detect zlib/gzip */
 			nx_inflate_get_byte(s, c);
-			if (c == 0x1f) /* looks like gzip */
+			if (c == 0x1f) {
+				/* looks like gzip; see rfc1952 ID2 and ID2 fields */
 				s->inf_state = inf_state_gzip_id2;
-			/* looks like zlib */
-			else if (((c & 0xf0) == 0x80) && ((c & 0x0f) < 8))
+			}
+			else if (((c & 0x0f) == 0x08) && ( ((c >> 4) & 0x0f) < 8)) {
+				/* looks like zlib; see rfc1950 CMF fields, CM and CINFO */
 				s->inf_state = inf_state_zlib_flg;
+				s->zlib_cmf = c;
+			}
 			else {
 				strm->msg = (char *)"incorrect header";
 				s->inf_state = inf_state_data_error;
@@ -565,7 +575,7 @@ inf_forever:
 			strm->msg = (char *)"unknown compression method";
 			s->inf_state = inf_state_data_error;
 			break;
-		} else if (((c & 0xf0) >> 4) >= 8) {
+		} else if (((c >> 4) & 0x0f) >= 8) {
 			strm->msg = (char *)"invalid window size";
 			s->inf_state = inf_state_data_error;
 			break;

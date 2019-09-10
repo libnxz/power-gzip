@@ -326,11 +326,13 @@ inf_forever:
 			if (c == 0x1f) {
 				/* looks like gzip; see rfc1952 ID2 and ID2 fields */
 				s->inf_state = inf_state_gzip_id2;
+				s->wrap = HEADER_GZIP;
 			}
 			else if (((c & 0x0f) == 0x08) && ( ((c >> 4) & 0x0f) < 8)) {
 				/* looks like zlib; see rfc1950 CMF fields, CM and CINFO */
 				s->inf_state = inf_state_zlib_flg;
 				s->zlib_cmf = c;
+				s->wrap = HEADER_ZLIB;
 			}
 			else {
 				strm->msg = (char *)"incorrect header";

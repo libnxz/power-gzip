@@ -61,6 +61,10 @@
 #define INF_HIS_LEN (1<<15) /* Fixed 32K history length */
 #define INF_MAX_DICT_LEN  INF_HIS_LEN
 
+#define INF_MIN_INPUT_LEN 300 /* greater than 288 for dht plus 3 bit header plus 1 byte */
+#define INF_MAX_COMPRESSION_RATIO 1032 /* https://stackoverflow.com/a/42865320/5504692 */
+#define INF_MAX_EXPANSION_BYTES (INF_MIN_INPUT_LEN * INF_MAX_COMPRESSION_RATIO)
+
 /* move the overflow from the current fifo head-32KB to the fifo_out
    buffer beginning. Fifo_out starts with 32KB history then */
 #define fifo_out_len_check(s)		  \
@@ -277,9 +281,9 @@ int nx_inflate(z_streamp strm, int flush)
 
 	if (s->fifo_out == NULL) {
 		/* overflow buffer is about 40% of s->avail_in */
-		/* not the best way: what if avail_in is very small
-		 * once at the beginning; let's put a lower bound */
 		s->len_out = (INF_HIS_LEN*2 + (s->zstrm->avail_in * 40)/100);
+		/* for the max possible expansion of inflate input */
+		s->len_out = NX_MAX( INF_MAX_EXPANSION_BYTES, s->len_out);
 		s->len_out = NX_MAX( INF_HIS_LEN << 3, s->len_out );
 		if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
 			prt_err("nx_alloc_buffer for inflate fifo_out\n");
@@ -1070,8 +1074,6 @@ decomp_state:
 
 	source_sz = NX_MIN(source_sz, source_sz_expected);
 
-	target_sz_expected = NX_MIN(target_sz_expected, target_sz);
-
 	/* add the history back */
 	source_sz = source_sz + nx_history_len;
 
@@ -1167,7 +1169,7 @@ restart_nx:
 		/* Target buffer not large enough; retry smaller input
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > nx_history_len );
-		source_sz = ((source_sz - nx_history_len + 2) / 2) + nx_history_len;
+		source_sz = ((source_sz - nx_history_len + 1) / 2) + nx_history_len;
 		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, nx_history_len);
 		target_space_retries++;
 		goto restart_nx;

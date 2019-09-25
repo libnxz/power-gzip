@@ -8,7 +8,7 @@
    -t followed by one of ints: gz file format: gzip: 0, zlib: 1, raw: 2
    for Deflate window sizes 2^9 to 2^15, other than the default 32K use:
    -t followed by one of ints: gzip 25 to 31, zlib 9 to 15, raw -8 to -15
-   -f followed by one of ints: no_flush: 0, sync_flush: 1, partial_flush: 2, full_flush: 3
+   -f followed by one of ints: no_flush: 0, sync_flush: 1, partial_flush: 2, full_flush: 3, block: 5
    To force a certain Deflate block size, change the CHUNK constant and use one of
    the flush options
 
@@ -44,7 +44,7 @@
 typedef struct {
     int z_hist_sz;    /* file format use -15 for raw deflate; use 15 for zlib; 31 for gzip */
     int z_strategy;   /* Z_DEFAULT_STRATEGY Z_FIXED Z_HUFFMAN_ONLY Z_RLE */
-    int z_flush_type; /* Z_SYNC_FLUSH Z_NO_FLUSH Z_PARTIAL_FLUSH Z_FULL_FLUSH */
+    int z_flush_type; /* Z_SYNC_FLUSH Z_NO_FLUSH Z_PARTIAL_FLUSH Z_FULL_FLUSH Z_BLOCK */
     long compressed_bytes_total; 
 } gzcfg_t;
 
@@ -92,9 +92,10 @@ static int get_flush_type(int n)
     else if (n == 1) return Z_SYNC_FLUSH;
     else if (n == 2) return Z_PARTIAL_FLUSH;
     else if (n == 3) return Z_FULL_FLUSH;
+    else if (n == 5) return Z_BLOCK;
     else             return Z_ERRNO;
 }
-static const char flush_type_str[] = "no_flush: 0, sync_flush: 1, partial_flush: 2, full_flush: 3";
+static const char flush_type_str[] = "no_flush: 0, sync_flush: 1, partial_flush: 2, full_flush: 3, block: 5";
 
 unsigned char in[CHUNK];
 unsigned char out[CHUNK];

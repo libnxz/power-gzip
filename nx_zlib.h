@@ -335,11 +335,11 @@ typedef struct nx_stream_s *nx_streamp;
 
 #define print_dbg_info(s, line) \
 do { prt_info(\
-"== %d avail_in %ld total_in %ld \
+"== %s:%d avail_in %ld total_in %ld \
 used_in %ld cur_in %ld \
 avail_out %ld total_out %ld \
 used_out %ld cur_out %ld \
-len_in %ld len_out %ld\n", line, \
+len_in %ld len_out %ld\n", __FUNCTION__, line, \
 (long)(s)->avail_in, (long)(s)->total_in,	\
 (long)(s)->used_in, (long)(s)->cur_in,		\
 (long)(s)->avail_out, (long)(s)->total_out,	\

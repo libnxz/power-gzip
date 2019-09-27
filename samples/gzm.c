@@ -188,9 +188,7 @@ int inf(FILE *source, FILE *dest, gzcfg_t *cf)
     strm.avail_in = 0;
     strm.next_in = Z_NULL;
 
-    /*  ret = inflateInit2( &strm, 15+32 ); /* request automatic header detection */
-
-    ret = inflateInit2( &strm, cf->z_hist_sz ); /* request automatic header detection */
+    ret = inflateInit2( &strm, cf->z_hist_sz );
     if (ret != Z_OK)
 	return ret;
 

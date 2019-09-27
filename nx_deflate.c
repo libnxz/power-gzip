@@ -164,7 +164,7 @@ static inline void set_bfinal(void *buf, int bfinal, int offset)
 static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int block_len)
 {
 	uint64_t flush, blen;
-	uint32_t shift = (tebc & 0x7);
+	int32_t shift = (tebc & 0x7);
 	ASSERT(!!buf && tebc < 8);
 	ASSERT(block_len < 0x10000);
 	if (tebc > 0) {
@@ -205,7 +205,7 @@ static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int
 static int inline append_sync_flush(char *buf, uint32_t tebc, int final)
 {
 	uint64_t flush;
-	uint32_t shift = (tebc & 0x7);
+	int32_t shift = (tebc & 0x7);
 	if (tebc > 0) {
 		/* last byte is partially full */	
 		buf = buf - 1; 
@@ -237,7 +237,7 @@ static int inline append_full_flush(char *buf, uint32_t tebc, int final)
 static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
 {
 	uint64_t flush;
-	uint32_t shift = (*tebc & 0x7);
+	int32_t shift = (*tebc & 0x7);
 	int bytes = 0;
 	ASSERT(!!buf && *tebc < 8);
 	if (*tebc > 0) {

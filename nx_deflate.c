@@ -206,6 +206,7 @@ static int inline append_sync_flush(char *buf, uint32_t tebc, int final)
 {
 	uint64_t flush;
 	int32_t shift = (tebc & 0x7);
+	prt_info("%s tebc %d final %d\n", __FUNCTION__, tebc, final);	
 	if (tebc > 0) {
 		/* last byte is partially full */	
 		buf = buf - 1; 
@@ -240,6 +241,7 @@ static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
 	int32_t shift = (*tebc & 0x7);
 	int bytes = 0;
 	ASSERT(!!buf && *tebc < 8);
+	prt_info("%s tebc %d final %d\n", __FUNCTION__, *tebc, final);
 	if (*tebc > 0) {
 		/* last byte is partially full */	
 		buf = buf - 1;
@@ -257,6 +259,7 @@ static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
 		flush = flush >> 8;
 		shift = shift - 8;
 	}
+	prt_info("                 new tebc %d\n", *tebc);	
 	return bytes;
 }
 

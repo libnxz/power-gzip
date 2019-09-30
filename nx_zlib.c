@@ -681,12 +681,16 @@ static void print_stats(void)
 	prt_stat("inflateEnd: %ld\n", s->inflateEnd);
 
 	prt_stat("deflate data length: %ld KiB\n", s->deflate_len/1024);
+#ifndef __KERNEL__
 	prt_stat("deflate time: %1.2f secs\n",nxtime_to_us(s->deflate_time)/1000000);
 	prt_stat("deflate rate: %1.2f MiB/s\n", s->deflate_len/(1024*1024)/(nxtime_to_us(s->deflate_time)/1000000));
+#endif
 
 	prt_stat("inflate data length: %ld KiB\n", s->inflate_len/1024);
+#ifndef __KERNEL__
 	prt_stat("inflate time: %1.2f secs\n",nxtime_to_us(s->inflate_time)/1000000);
 	prt_stat("inflate rate: %1.2f MiB/s\n", s->inflate_len/(1024*1024)/(nxtime_to_us(s->inflate_time)/1000000));
+#endif
 
 	pthread_mutex_unlock(&zlib_stats_mutex);
 

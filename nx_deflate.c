@@ -164,7 +164,7 @@ static inline void set_bfinal(void *buf, int bfinal, int offset)
 static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int block_len)
 {
 	uint64_t flush, blen;
-	uint32_t shift = (tebc & 0x7);
+	int32_t shift = (tebc & 0x7);
 	ASSERT(!!buf && tebc < 8);
 	ASSERT(block_len < 0x10000);
 	if (tebc > 0) {
@@ -191,8 +191,12 @@ static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int
 
 /*
   TODO If tebc=0 do not append sync flush.
-  TODO If Z_PARTIAL_FLUSH is requested, append 1 or 2 type 1 blocks
-  per bolet.org.  When stream continues, start the new deflate() call
+
+  Do a sync flush followed by a single partial flush.
+  Sync flush ensures that the single partial flush test
+  succeeds (bolet.org describes 1 or 2 partials scenario)
+
+  When stream continues, start the new deflate() call
   with a sync flush for byte alignment if required
 */
 
@@ -205,7 +209,8 @@ static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int
 static int inline append_sync_flush(char *buf, uint32_t tebc, int final)
 {
 	uint64_t flush;
-	uint32_t shift = (tebc & 0x7);
+	int32_t shift = (tebc & 0x7);
+	prt_info("%s tebc %d final %d\n", __FUNCTION__, tebc, final);	
 	if (tebc > 0) {
 		/* last byte is partially full */	
 		buf = buf - 1; 
@@ -222,6 +227,7 @@ static int inline append_sync_flush(char *buf, uint32_t tebc, int final)
 		flush = flush >> 8;
 		shift = shift - 8;
 	}
+	/* bytes appended; excludes the padded partial byte */
 	return(((tebc > 5) || (tebc == 0)) ? 5 : 4);
 }
 
@@ -237,9 +243,10 @@ static int inline append_full_flush(char *buf, uint32_t tebc, int final)
 static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
 {
 	uint64_t flush;
-	uint32_t shift = (*tebc & 0x7);
+	int32_t shift = (*tebc & 0x7);
 	int bytes = 0;
 	ASSERT(!!buf && *tebc < 8);
+	prt_info("%s tebc %d final %d\n", __FUNCTION__, *tebc, final);
 	if (*tebc > 0) {
 		/* last byte is partially full */	
 		buf = buf - 1;
@@ -248,9 +255,9 @@ static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
 	}
 	else *buf = 0;
 	/* write BFINAL=0|1 and BTYPE=01 and EOB=0000000 */
-	flush = (0b010 | (0x1ULL & final)) << shift;
+	flush = (0x2ULL | (0x1ULL & final)) << shift;
 	shift = shift + 10;
-	*tebc = shift % 8;
+	*tebc = shift % 8;  /* TODO check if we need tebc=8 later; 0/8 are same */
 	bytes = (shift == 10 || shift == 17)? 2: 1;
 	while (shift > 0) {
 		*buf++ = (unsigned char)(flush & 0xffULL);
@@ -265,15 +272,17 @@ static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
   the internal buffer fifo_out. returns number of bytes appended.
   updates s->tebc
 */
-static int append_spanning_flush(nx_streamp s, int flush, uint32_t  tebc, int final)
+static int append_spanning_flush(nx_streamp s, int flush, uint32_t tebc, int final)
 {
-	char tmp[6];
+	char tmp[16]; /* issue 106 buffer overran */
 	char *ptr;
 	int  nb, k;
 	uint32_t next_tebc = tebc;
 
+	prt_info("%s flush %d tebc %d final %d\n", __FUNCTION__, flush, tebc, final);
+
 	/* assumes fifo_out is empty */
-	ASSERT(s->used_out == 0 && s->cur_out == 0); 
+	ASSERT(s->used_out == 0 && s->cur_out == 0);
 
 	if (s->avail_out > 5 && (flush == Z_SYNC_FLUSH || flush == Z_FULL_FLUSH)) {
 		/* directly update the user stream  */
@@ -284,35 +293,43 @@ static int append_spanning_flush(nx_streamp s, int flush, uint32_t  tebc, int fi
 		return nb;
 	}
 
-	/* the block span next_out and fifo_out therefore using the tmp buffer */
+	/* the block spans next_out and fifo_out therefore using the tmp buffer */
 
 	/* copy last byte to tmp which may be partially empty */
-	if (tebc > 0) tmp[0] = *(s->next_out - 1);
+	if (tebc > 0) {
+		tmp[0] = *(s->next_out - 1);
+	}
 	ptr = &tmp[1];
 
 	if (flush == Z_SYNC_FLUSH || flush == Z_FULL_FLUSH) {
 		nb = append_sync_flush(ptr, tebc, final);
 		s->tebc = 0;
-	} else if (flush == Z_PARTIAL_FLUSH) {
+	}
+	else if (flush == Z_PARTIAL_FLUSH) {
 		/* we always put TWO empty type 1 blocks */
-		nb   = append_partial_flush(ptr, &next_tebc, 0);
+		/* nb = append_partial_flush(ptr, &next_tebc, 0); */
+		/* sync flush eliminates the need for testing for 1 or
+		   2 partial flushes; see bolet.org */
+		nb = append_sync_flush(ptr, tebc, 0);
+		next_tebc = 0;
 		ptr += nb;
 		nb  += append_partial_flush(ptr, &next_tebc, final);
 		/* save partial last byte bit count for later */
 		s->tebc = next_tebc; 
-	} else {
-		return 0;
 	}
+	else return 0;
 
 	/* put the filled partial byte back in to the stream */
-	if (tebc > 0) *(s->next_out - 1) = tmp[0];
+	if (tebc > 0) {
+		*(s->next_out - 1) = tmp[0];
+	}
 
 	/* now copy the flush block to the stream possibly
 	   overflowing in to fifo_out */
 	k = 0;
 	/* copying in to user buffer starting from tmp[1] */	
 	while (s->avail_out > 0 && k < nb) {
-		*s->next_out = tmp[k+1]; 
+		*s->next_out = tmp[k+1];
 		update_stream_out(s, 1);
 		update_stream_out(s->zstrm, 1);
 		++k;
@@ -329,21 +346,21 @@ static int append_spanning_flush(nx_streamp s, int flush, uint32_t  tebc, int fi
 	   Z_PARTIAL_FLUSH and save it in fifo_out. When we're ready
 	   to copy fifo_out to next_out, we should pad this partial
 	   byte with a sync_flush (unless this is the final block).
-	   ??????????????
 
-	   TODO the user values total_out and avail_out should be
-	   consistent.
-
-	   THIS PARAGRAPH IS PROBABLY WRONG
-	   we're going to
-	   account for the fractional bits in fifo_out as a single
-	   byte. When we append a sync_flush, the pad bits are not
-	   counted therefore the total_out math should work out
-	   correctly in the final sum. ?????????? */
+	   TODO check user values total_out and avail_out for
+	   consistency */
 
 	if (s->used_out == 0) {
+		/* we're here if there may be fractional byte stored
+		   in next_out due to Z_PARTIAL_FLUSH; we must move
+		   that byte in to fifo_out and expect it to be padded
+		   later with a sync flush */
 		if (s->tebc > 0) {
 			ASSERT(flush == Z_PARTIAL_FLUSH);
+			/* because partial flush is 10 bits and it
+			   follows byte aligned sync flush */
+			ASSERT(s->tebc == 2);
+			/* rewind */
 			update_stream_out(s, -1);
 			update_stream_out(s->zstrm, -1);
 			/* copy the partial byte to fifo_out */
@@ -882,7 +899,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 }
 
 /* 
- * if fifo_out has data waiting, copy used_in bytes to the next_out first.
+ * if fifo_out has data waiting, copy used_out bytes to the next_out first.
  */
 static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
 {
@@ -905,6 +922,7 @@ static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
 	if (s->tebc > 0 && s->used_out == 0 && !(s->status & (NX_BFINAL_ST|NX_TRAILER_ST))) {
 		/* byte align the tail when fifo_out is copied entirely to next_out */
 		ASSERT(s->cur_out == 0);
+		prt_info("%s tebc %d\n", __FUNCTION__, s->tebc);
 		append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, 0);
 	}
 	return LIBNX_OK;
@@ -1217,17 +1235,21 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
    (tebc>0), then a sync flush is appended for byte alignment.
 
    (4) If flush=z_partial_flush block and the block tail ends in the
-   user buffer next_out (avail_out > 0), two partial flush blocks are
-   appended.  However, the last partial filled byte of the partial
-   flush block is withheld from user and saved in the fifo_out
+   user buffer next_out (avail_out > 0), a sync flush followed by a
+   partial flush is appended. This is required by the 1 or 2 partial
+   flushes algorithm described at bolet.org below. Sync flush sets u=8
+   therefore a single partial block should be sufficient.
+
+   However, the last byte of the partial flush block is partially full
+   therefore it is withheld from user and saved in the fifo_out
    instead (because we cannot hand out partial bytes to the user).
-   Then when nx_copy_fifo_out_to_nxstrm_out copies fifo_out to
-   next_out it will byte align the witheld byte with a sync
-   flush. In other words, complete bytes of the partial_flush block
-   goes out with this deflate call, the last partial byte goes out
-   with the next deflate call however, the partial byte is followed by
-   a sync flush block which are practically the first data bytes of
-   the next deflate output.
+   Then, when nx_copy_fifo_out_to_nxstrm_out copies fifo_out to
+   next_out it will byte align the witheld byte with a sync flush. In
+   other words, complete bytes of the partial_flush block goes out
+   with this deflate call and the last partial byte goes out with the
+   next deflate call however, the partial byte is followed by a sync
+   flush block which are practically the first data bytes of the next
+   deflate output.
 
    (5) When z_finish is called, the last compressed block's bfinal bit
    is set. When z_finish is called with no data (avail_in=0) a sync
@@ -1244,12 +1266,52 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
    fifo_out (see
    append_spanning_flush...). nx_copy_fifo_out_to_nxstrm_out must be
    used to empty fifo_out to next_out.
+
+   https://www.bolet.org/~pornin/deflate-flush.html
+   A partial flush consists of the following steps:
+
+   If there is some buffered but not yet compressed data, then it is
+   compressed into one or several blocks.  An empty type 1 block is
+   sent.  Possibly, a second empty type 1 block is sent.  An empty
+   type 1 block consists of the three-bit block header, followed by
+   the seven-bit EOB code, hence a grand total of 10 bits. The whole
+   trickery is how to decide whether a second empty type 1 block
+   should be sent. Zlib uses the following test:
+
+   Let u be the length (in bits) of the EOB marker of the last block
+   (if there was buffered data when the flush was decided, then the
+   last block is the last used to send that data). If the last block
+   was a type 0 block, or if there is no last block (flush at the very
+   beginning of the stream), then let u = 8.  The first empty type 1
+   block is sent. That block consists of 10 bit. Out of those 10 bits,
+   v could be sent because they were part of complete bytes. From the
+   sender point of view, there are b computed but unsent bits (between
+   0 and 7 bits, inclusive), and thus v = 10 - b. It follows that v
+   ranges from 3 to 10.  If u + v is strictly lower than 8, then a
+   second empty block is sent. Otherwise, no second block is sent.
+   The rationale is the following: the inflater needs 9 bits of
+   lookahead to decode the last meaningful symbol, which may be
+   encoded over a single bit. Hence, at least 8 more bits must be
+   sent. The following points shall be noted:
+
+   The deflater could actually know exactly how many bits the symbol
+   immediately before the EOB of the last block used. But this
+   knowledge is not used by zlib. Rather, zlib simply assumes that the
+   said symbol could have used only one bit.  This test is performed
+   even if the rationale does not apply, for instance because the
+   previous block was a type 0 or type 1 block, or possibly did not
+   exist at all.  Similarly, the first type 1 empty block is always
+   sent, even if the previous block was a type 0 block and thus no
+   actual flush operation was really needed.  Every sent block updates
+   the value of u. In particular, empty type 1 blocks set it to 7 and
+   empty type 0 blocks set it to 8.
+
 */
 
 
 static inline int nx_compress_block_append_flush_block(nx_streamp s)
 {
-	prt_info(" == 1168 s->flush %d s->status %d s->tebc %d\n", s->flush, s->status, s->tebc);
+	prt_info("%s s->flush %d s->status %d s->tebc %d\n", __FUNCTION__, s->flush, s->status, s->tebc);
 	if (s->used_out == 0) {
 		/* fifo_out is empty; compressor output did not overflow */
 		if (s->status == NX_BFINAL_ST)
@@ -1258,17 +1320,17 @@ static inline int nx_compress_block_append_flush_block(nx_streamp s)
 		if (s->flush == Z_PARTIAL_FLUSH ) {
 			append_spanning_flush(s, Z_PARTIAL_FLUSH, s->tebc, 0);
 		}
-
-		else if ( (s->flush == Z_NO_FLUSH && s->tebc > 0) || /* NX requirement */
-			  (s->status != NX_BFINAL_ST && s->tebc > 0) || /* Caller don't finish but tebc > 0 */
-			  s->flush == Z_SYNC_FLUSH ||                /* Caller request */
-			  s->flush == Z_FULL_FLUSH ) {               /* Caller request */
+		else if ( (s->flush == Z_NO_FLUSH && s->tebc > 0) ||    /* NX requirement */
+			  (s->status != NX_BFINAL_ST && s->tebc > 0) || /* Caller did not finish but tebc > 0 */
+			  s->flush == Z_SYNC_FLUSH ||                   /* Caller requested */
+			  s->flush == Z_FULL_FLUSH ) {                  /* Caller requested */
 			append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, 0);
 		}
 	}               
 	/* fifo_out is not empty; compressor did overflow; ignore user
-	   requested flushes because avail_out==0 presently; and we
-	   postpone byte aligning flush to the nx_copy_fifo_out */
+	   requested flushes because avail_out == 0 presently; and we
+	   postpone byte aligning flush to
+	   nx_copy_fifo_out_to_nxstrm_out */
 	return LIBNX_OK;
 }
 

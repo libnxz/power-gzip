@@ -64,6 +64,9 @@
 
 #define DEF_HIST_LEN (1<<15)
 
+#define DEF_MIN_INPUT_LEN (1UL<<16)
+#define DEF_MAX_EXPANSION_LEN (2 * DEF_MIN_INPUT_LEN)
+
 /* deflateSetDictionary constants */
 #define DEF_MAX_DICT_LEN   ((1L<<15)-272)
 #define DEF_DICT_THRESHOLD (1<<8) /* TODO make this config variable */
@@ -112,7 +115,6 @@ static uint32_t nx_max_byte_count_low = (1UL<<30);
 static uint32_t nx_max_byte_count_high = (1UL<<30);
 static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
 static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
-static int      nx_pgfault_retries = INT_MAX;         
 
 typedef int retlibnx_t;
 typedef int retz_t;
@@ -862,11 +864,6 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->nxdevp     = h;
 	s->gzhead     = NULL;
 
-	// Delete candidate
-	//if (wrap == 0)      s->status = NX_RAW_INIT_ST;
-	//else if (wrap == 1) s->status = NX_ZLIB_INIT_ST;
-	//else if (wrap == 2) s->status = NX_GZIP_INIT_ST;	
-	
 	s->fifo_in = NULL;
 	s->len_in = 0;
 
@@ -874,6 +871,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->dict_len = 0;
 	
 	s->len_out = nx_config.deflate_fifo_out_len;
+	s->len_out = NX_MAX(s->len_out, DEF_MAX_EXPANSION_LEN);
 	if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
 		return Z_MEM_ERROR;
 
@@ -886,11 +884,6 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	
 	s->ddl_in = s->dde_in;
 	s->ddl_out = s->dde_out;
-
-	// Delete candidate
-	//s->crc32 = INIT_CRC;
-	//s->adler32 = INIT_ADLER;
-	//s->need_stored_block = 0;
 
 	strm->state = (void *) s; /* remember the hardware state */
 	rc = nx_deflateReset(strm);
@@ -1387,11 +1380,8 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	/* Tell NX size of the history (resume) buffer; needs to be 16 byte integral */
 	putnn(nxcmdp->cpb, in_histlen, resume_len/sizeof(nx_qw_t));
 
-	/* TODO init final, function code, CPB, init crc, and other fields */
+	pgfault_retries = nx_config.retry_max;
 
-	/* final = s->final_block; */  /* TODO, may not be final because of retries below */
-	pgfault_retries = nx_pgfault_retries; 
-	
 	/* setup ddes */
 	bytes_in = nx_compress_nxstrm_to_ddl_in(s, resume_buf, resume_len);
 	bytes_out = nx_compress_nxstrm_to_ddl_out(s);
@@ -1433,16 +1423,30 @@ restart:
 
 		prt_info(" pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n", 
 			pgfault_retries, bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
-		if (pgfault_retries == nx_pgfault_retries) {
+		if (pgfault_retries == nx_config.retry_max) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
 			goto restart;
 		}
 		else if (pgfault_retries > 0) {
-			/* try fewer input pages assuming memory has pressure 
-			   this will do one page per call at the limit */
-			if (bytes_in > pgsz)
-				bytes_in = NX_MAX(bytes_in/2, pgsz);
+			/* Try fewer input pages assuming memory has
+			   pressure; these should reduce touched pages
+			   to a maximum 3 pages plus the resume page */
+			bytes_in = bytes_in - resume_len;
+
+			if (bytes_in > (2 * DEF_MIN_INPUT_LEN))
+				bytes_in = (bytes_in + 1) / 2;
+			else if (bytes_in > DEF_MIN_INPUT_LEN)
+				bytes_in = DEF_MIN_INPUT_LEN;
+			/* else if caller gave fewer source bytes then keep it */
+
+			bytes_in = bytes_in + resume_len;
+
+			if (bytes_out > (2 * DEF_MAX_EXPANSION_LEN))
+				bytes_out = (bytes_out + 1) / 2;
+			else if (bytes_out > DEF_MAX_EXPANSION_LEN)
+				bytes_out = DEF_MAX_EXPANSION_LEN;
+
 			--pgfault_retries;
 			goto restart;
 		}
@@ -1476,31 +1480,27 @@ restart:
 		
 	case ERR_NX_TARGET_SPACE:
 
-		/* target buffer not large enough retry fewer pages  */
-		if (bytes_in > pgsz)
-			bytes_in = NX_MAX(bytes_in/2, pgsz);		
+		/* target buffer not large enough; retry with smaller input */
+		bytes_in = bytes_in - resume_len;
+
+		if (bytes_in > (2 * DEF_MIN_INPUT_LEN))
+			bytes_in = (bytes_in + 1) / 2;
+		else if (bytes_in > DEF_MIN_INPUT_LEN)
+			bytes_in = DEF_MIN_INPUT_LEN;
+		/* else if caller gave fewer source bytes then keep it */
+
+		bytes_in = bytes_in + resume_len;
+
 		prt_info("ERR_NX_TARGET_SPACE, retry with bytes_in %d\n", bytes_in);
 		goto restart;
 
 	case ERR_NX_TPBC_GT_SPBC:  
 
-		/* output larger than input; for the compression ratio sake */
-		/* TODO save lzcounts when doing dry_run */
-		/* TODO save checksums from submit_job and avoid nx_checksum */
-		/* TODO consider used_in > 0 case */
-		/* if (s->used_in == 0 && s->used_out == 0) {
-			nx_output_stored_blocks(s, bytes_in, s->flush);
-			rc = LIBNX_OK_STBLK;
-			goto do_no_update; 
-		} */
-		/* else just use the compressed data even when
-		   expanding by fall through */
+		/* output larger than input */
 
-		// s->need_stored_block = bytes_in - resume_len;
 		rc = LIBNX_OK_BIG_TARGET;
 		prt_info("ERR_NX_TPBC_GT_SPBC\n");
-		// FIXME: treat as ERR_NX_OK currently
-		// goto do_no_update; 
+		/* TODO treat as ERR_NX_OK currently */
 		
 	case ERR_NX_OK:
 		/* need to adjust strm and fifo offsets on return */

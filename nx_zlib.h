@@ -444,6 +444,7 @@ static inline uint64_t get_nxtime_diff(uint64_t t1, uint64_t t2)
 	}
 }
 
+#ifndef __KERNEL__
 static inline double nxtime_to_us(uint64_t nxtime)
 {
 	uint64_t freq;
@@ -452,6 +453,7 @@ static inline double nxtime_to_us(uint64_t nxtime)
 	
 	return (double)(nxtime * 1000000 / freq) ;
 }
+#endif
 
 #ifndef ARRAY_SIZE
 #  define ARRAY_SIZE(a)	 (sizeof((a)) / sizeof((a)[0]))

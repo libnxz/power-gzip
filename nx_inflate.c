@@ -1187,6 +1187,23 @@ restart_nx:
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > nx_history_len );
 		source_sz = ((source_sz - nx_history_len + 1) / 2) + nx_history_len;
+
+		source_sz = source_sz - nx_history_len;
+		/* reduce large source down to minimum viable; if
+		   source is already small don't change it */
+		if (source_sz > (2 * INF_MIN_INPUT_LEN))
+			source_sz = (source_sz + 1) / 2;
+		else if (source_sz > INF_MIN_INPUT_LEN)
+			source_sz = INF_MIN_INPUT_LEN;
+
+		/* else if caller gave fewer source bytes, keep it as is */
+		source_sz = source_sz + nx_history_len;
+
+		/* do not change target size because we allocated a
+		   minimum of INF_MAX_EXPANSION_BYTES which should
+		   cover the max expansion of INF_MIN_INPUT_LEN
+		   bytes */
+
 		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, nx_history_len);
 		target_space_retries++;
 		goto restart_nx;

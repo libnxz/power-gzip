@@ -1121,12 +1121,29 @@ restart_nx:
 		}
 		else if (pgfault_retries > 0) {
 			/* if still faulting try fewer input pages *
-			   assuming memory outage; TODO make source go
-			   smaller than page size but accounting for
-			   history; TO first cut the source pages down
-			   then cut the target pages down */
-			if (source_sz > nx_config.page_sz)
-				source_sz = NX_MAX(source_sz / 2, nx_config.page_sz);
+			   assuming memory outage; */
+			ASSERT( source_sz > nx_history_len );
+
+			/* We insist on having a minimum of
+			   INF_MIN_INPUT_LEN and
+			   INF_MAX_EXPANSION_BYTES memory present;
+			   that is about 2 pages minimum for source and
+			   and 6 pages for target; if the system does not
+			   have 8 free pages then the loop will last forever */
+			source_sz = source_sz - nx_history_len;
+			if (source_sz > (2 * INF_MIN_INPUT_LEN))
+				source_sz = (source_sz + 1) / 2;
+			else if (source_sz > INF_MIN_INPUT_LEN)
+				source_sz = INF_MIN_INPUT_LEN;
+
+			/* else if caller gave fewer source bytes, keep it as is */
+			source_sz = source_sz + nx_history_len;
+
+			if (target_sz > (2 * INF_MAX_EXPANSION_BYTES))
+				target_sz = (target_sz + 1) / 2;
+			else if (target_sz > INF_MAX_EXPANSION_BYTES)
+				target_sz = INF_MAX_EXPANSION_BYTES;
+
 			--pgfault_retries;
 			goto restart_nx;
 		}

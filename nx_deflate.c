@@ -62,6 +62,7 @@
 #define DEF_MEM_LEVEL 8
 #define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), ZLIB_VERSION, (int)sizeof(z_stream))
 
+#define DEF_MAX_DHT_LEN 288
 #define DEF_HIST_LEN (1<<15)
 
 /* deflateSetDictionary constants */
@@ -1965,8 +1966,7 @@ s3:
 unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 {
 	zlib_stats_inc(&zlib_stats.deflateBound);
-	// return (sourceLen + sourceLen*10/100 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 ));
-	return (sourceLen*2 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 ));
+	return (2 * sourceLen + DEF_MAX_DHT_LEN + 1);
 }
 
 int nx_deflateSetHeader(z_streamp strm, gz_headerp head)

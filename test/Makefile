@@ -8,28 +8,24 @@ LIB = -L../ -L/usr/lib/
 SRC_DEFLATE = ${wildcard test_deflate.c test_utils.c deflate/*.c}
 SRC_INFLATE = ${wildcard test_inflate.c test_utils.c inflate/*.c}
 SRC_STRESS  = ${wildcard test_stress.c  test_utils.c}
-OBJ_DEFLATE = ${patsubst %.c, %.o, $(SRC_DEFLATE)}
-OBJ_INFLATE = ${patsubst %.c, %.o, $(SRC_INFLATE)}
-OBJ_STRESS  = ${patsubst %.c, %.o, $(SRC_STRESS)}
+obj_test_deflate = ${patsubst %.c, %.o, $(SRC_DEFLATE)}
+obj_test_inflate = ${patsubst %.c, %.o, $(SRC_INFLATE)}
+obj_test_stress  = ${patsubst %.c, %.o, $(SRC_STRESS)}
 
+TEST_OBJS = $(obj_test_deflate) $(obj_test_inflate) $(obj_test_stress)
 EXE = test_inflate test_deflate test_stress
 
 all: $(EXE)
 
-test_inflate: $(OBJ_INFLATE)
-	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^  -lnxz -lpthread
-test_deflate: $(OBJ_DEFLATE)
-	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^  -lnxz -lpthread
-test_stress: $(OBJ_STRESS)
-	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^  -lnxz -lpthread
+check: $(EXE)
+	./run_test.sh
 
-$(OBJ_DEFLATE): %.o : %.c
-	$(CC) $(CFLAGS) $(INC) -c $^ -o $@
-$(OBJ_INFLATE): %.o : %.c
-	$(CC) $(CFLAGS) $(INC) -c $^ -o $@
-$(OBJ_STRESS): %.o : %.c
+$(TEST_OBJS): %.o : %.c
 	$(CC) $(CFLAGS) $(INC) -c $^ -o $@
 
 clean:
 	/bin/rm -f *.o deflate/*.o inflate/*.o $(EXE) *.log
 
+.SECONDEXPANSION:
+test_%: $$(obj_$$@)
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^  -lnxz -lpthread

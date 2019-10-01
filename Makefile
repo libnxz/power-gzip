@@ -34,4 +34,7 @@ $(SHAREDLIB): $(OBJS)
 
 clean:
 	/bin/rm -f *.o *.gcda *.gcno *.so *.a *~
+	$(MAKE) -C test $@
 
+check:
+	$(MAKE) -C test $@

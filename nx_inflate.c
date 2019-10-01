@@ -61,6 +61,10 @@
 #define INF_HIS_LEN (1<<15) /* Fixed 32K history length */
 #define INF_MAX_DICT_LEN  INF_HIS_LEN
 
+#define INF_MIN_INPUT_LEN 300 /* greater than 288 for dht plus 3 bit header plus 1 byte */
+#define INF_MAX_COMPRESSION_RATIO 1032 /* https://stackoverflow.com/a/42865320/5504692 */
+#define INF_MAX_EXPANSION_BYTES (INF_MIN_INPUT_LEN * INF_MAX_COMPRESSION_RATIO)
+
 /* move the overflow from the current fifo head-32KB to the fifo_out
    buffer beginning. Fifo_out starts with 32KB history then */
 #define fifo_out_len_check(s)		  \
@@ -277,9 +281,9 @@ int nx_inflate(z_streamp strm, int flush)
 
 	if (s->fifo_out == NULL) {
 		/* overflow buffer is about 40% of s->avail_in */
-		/* not the best way: what if avail_in is very small
-		 * once at the beginning; let's put a lower bound */
 		s->len_out = (INF_HIS_LEN*2 + (s->zstrm->avail_in * 40)/100);
+		/* for the max possible expansion of inflate input */
+		s->len_out = NX_MAX( INF_MAX_EXPANSION_BYTES, s->len_out);
 		s->len_out = NX_MAX( INF_HIS_LEN << 3, s->len_out );
 		if (NULL == (s->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0))) {
 			prt_err("nx_alloc_buffer for inflate fifo_out\n");
@@ -1070,8 +1074,6 @@ decomp_state:
 
 	source_sz = NX_MIN(source_sz, source_sz_expected);
 
-	target_sz_expected = NX_MIN(target_sz_expected, target_sz);
-
 	/* add the history back */
 	source_sz = source_sz + nx_history_len;
 
@@ -1119,12 +1121,29 @@ restart_nx:
 		}
 		else if (pgfault_retries > 0) {
 			/* if still faulting try fewer input pages *
-			   assuming memory outage; TODO make source go
-			   smaller than page size but accounting for
-			   history; TO first cut the source pages down
-			   then cut the target pages down */
-			if (source_sz > nx_config.page_sz)
-				source_sz = NX_MAX(source_sz / 2, nx_config.page_sz);
+			   assuming memory outage; */
+			ASSERT( source_sz > nx_history_len );
+
+			/* We insist on having a minimum of
+			   INF_MIN_INPUT_LEN and
+			   INF_MAX_EXPANSION_BYTES memory present;
+			   that is about 2 pages minimum for source and
+			   and 6 pages for target; if the system does not
+			   have 8 free pages then the loop will last forever */
+			source_sz = source_sz - nx_history_len;
+			if (source_sz > (2 * INF_MIN_INPUT_LEN))
+				source_sz = (source_sz + 1) / 2;
+			else if (source_sz > INF_MIN_INPUT_LEN)
+				source_sz = INF_MIN_INPUT_LEN;
+
+			/* else if caller gave fewer source bytes, keep it as is */
+			source_sz = source_sz + nx_history_len;
+
+			if (target_sz > (2 * INF_MAX_EXPANSION_BYTES))
+				target_sz = (target_sz + 1) / 2;
+			else if (target_sz > INF_MAX_EXPANSION_BYTES)
+				target_sz = INF_MAX_EXPANSION_BYTES;
+
 			--pgfault_retries;
 			goto restart_nx;
 		}
@@ -1167,7 +1186,24 @@ restart_nx:
 		/* Target buffer not large enough; retry smaller input
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > nx_history_len );
-		source_sz = ((source_sz - nx_history_len + 2) / 2) + nx_history_len;
+		source_sz = ((source_sz - nx_history_len + 1) / 2) + nx_history_len;
+
+		source_sz = source_sz - nx_history_len;
+		/* reduce large source down to minimum viable; if
+		   source is already small don't change it */
+		if (source_sz > (2 * INF_MIN_INPUT_LEN))
+			source_sz = (source_sz + 1) / 2;
+		else if (source_sz > INF_MIN_INPUT_LEN)
+			source_sz = INF_MIN_INPUT_LEN;
+
+		/* else if caller gave fewer source bytes, keep it as is */
+		source_sz = source_sz + nx_history_len;
+
+		/* do not change target size because we allocated a
+		   minimum of INF_MAX_EXPANSION_BYTES which should
+		   cover the max expansion of INF_MIN_INPUT_LEN
+		   bytes */
+
 		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, nx_history_len);
 		target_space_retries++;
 		goto restart_nx;

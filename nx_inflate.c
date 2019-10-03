@@ -244,7 +244,7 @@ int nx_inflateEnd(z_streamp strm)
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
 
-	nx_inflateReset(strm);
+	/* nx_inflateReset(strm); issue 111 */
 
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);

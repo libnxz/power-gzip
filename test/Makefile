@@ -12,7 +12,7 @@ obj_test_deflate = ${patsubst %.c, %.o, $(SRC_DEFLATE)}
 obj_test_inflate = ${patsubst %.c, %.o, $(SRC_INFLATE)}
 obj_test_stress  = ${patsubst %.c, %.o, $(SRC_STRESS)}
 
-TEST_OBJS = $(obj_test_deflate) $(obj_test_inflate) $(obj_test_stress)
+TEST_OBJS = $(sort $(obj_test_deflate) $(obj_test_inflate) $(obj_test_stress))
 EXE = test_inflate test_deflate test_stress
 
 all: $(EXE)

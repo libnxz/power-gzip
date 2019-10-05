@@ -500,6 +500,7 @@ nx_devp_t nx_open(int nx_id)
 		nx_devp = &nx_devices[ nx_dev_count ];
 		nx_devp->vas_handle = vas_handle;
 		++ nx_dev_count;
+		sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
 	}
 	else {
 		/* vas is already open; threads will reuse it */
@@ -526,6 +527,7 @@ static void nx_close_all()
 	for (i=0; i < nx_dev_count; i++)
 		if (!!nx_devices[i].vas_handle)
 			nx_function_end(nx_devices[i].vas_handle);
+	sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
 	return;
 }
 
@@ -853,10 +855,10 @@ void nx_hw_done(void)
 {
 	int flags = (nx_gzip_inflate_flags | nx_gzip_deflate_flags);
 
+	nx_close_all();
+	
 	if (!!nx_gzip_log) fflush(nx_gzip_log);
 	fflush(stderr);
-
-	nx_close_all();
 
 	if (nx_gzip_log != stderr) {
 		nx_gzip_log = NULL;

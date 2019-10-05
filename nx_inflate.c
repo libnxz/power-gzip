@@ -1493,6 +1493,7 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 	uint32_t adler;
 	int cc;
 
+	sw_trace("%s\n", __FUNCTION__);
 	if (dictionary == NULL || strm == NULL)
 		return Z_STREAM_ERROR;
 

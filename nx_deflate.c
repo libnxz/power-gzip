@@ -1738,9 +1738,10 @@ int nx_deflate(z_streamp strm, int flush)
 		if (s->flush == Z_FINISH) {
 			goto s1;
 		}
-		else if (s->flush == Z_NO_FLUSH)
+		else if (s->flush == Z_NO_FLUSH) {
+			prt_info("%s:%d, return Z_BUF_ERROR\n", __FUNCTION__, __LINE__);
 			return Z_BUF_ERROR;
-		else if (s->flush == Z_PARTIAL_FLUSH || s->flush == Z_SYNC_FLUSH || s->flush == Z_FULL_FLUSH)
+		} else if (s->flush == Z_PARTIAL_FLUSH || s->flush == Z_SYNC_FLUSH || s->flush == Z_FULL_FLUSH)
 			return Z_OK;
 	}
 	
@@ -1989,6 +1990,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	uint32_t adler;
 	int cc;
 
+	sw_trace("%s\n", __FUNCTION__);
 	if (dictionary == NULL || strm == NULL)
 		return Z_STREAM_ERROR;
 

@@ -179,6 +179,7 @@ typedef struct nx_stream_s {
 					 * the true values only after
 					 * the stream is finished or fully
 					 * flushed to the output */
+	uint64_t        checksum_set;   /* nx wrap function code helper */
 
 	char            trailer[9];     /* temp storage for tail bytes */
 	int             trailer_len;

@@ -742,6 +742,7 @@ static int nx_deflateResetKeep(z_streamp strm)
 	s->checksum_set = 0;
 	s->need_stored_block = 0;
 	s->dict_len = 0;
+	s->header_len = 0;
 
 	if (s->wrap == 1)      strm->adler = s->adler32;
 	else if (s->wrap == 2) strm->adler = s->crc32;
@@ -1581,6 +1582,8 @@ static int nx_deflate_add_header(nx_streamp s)
 		s->status == NX_GZIP_INIT_ST ||
 		s->status == NX_RAW_INIT_ST);
 
+	s->header_len = 0;
+
 	if (s->status == NX_ZLIB_INIT_ST) {
 		/* zlib header RFC1950 */
 		uInt header = (Z_DEFLATED + ((s->windowBits-8)<<4)) << 8;
@@ -1600,10 +1603,12 @@ static int nx_deflate_add_header(nx_streamp s)
 
 		/* puts header in fifo_out not the stream */
 		put_short(s, header);
+		s->header_len += 2;
 
 		if (s->dict_len != 0) { /* append ID to the header */
 			put_short(s, s->dict_id >> 16);
 			put_short(s, s->dict_id & 0xffff);
+			s->header_len += 4;
 		}
 
 		/* adler contains either crc32 or adler32 in the zlib
@@ -1621,6 +1626,7 @@ static int nx_deflate_add_header(nx_streamp s)
 			char tmp[12];
 			int k, len;
 			len = gzip_header_blank(tmp);
+			s->header_len += len;
 			k = 0;
 			while (k < len) {
 				nx_put_byte(s, tmp[k]);
@@ -1635,6 +1641,7 @@ static int nx_deflate_add_header(nx_streamp s)
 			nx_put_byte(s, 0x1f); /* ID1 */
 			nx_put_byte(s, 0x8b); /* ID2 */
 			nx_put_byte(s, 0x08); /* CM */
+			s->header_len += 3;
 
 			/* flg */
 			flg = ((s->gzhead->text) ? 1 : 0) +
@@ -1643,26 +1650,31 @@ static int nx_deflate_add_header(nx_streamp s)
 				(s->gzhead->name == NULL ? 0 : 8) +
 				(s->gzhead->comment == NULL ? 0 : 16);
 			nx_put_byte(s, flg);
+			s->header_len += 1;
 
 			/* mtime */
 			nx_put_byte(s, (uint8_t)(s->gzhead->time & 0xff));
 			nx_put_byte(s, (uint8_t)((s->gzhead->time >> 8) & 0xff));
 			nx_put_byte(s, (uint8_t)((s->gzhead->time >> 16) & 0xff));
 			nx_put_byte(s, (uint8_t)((s->gzhead->time >> 24) & 0xff));
+			s->header_len += 4;
 
 			/* xfl=4 fastest */
 			nx_put_byte(s, 4);
 			/* os type */
 			nx_put_byte(s, (uint8_t)(s->gzhead->os & 0xff));
+			s->header_len += 2;
 
 			/* fextra, xlen */
 			if (s->gzhead->extra != NULL) {
 				nx_put_byte(s, (uint8_t)(s->gzhead->extra_len & 0xff));
 				nx_put_byte(s, (uint8_t)((s->gzhead->extra_len >> 8) & 0xff));
+				s->header_len += 2;
 
 				int val;
 				int j = 0;
 				int xlen = s->gzhead->extra_len;
+				s->header_len += xlen;
 				while (j++ < xlen) {
 					val = s->gzhead->extra[j];
 					nx_put_byte(s, (uint8_t)val);
@@ -1676,6 +1688,7 @@ static int nx_deflate_add_header(nx_streamp s)
 				do {
 					val = s->gzhead->name[j++];
 					nx_put_byte(s, (uint8_t)val);
+					s->header_len += 1;
 				} while (val != 0);
 			}
 
@@ -1686,6 +1699,7 @@ static int nx_deflate_add_header(nx_streamp s)
 				do {
 					val = s->gzhead->comment[j++];
 					nx_put_byte(s, (uint8_t)val);
+					s->header_len += 1;
 				} while (val != 0);
 			}
 
@@ -2027,10 +2041,49 @@ s3:
 	return Z_STREAM_ERROR;
 }
 
+/* from zlib.h deflateBound() returns an upper bound on the compressed
+   size after deflation of sourceLen bytes.  It must be called after
+   deflateInit() or deflateInit2(), and after deflateSetHeader(), if
+   used.  This would be used to allocate an output buffer for
+   deflation in a single pass, */
+
 unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 {
+	int num_wrapper_bytes;
+	uint64_t num_blocks, compressed_max, stored_max;
+	const int max_sync_flush_len = 5;
+	const int zlib_trailer_len = 4;
+	const int gzip_trailer_len = 4;
+	nx_streamp s;
+
+	if (strm != NULL) s = (nx_streamp) strm->state;
+
 	zlib_stats_inc(&zlib_stats.deflateBound);
-	return (2 * sourceLen + DEF_MAX_DHT_LEN + 1);
+
+	if (strm == NULL) {
+		/* if no stream assume zlib format and no dict; simplifies compressBound() */
+		num_wrapper_bytes = 2 + zlib_trailer_len;
+	}
+	else if (s->wrap == HEADER_ZLIB) {
+		/* cmf (1), flg (1), optional dictid (4), adler32 (4)
+		   fields https://www.ietf.org/rfc/rfc1950.txt */
+		num_wrapper_bytes = s->header_len + zlib_trailer_len;
+	}
+	else if (s->wrap == HEADER_GZIP) {
+		/* https://www.ietf.org/rfc/rfc1952.txt */
+		num_wrapper_bytes = s->header_len + gzip_trailer_len;
+	}
+	else num_wrapper_bytes = 0; /* raw */
+
+	/* FHT or DHT blocks count; we add a sync flush after each block */
+	num_blocks = ((uint64_t)sourceLen + (uint64_t)nx_config.per_job_len - 1) / (uint64_t)nx_config.per_job_len;
+	compressed_max = num_blocks * max_sync_flush_len + sourceLen + num_wrapper_bytes;
+
+	/* Stored blocks count; each block starts with btype/bfinal header and LEN/NLEN fields 5 bytes */
+	num_blocks = ((uint64_t)sourceLen + (uint64_t)nx_stored_block_len - 1) / (uint64_t)nx_stored_block_len;
+	stored_max = num_blocks * max_sync_flush_len + sourceLen + num_wrapper_bytes;
+
+	return ( NX_MIN(compressed_max, stored_max) );
 }
 
 int nx_deflateSetHeader(z_streamp strm, gz_headerp head)

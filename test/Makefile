@@ -11,9 +11,12 @@ SRC_STRESS  = ${wildcard test_stress.c  test_utils.c}
 obj_test_deflate = ${patsubst %.c, %.o, $(SRC_DEFLATE)}
 obj_test_inflate = ${patsubst %.c, %.o, $(SRC_INFLATE)}
 obj_test_stress  = ${patsubst %.c, %.o, $(SRC_STRESS)}
+obj_test_crc32   = ${patsubst %.c, %.o, test_crc32.c}
+obj_test_adler32 = ${patsubst %.c, %.o, test_adler32.c}
 
-TEST_OBJS = $(sort $(obj_test_deflate) $(obj_test_inflate) $(obj_test_stress))
-EXE = test_inflate test_deflate test_stress
+TEST_OBJS = $(sort $(obj_test_deflate) $(obj_test_inflate) $(obj_test_stress) \
+    $(obj_test_crc32) $(obj_test_adler32))
+EXE = test_inflate test_deflate test_stress test_crc32 test_adler32
 
 all: $(EXE)
 

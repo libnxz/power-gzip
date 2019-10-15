@@ -36,7 +36,7 @@ $(SHAREDLIB): $(OBJS)
 	ln -s $@ $(LIBLINK)
 
 clean:
-	/bin/rm -f *.o *.gcda *.gcno *.so *.a *~
+	/bin/rm -f *.o *.gcda *.gcno *.so *.a *~ $(SHAREDLIB)
 	$(MAKE) -C test $@
 
 check:

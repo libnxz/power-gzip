@@ -2,7 +2,7 @@
  * NX-GZIP compression accelerator user library
  * implementing zlib compression library interfaces
  *
- * Copyright (C) IBM Corporation, 2011-2017
+ * Copyright (C) IBM Corporation, 2011-2019
  *
  * Licenses for GPLv2 and Apache v2.0:
  *
@@ -1900,40 +1900,48 @@ s3:
 
 	/* level=0 is when zlib copies input to output uncompressed */
 	if ((s->level == 0 && s->avail_out > 0) || (s->need_stored_block > 0)) {
-		/* reminder of the output block start offset */
-		char *blk_head = s->next_out;
 		uint32_t avail_out = s->avail_out;
 		uint32_t old_tebc = s->tebc;
 		int bfinal = 0;
 
 		prt_info("need_stored_block %d, tebc %d, %d\n", s->need_stored_block, s->tebc, __LINE__);
 
-		/* write a header, zero length and not final; note updates update_stream_out pointers */
-		append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, 0);
+		while (s->avail_out > 0 && s->need_stored_block > 0) {
+			/* reminder of the output block start offset */
+			char *blk_head = s->next_out;
 
-		if (s->avail_in > 0 || s->used_in > 0 ) {
-			/* copy input to output at most by nx_stored_block_len */
-			rc = nx_compress_block(s, GZIP_FC_WRAP, NX_MIN(nx_stored_block_len, s->need_stored_block));
-			if (rc != LIBNX_OK)
-				return Z_STREAM_ERROR;
-			loop_cnt = 0; /* update when making progress */
+			/* ensure that job size is nx_stored_block_len or less */
+			uint32_t nbytes_this_iteration = NX_MIN( NX_MIN(s->need_stored_block,s->avail_out), nx_stored_block_len );
+
+			/* write a header, zero length and not final; note updates update_stream_out pointers */
+			append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, 0);
+
+			if (s->avail_in > 0 || s->used_in > 0 ) {
+				/* copy input to output at most by nx_stored_block_len */
+				rc = nx_compress_block(s, GZIP_FC_WRAP, nbytes_this_iteration);
+				if (rc != LIBNX_OK)
+					return Z_STREAM_ERROR;
+				loop_cnt = 0; /* update when making progress */
+			}
+
+			if (s->avail_in == 0 && s->used_in == 0 && flush == Z_FINISH ) {
+				s->status = NX_BFINAL_ST;
+				bfinal = 1;
+			}
+
+			print_dbg_info(s, __LINE__);
+
+			/* rewrite header with the amount copied and final bit
+			   if needed.  spbc has the actual copied bytes
+			   amount */
+			rewrite_spanning_flush(s, blk_head, avail_out, old_tebc, bfinal, s->spbc);
+
+			nx_compress_update_checksum(s, combine_cksum);
+
+			/* subtract the amount processed so far */
+			s->need_stored_block -= s->spbc;
 		}
-
-		if (s->avail_in == 0 && s->used_in == 0 && flush == Z_FINISH ) {
-			s->status = NX_BFINAL_ST;
-			bfinal = 1;
-		}
-
-		print_dbg_info(s, __LINE__);
-
-		/* rewrite header with the amount copied and final bit
-		   if needed.  spbc has the actual copied bytes
-		   amount */
-		rewrite_spanning_flush(s, blk_head, avail_out, old_tebc, bfinal, s->spbc);
-
 		s->need_stored_block = 0;
-
-		nx_compress_update_checksum(s, combine_cksum);
 	}
 	else if (s->strategy == Z_FIXED ||
 		   ((s->strategy == Z_DEFAULT_STRATEGY) &&

@@ -100,8 +100,11 @@ do { if ((s)->cur_in > (s)->len_in/2) { \
 #define NXGZIP_TYPE  9  /* 9 for P9 */
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
-#define DBGLINE fprintf(stderr, "code at %s:%d\n", __FILE__, __LINE__ )
 //#define ASSERT(X) assert(X)
+
+static inline void print_ret(const char *s, int line) { prt_info("%s:%d\n", s, line); }
+#define TRACERET(X) (print_ret(#X,__LINE__),X)
+/* define TRACERET(X) (X) */
 
 #ifndef __unused
 #  define __unused __attribute__((unused))
@@ -286,7 +289,11 @@ static int append_spanning_flush(nx_streamp s, int flush, uint32_t tebc, int fin
 	prt_info("%s flush %d tebc %d final %d\n", __FUNCTION__, flush, tebc, final);
 
 	/* assumes fifo_out is empty */
-	ASSERT(s->used_out == 0 && s->cur_out == 0);
+	/* ASSERT(s->used_out == 0 && s->cur_out == 0); */
+	/* due to issue 110 we break this assertion rule; test code
+	   uses avail_in==avail_out==1 which overflows sync flush in
+	   to fifo_out in the stored block case, and after the flush
+	   we cannot call nx_compress_block due to assertion */
 
 	if (s->avail_out > 5 && (flush == Z_SYNC_FLUSH || flush == Z_FULL_FLUSH)) {
 		/* directly update the user stream  */
@@ -560,7 +567,7 @@ static retnx_t nx_get_dde_byte_count(nx_dde_t *d, uint32_t *indirect_count, uint
 		nx_dde_t *dde_list = (nx_dde_t *) getp64(d, ddead); /* list base */
 
 		if (icount > nx_max_source_dde_count)
-			return ERR_NX_EXCESSIVE_DDE;
+			return TRACERET(ERR_NX_EXCESSIVE_DDE);
 
 		for (i=0; i < icount; i++) {
 
@@ -610,7 +617,7 @@ static retnx_t nx_copy_dde_to_buffer(nx_dde_t *d, char **data, uint32_t *size)
 	actual_byte_count = (int) getp32(d, ddebc);
 
 	if (dde_byte_count < actual_byte_count)
-		return ERR_NX_DDE_OVERFLOW;
+		return TRACERET(ERR_NX_DDE_OVERFLOW);
 
 	*size = (uint32_t) actual_byte_count;
 
@@ -665,7 +672,7 @@ static int nx_copy_buffer_to_dde(nx_dde_t *d, char *data, uint32_t size)
 	if (indirect_count == 0) {
 		/* direct dde */
 		if (size > dde_byte_count)
-			return ERR_NX_TARGET_SPACE;
+			return TRACERET(ERR_NX_TARGET_SPACE);
 		memcpy((char *) getp64(d, ddead), data, size);
 	}
 	else {
@@ -675,7 +682,7 @@ static int nx_copy_buffer_to_dde(nx_dde_t *d, char *data, uint32_t size)
 		nx_dde_t *dde_list = (nx_dde_t *) getp64(d, ddead); /* list base */
 
 		if (size > dde_byte_count )
-			return ERR_NX_TARGET_SPACE;
+			return TRACERET(ERR_NX_TARGET_SPACE);
 
 		for (i = 0; i < indirect_count; i++) {
 			char *buf;
@@ -907,6 +914,8 @@ static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
 {
 	uint32_t copy_bytes;
 
+	prt_info("%s:%d used_out %d, avail_out %d\n", __FUNCTION__, __LINE__, s->used_out, s->avail_out);
+
 	if (s->used_out == 0 || s->avail_out == 0) return LIBNX_OK_NO_AVOUT;
 
 	/* do not copy more than the available user buffer */
@@ -965,6 +974,8 @@ static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
 static inline void small_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 {
 	uint32_t free_bytes, copy_bytes;
+
+	prt_info("%s:%d avail_in %d used_in %d\n", __FUNCTION__, __LINE__, s->avail_in, s->used_in);
 
 	free_bytes = s->len_in/2 - s->cur_in - s->used_in;
 	copy_bytes = NX_MIN(free_bytes, s->avail_in);
@@ -1096,9 +1107,13 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 {
 	uint32_t avail_out, free_bytes, total = 0;
 
-	ASSERT(s->used_out == 0); /* expect fifo_out to be empty */
+	/* ASSERT(s->used_out == 0); expect fifo_out to be empty issue 110 */
+	/* due to issue 110 we break this assertion rule; test code
+	   uses avail_in==avail_out==1 which overflows sync flush in
+	   to fifo_out in the stored block case, and after the flush
+	   we cannot call nx_compress_block due to assertion */
 
-	// s->cur_out = s->used_out = 0; /* reset fifo_out head */
+	/* s->cur_out = s->used_out = 0; reset fifo_out head */
 
 	/* restrict NX per dde size to 1GB */
 	avail_out = NX_MIN(s->avail_out, nx_config.strm_def_bufsz);
@@ -1119,6 +1134,8 @@ static void nx_compress_block_get_cpb(nx_streamp s, int fc)
 {
 	uint32_t spbc;
 	uint32_t histbytes;
+
+	prt_info("%s:%d fc %d\n", __FUNCTION__, __LINE__, fc);
 
 	/* history size we fed to NX before */
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
@@ -1161,6 +1178,8 @@ static void nx_compress_block_get_cpb(nx_streamp s, int fc)
 static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 {
 	uint32_t copy_bytes, histbytes, overflow;
+
+	prt_info("%s:%d fc %d\n", __FUNCTION__, __LINE__, fc);
 
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
 
@@ -1392,8 +1411,10 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	char *resume_buf;
 	int rc = LIBNX_OK;
 
+	prt_info("%s:%d fc %d, limit %d\n", __FUNCTION__, __LINE__, fc, limit);
+
 	if (s == NULL)
-		return LIBNX_ERR_ARG;
+		return TRACERET(LIBNX_ERR_ARG);
 
 	nxcmdp = s->nxcmdp;
 	ddl_in = s->ddl_in;
@@ -1456,11 +1477,10 @@ restart:
 	cc = nx_submit_job(ddl_in, ddl_out, nxcmdp, s->nxdevp);
 	s->nx_cc = cc;
 
-	prt_info("     cc == %d\n", cc);
 	if (s->dry_run && (cc == ERR_NX_TPBC_GT_SPBC || cc == ERR_NX_OK)) {
 		/* only needed for sampling LZcounts (symbol stats) */
 		s->dry_run = 0;
-		return LIBNX_OK_DRYRUN;
+		return TRACERET(LIBNX_OK_DRYRUN);
 	}
 
 	switch (cc) {
@@ -1568,6 +1588,7 @@ do_append_flush:
 do_no_update:
 err_exit:
 	s->invoke_cnt++;
+	prt_info("%s:%d rc %d\n", __FUNCTION__, __LINE__, rc);
 	return rc;
 }
 
@@ -1746,11 +1767,14 @@ int nx_deflate(z_streamp strm, int flush)
 	long loop_cnt = 0, loop_max = 0xffff;
 
 	/* check flush */
-	if (flush > Z_BLOCK || flush < 0) return Z_STREAM_ERROR;
+	if (flush > Z_BLOCK || flush < 0)
+		return Z_STREAM_ERROR;
 
 	/* check z_stream and state */
-	if (strm == Z_NULL) return Z_STREAM_ERROR;
-	if (NULL == (s = (nx_streamp) strm->state)) return Z_STREAM_ERROR;
+	if (strm == Z_NULL)
+		return Z_STREAM_ERROR;
+	if (NULL == (s = (nx_streamp) strm->state))
+		return Z_STREAM_ERROR;
 
 	/* statistic*/
 	if (nx_gzip_gather_statistics()) {
@@ -1783,10 +1807,11 @@ int nx_deflate(z_streamp strm, int flush)
 	prt_info("     s->flush %d s->status %d \n", s->flush, s->status);
 
 	/* check next_in and next_out buffer */
-	if (s->next_out == NULL || (s->avail_in != 0 && s->next_in == NULL)) return Z_STREAM_ERROR;
+	if (s->next_out == NULL || (s->avail_in != 0 && s->next_in == NULL))
+		return Z_STREAM_ERROR;
 	if (s->avail_out == 0) {
 		prt_info("s->avail_out is 0\n");
-		return Z_BUF_ERROR;
+		return TRACERET(Z_BUF_ERROR);
 	}
 
 	/* issue 99 */
@@ -1795,10 +1820,10 @@ int nx_deflate(z_streamp strm, int flush)
 			goto s1;
 		}
 		else if (s->flush == Z_NO_FLUSH) {
-			prt_info("%s:%d, return Z_BUF_ERROR\n", __FUNCTION__, __LINE__);
-			return Z_BUF_ERROR;
-		} else if (s->flush == Z_PARTIAL_FLUSH || s->flush == Z_SYNC_FLUSH || s->flush == Z_FULL_FLUSH)
-			return Z_OK;
+			return TRACERET(Z_BUF_ERROR);
+		}
+		else if (s->flush == Z_PARTIAL_FLUSH || s->flush == Z_SYNC_FLUSH || s->flush == Z_FULL_FLUSH)
+			return TRACERET(Z_OK);
 	}
 
 	/* Generate a header */
@@ -1808,18 +1833,19 @@ int nx_deflate(z_streamp strm, int flush)
 	}
 
 	/* if status is NX_BFINAL_ST, flush should be Z_FINISH */
-	if (s->status == NX_BFINAL_ST && flush != Z_FINISH) return Z_STREAM_ERROR;
+	if (s->status == NX_BFINAL_ST && flush != Z_FINISH)
+		return TRACERET(Z_STREAM_ERROR);
 
 	/* User must not provide more input after the first FINISH: */
 	if (s->status == NX_BFINAL_ST && s->avail_in != 0) {
 		prt_info("s->status is NX_BFINAL_ST but s->avail_out is not 0\n");
-		return Z_BUF_ERROR;
+		return TRACERET(Z_BUF_ERROR);
 	}
 
 s1:
 	if (++loop_cnt == loop_max) {
 		prt_err("can not make progress, loop_cnt = %ld\n", loop_cnt);
-		return Z_STREAM_ERROR;
+		return TRACERET(Z_STREAM_ERROR);
 	}
 
 	/* when fifo_out has data copy it to output stream first */
@@ -1832,8 +1858,10 @@ s1:
 		 * Maybe need a new design and recombination.
 		 * */
 		if (!(s->status & (NX_BFINAL_ST | NX_TRAILER_ST))) {
-			if (s->avail_out == 0) return Z_OK; /* need more output space */
-			if ((s->used_out == 0) && (s->avail_in == 0)) return Z_OK; /* no input here */
+			if (s->avail_out == 0)
+				return TRACERET(Z_OK); /* need more output space */
+			if ((s->used_out == 0) && (s->avail_in == 0))
+				return TRACERET(Z_OK); /* no input here */
 		}
 	}
 
@@ -1853,12 +1881,12 @@ s1:
 		print_dbg_info(s, __LINE__);
 		prt_info("s->zstrm->total_out %ld s->status %ld\n", (long)s->zstrm->total_out, (long)s->status);
 		if (s->used_out == 0 && s->status == NX_TRAILER_ST)
-			return Z_STREAM_END;
+			return TRACERET(Z_STREAM_END);
 
 		if (s->used_out == 0 && s->flush == Z_FINISH)
-			return Z_STREAM_END;
+			return TRACERET(Z_STREAM_END);
 
-		return Z_OK;
+		return TRACERET(Z_OK);
 	}
 
 s2:
@@ -1883,11 +1911,11 @@ s2:
 			if (s->fifo_in == NULL) {
 				s->len_in = nx_config.deflate_fifo_in_len;
 				if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, s->page_sz, 0)))
-					return Z_MEM_ERROR;
+					return TRACERET(Z_MEM_ERROR);
 			}
 			/* small input and no request made for flush or finish */
 			small_copy_nxstrm_in_to_fifo_in(s);
-			return Z_OK;
+			return TRACERET(Z_OK);
 		}
 		goto s3; /* compress */
 	}
@@ -1895,7 +1923,7 @@ s2:
 s3:
 	if (++loop_cnt == loop_max) {
 		prt_err("can not make progress on s3, loop_cnt = %ld\n", loop_cnt);
-		return Z_STREAM_ERROR;
+		return TRACERET(Z_STREAM_ERROR);
 	}
 
 	/* level=0 is when zlib copies input to output uncompressed */
@@ -1904,24 +1932,30 @@ s3:
 		uint32_t old_tebc = s->tebc;
 		int bfinal = 0;
 
-		prt_info("need_stored_block %d, tebc %d, %d\n", s->need_stored_block, s->tebc, __LINE__);
+		print_dbg_info(s, __LINE__);
+		prt_info("%s:%d need_stored_block %d, tebc %d\n", __FUNCTION__, __LINE__, s->need_stored_block, s->tebc);
 
 		while (s->avail_out > 0 && s->need_stored_block > 0) {
 			/* reminder of the output block start offset */
 			char *blk_head = s->next_out;
 
 			/* ensure that job size is nx_stored_block_len or less */
-			uint32_t nbytes_this_iteration = NX_MIN( NX_MIN(s->need_stored_block,s->avail_out), nx_stored_block_len );
+			uint32_t nbytes_this_iteration = NX_MIN( s->need_stored_block, nx_stored_block_len );
 
-			/* write a header, zero length and not final; note updates update_stream_out pointers */
+			/* write a stored block header, sync flush as
+			   a placeholder, zero length and not final;
+			   updates the update_stream_out pointers */
 			append_spanning_flush(s, Z_SYNC_FLUSH, s->tebc, 0);
+
+			s->spbc = 0;
 
 			if (s->avail_in > 0 || s->used_in > 0 ) {
 				/* copy input to output at most by nx_stored_block_len */
 				rc = nx_compress_block(s, GZIP_FC_WRAP, nbytes_this_iteration);
 				if (rc != LIBNX_OK)
-					return Z_STREAM_ERROR;
+					return TRACERET(Z_STREAM_ERROR);
 				loop_cnt = 0; /* update when making progress */
+				nx_compress_update_checksum(s, combine_cksum);
 			}
 
 			if (s->avail_in == 0 && s->used_in == 0 && flush == Z_FINISH ) {
@@ -1929,39 +1963,42 @@ s3:
 				bfinal = 1;
 			}
 
-			print_dbg_info(s, __LINE__);
-
 			/* rewrite header with the amount copied and final bit
 			   if needed.  spbc has the actual copied bytes
 			   amount */
 			rewrite_spanning_flush(s, blk_head, avail_out, old_tebc, bfinal, s->spbc);
 
-			nx_compress_update_checksum(s, combine_cksum);
-
 			/* subtract the amount processed so far */
 			s->need_stored_block -= s->spbc;
-		}
+
+		} /* while (s->avail_out > 0 && s->need_stored_block > 0)  */
+
 		s->need_stored_block = 0;
 	}
 	else if (s->strategy == Z_FIXED ||
 		   ((s->strategy == Z_DEFAULT_STRATEGY) &&
 		    (s->dict_len > 0) && (s->avail_in < DEF_DICT_THRESHOLD))) {
-		/* for small input data and with a dictionary Z_FIXED should yield smaller output */
+		/* for small input data and with a dictionary Z_FIXED
+		 * should yield smaller output */
 		print_dbg_info(s, __LINE__);
 
 		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_FHT, nx_config.per_job_len);
 
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
-			/* compressed data has expanded; write a type0 block instead; we're going to repeat with last source */
+			/* compressed data has expanded; write a type0
+			 * block instead; we're going to repeat with
+			 * last source */
 			s->need_stored_block = s->spbc; /* amount to repeat */
-			s->tebc = 0; /* override it since we cancelled last job; and prev block would have sync flushed */
-			prt_info("need stored block, spbc %d, goto s3, %d\n", s->spbc, __LINE__);
-			goto s3;
+			s->tebc = 0; /* override it since we cancelled
+				      * last job; and prev block would
+				      * have sync flushed */
+			prt_info("%s:%d need_stored_block, spbc %d\n", __FUNCTION__, __LINE__, s->spbc);
+			goto s1;
 		}
 
 		if (rc != LIBNX_OK) {
-			prt_warn("nx_compress_block returned %d, %d\n", rc, __LINE__);
-			return Z_STREAM_ERROR;
+			prt_warn("%s:%d nx_compress_block returned %d\n", __FUNCTION__, __LINE__, rc);
+			return TRACERET(Z_STREAM_ERROR);
 		}
 
 		loop_cnt = 0; /* update when making progress */
@@ -1980,15 +2017,19 @@ s3:
 		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, nx_config.per_job_len);
 
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
-			/* compressed data has expanded; write a type0 block; we're going to repeat with last source */
+			/* compressed data has expanded; write a type0
+			 * block; we're going to repeat with last
+			 * source */
 			s->need_stored_block = s->spbc;
-			s->tebc = 0; /* not valid since we're repeating; last block would have sync flushed */
-			prt_info("need stored block, spbc %d, tebc %d goto s3, %d\n", s->spbc, s->tebc, __LINE__);
-			goto s3;
+			s->tebc = 0; /* not valid since we're
+				      * repeating; last block would
+				      * have sync flushed */
+			prt_info("%s:%d need_stored_block, spbc %d, tebc %d\n", __FUNCTION__, __LINE__, s->spbc, s->tebc);
+			goto s1;
 		}
 		if (rc != LIBNX_OK) {
-			prt_warn("nx_compress_block returned %d, %d\n", rc, __LINE__);
-			return Z_STREAM_ERROR;
+			prt_warn("%s:%d nx_compress_block returned %d\n", __FUNCTION__, __LINE__, rc);
+			return TRACERET(Z_STREAM_ERROR);
 		}
 
 		loop_cnt = 0; /* update when making progress */
@@ -2008,7 +2049,7 @@ s3:
 		if (s->flush == Z_FINISH)
 			goto s1; /* we need to append the trailer then return Z_STREAM_END */
 		else
-			return Z_OK; /* more data may come */
+			return TRACERET(Z_OK); /* more data may come */
 		break;
 	case 0b0001: /* no output space and various input combinations */
 	case 0b0010:
@@ -2017,7 +2058,7 @@ s3:
 	case 0b0101:
 	case 0b0110:
 	case 0b0111: /* no output space, have fifo_out data */
-		return Z_OK; break;
+		return TRACERET(Z_OK); break;
 	case 0b1001: /* have output space; have fifo_in data */
 	case 0b1010: /* have output space; have input data */
 	case 0b1011: /* have output space; have input data; have fifo_in data */
@@ -2032,7 +2073,7 @@ s3:
 
 	ASSERT(!"nx_deflate should not get here");
 
-	return Z_STREAM_ERROR;
+	return TRACERET(Z_STREAM_ERROR);
 }
 
 unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)

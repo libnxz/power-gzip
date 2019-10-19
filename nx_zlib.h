@@ -181,6 +181,8 @@ typedef struct nx_stream_s {
 					 * flushed to the output */
 	uint64_t        checksum_set;   /* nx wrap function code helper */
 
+	int             header_len;
+
 	char            trailer[9];     /* temp storage for tail bytes */
 	int             trailer_len;
 

@@ -514,5 +514,6 @@ extern int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLon
 extern void *dht_begin(char *ifile, char *ofile);
 extern void dht_end(void *handle);
 extern int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
+extern void *dht_copy(void *handle);
 
 #endif /* _NX_ZLIB_H */

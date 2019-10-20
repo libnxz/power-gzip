@@ -129,6 +129,29 @@ void *dht_begin(char *ifile, char *ofile)
 	return dht_begin5(ifile, ofile);
 }
 
+void *dht_copy(void *handle)
+{
+	dht_tab_t *new_tab;
+
+	if (!handle)
+		return NULL;
+
+	if (NULL == (new_tab = malloc(sizeof(dht_tab_t))))
+		return NULL;
+
+	memcpy((char *)new_tab, (const char *)handle, sizeof(dht_tab_t));
+
+	if (((dht_tab_t *)handle)->last_used_entry != NULL) {
+		int offset;
+		/* last_used_entry points to a dht_tab->cache entry;
+		   compute its value relative to the base of the struct */
+		offset = (char *)((dht_tab_t *)handle)->last_used_entry - (char *)((dht_tab_t *)handle);
+		new_tab->last_used_entry = (void *)((char *)new_tab + offset);
+	}
+
+	return (void *)new_tab;
+}
+
 static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 {
 	int i;

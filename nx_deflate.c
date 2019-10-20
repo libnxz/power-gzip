@@ -2360,9 +2360,10 @@ int nx_deflateCopy(z_streamp dest, z_streamp source)
 		memcpy(d->dict, s->dict, s->dict_alloc_len);
 	}
 
-	/*
-	   TODO copy the dht_begin() memory
-	*/
+	if (s->dhthandle != NULL) {
+		if (NULL == (d->dhthandle = dht_copy(s->dhthandle)))
+			goto mem_error;
+	}
 
 	d->zstrm = dest;  /* pointer to parent */
 

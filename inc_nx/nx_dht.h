@@ -105,6 +105,8 @@ void dht_end(void *handle);
 /* call in deflate */
 int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 
+void *dht_copy(void *handle);
+
 /* use this utility to make built-in dht data structures */
 int dht_print(void *handle);
 

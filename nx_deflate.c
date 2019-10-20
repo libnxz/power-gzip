@@ -2315,6 +2315,74 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	*/
 }
 
+
+int nx_deflateCopy(z_streamp dest, z_streamp source)
+{
+	nx_streamp s, d;
+
+	if (dest == NULL || source == NULL || source->state == NULL)
+		return Z_STREAM_ERROR;
+
+	s = (nx_streamp) source->state;
+
+	/* z_stream copy */
+	memcpy((void *)dest, (const void *)source, sizeof(z_stream));
+
+	/* allocate nx specific struct for dest */
+	d = nx_alloc_buffer(sizeof(*d), nx_config.page_sz, 0);
+	if (d == NULL)
+		return Z_MEM_ERROR;
+
+	d->dict = d->fifo_in = d->fifo_out = NULL;
+
+	/* source nx state copied to dest nx state */
+	memcpy(d, s, sizeof(*s));
+
+	/* dest points to its child nx_stream struct */
+	dest->state = (void *)d;
+
+	/* nx overflow underflow buffers */
+	if (s->fifo_out != NULL) {
+		if (NULL == (d->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
+			goto mem_error;
+		memcpy(d->fifo_out, s->fifo_out, s->len_out);
+	}
+
+	if (s->fifo_in != NULL) {
+		if (NULL == (d->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0)))
+			goto mem_error;
+		memcpy(d->fifo_in, s->fifo_in, s->len_in);
+	}
+
+	if (s->dict != NULL) {
+		if (NULL == (d->dict = nx_alloc_buffer(s->dict_alloc_len, nx_config.page_sz, 0)))
+			goto mem_error;
+		memcpy(d->dict, s->dict, s->dict_alloc_len);
+	}
+
+	/*
+	   TODO copy the dht_begin() memory
+	*/
+
+	d->zstrm = dest;  /* pointer to parent */
+
+	return Z_OK;
+
+mem_error:
+
+	if (d->dict != NULL)
+		nx_free_buffer(d->dict, d->dict_alloc_len, 0);
+	if (d->fifo_in != NULL)
+		nx_free_buffer(d->fifo_in, d->len_in, 0);
+	if (d->fifo_out != NULL)
+		nx_free_buffer(d->fifo_out, d->len_out, 0);
+	if (d != NULL)
+		nx_free_buffer(d, sizeof(*d), 0);
+
+	return Z_MEM_ERROR;
+}
+
+
 #ifdef ZLIB_API
 int deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
 {
@@ -2356,6 +2424,11 @@ int deflateSetHeader(z_streamp strm, gz_headerp head)
 int deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength)
 {
 	return nx_deflateSetDictionary(strm, dictionary, dictLength);
+}
+
+int deflateCopy(z_streamp dest, z_streamp source)
+{
+	return nx_deflateCopy(dest, source);
 }
 
 #endif

@@ -2102,7 +2102,7 @@ unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 	uint64_t num_blocks, compressed_max, stored_max;
 	const int max_sync_flush_len = 5;
 	const int zlib_trailer_len = 4;
-	const int gzip_trailer_len = 4;
+	const int gzip_trailer_len = 8;
 	nx_streamp s;
 
 	if (strm != NULL) s = (nx_streamp) strm->state;

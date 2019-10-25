@@ -11,6 +11,8 @@
 #  include <stdlib.h>
 #endif
 
+typedef size_t  z_size_t;
+
 void test_adler32  OF((uLong adler, Byte* buf, z_size_t len, uLong chk, int line));
 int main         OF((void));
 

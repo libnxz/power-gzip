@@ -89,6 +89,7 @@ int nx_inflateResetKeep(z_streamp strm)
 	s = (nx_streamp) strm->state;
 	strm->total_in = strm->total_out = s->total_in = 0;
 	strm->msg = Z_NULL;
+	s->gzhead = NULL;
 	return Z_OK;
 }
 
@@ -171,6 +172,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	nx_streamp s;
 	nx_devp_t h;
 
+	prt_info("%s:%d strm %p\n", __FUNCTION__, __LINE__, strm);
+
 	nx_hw_init();
 
 	if (version == Z_NULL || version[0] != ZLIB_VERSION[0] ||
@@ -198,8 +201,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	s->nxcmdp  = &s->nxcmd0;
 	s->page_sz = nx_config.page_sz;
 	s->nxdevp  = h;
-	// s->gzhead  = NULL;
-	s->gzhead  = nx_alloc_buffer(sizeof(gz_header), nx_config.page_sz, 0);
+	s->gzhead  = NULL;
+	//s->gzhead  = nx_alloc_buffer(sizeof(gz_header), nx_config.page_sz, 0);
 	s->ddl_in  = s->dde_in;
 	s->ddl_out = s->dde_out;
 
@@ -221,8 +224,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 
 reset_err:
 alloc_err:
-	if (s->gzhead)
-		nx_free_buffer(s->gzhead, 0, 0);
+	//if (s->gzhead)
+	//	nx_free_buffer(s->gzhead, 0, 0);
 	if (s)
 		nx_free_buffer(s, 0, 0);
 	strm->state = Z_NULL;
@@ -237,6 +240,8 @@ int nx_inflateInit_(z_streamp strm, const char *version, int stream_size)
 int nx_inflateEnd(z_streamp strm)
 {
 	nx_streamp s;
+
+	prt_info("%s:%d strm %p\n", __FUNCTION__, __LINE__, strm);
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
@@ -255,7 +260,7 @@ int nx_inflateEnd(z_streamp strm)
 	nx_free_buffer(s->dict, s->dict_alloc_len, 0);
 	nx_close(s->nxdevp);
 
-	if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
+	// if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
 
 	nx_free_buffer(s, sizeof(*s), 0);
 
@@ -346,8 +351,10 @@ inf_forever:
 		else if (s->wrap == HEADER_ZLIB) {
 			/* look for a zlib header */
 			s->inf_state = inf_state_zlib_id1;
-			if (s->gzhead != NULL)
+			if (s->gzhead != NULL) {
+				/* this should be an error */
 				s->gzhead->done = -1;
+			}
 		}
 		else if (s->wrap == HEADER_GZIP) {
 			/* look for a gzip header */
@@ -1610,7 +1617,10 @@ int nx_inflateCopy(z_streamp dest, z_streamp source)
 
 	prt_info("%s:%d dst %p src %p\n", __FUNCTION__, __LINE__,dest, source);
 
-	if (dest == NULL || source == NULL || source->state == NULL)
+	if (dest == NULL || source == NULL)
+		return Z_STREAM_ERROR;
+
+	if (source->state == NULL)
 		return Z_STREAM_ERROR;
 
 	s = (nx_streamp) source->state;
@@ -1655,6 +1665,8 @@ int nx_inflateCopy(z_streamp dest, z_streamp source)
 
 mem_error:
 
+	prt_info("%s:%d memory error\n", __FUNCTION__, __LINE__);
+
 	if (d->dict != NULL)
 		nx_free_buffer(d->dict, d->dict_alloc_len, 0);
 	if (d->fifo_in != NULL)
@@ -1666,6 +1678,30 @@ mem_error:
 
 	return Z_MEM_ERROR;
 }
+
+int nx_inflateGetHeader(z_streamp strm, gz_headerp head)
+{
+	nx_streamp s, d;
+
+	prt_info("%s:%d strm %p gzhead %p\n", __FUNCTION__, __LINE__, strm, head);
+
+	if (strm == NULL)
+		return Z_STREAM_ERROR;
+
+	if (strm->state == NULL)
+		return Z_STREAM_ERROR;
+
+	s = (nx_streamp) strm->state;
+
+	if (s->wrap != HEADER_GZIP)
+		return Z_STREAM_ERROR;
+
+	s->gzhead = head;
+	head->done = 0;
+
+	return Z_OK;
+}
+
 
 #ifdef ZLIB_API
 int inflateInit_(z_streamp strm, const char *version, int stream_size)
@@ -1696,6 +1732,11 @@ int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLengt
 int inflateCopy(z_streamp dest, z_streamp source)
 {
 	return nx_inflateCopy(dest, source);
+}
+
+int inflateGetHeader(z_streamp strm, gz_headerp head)
+{
+	return nx_inflateGetHeader(strm, head);
 }
 
 #endif

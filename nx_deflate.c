@@ -1643,7 +1643,7 @@ static int nx_deflate_add_header(nx_streamp s)
 		/* gzip header */
 
 		if (s->gzhead == NULL) {
-			/* blank header; why do we not return an error if user didn't supply a header? */
+			/* blank header */
 			char tmp[12];
 			int k, len;
 			len = gzip_header_blank(tmp);
@@ -2322,7 +2322,10 @@ int nx_deflateCopy(z_streamp dest, z_streamp source)
 
 	prt_info("%s: source %p dest %p\n", __FUNCTION__, dest, source);
 
-	if (dest == NULL || source == NULL || source->state == NULL)
+	if (dest == NULL || source == NULL)
+		return Z_STREAM_ERROR;
+
+	if (source->state == NULL)
 		return Z_STREAM_ERROR;
 
 	s = (nx_streamp) source->state;

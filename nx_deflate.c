@@ -1643,7 +1643,7 @@ static int nx_deflate_add_header(nx_streamp s)
 		/* gzip header */
 
 		if (s->gzhead == NULL) {
-			/* blank header */
+			/* blank header; why do we not return an error if user didn't supply a header? */
 			char tmp[12];
 			int k, len;
 			len = gzip_header_blank(tmp);
@@ -2320,6 +2320,8 @@ int nx_deflateCopy(z_streamp dest, z_streamp source)
 {
 	nx_streamp s, d;
 
+	prt_info("%s: source %p dest %p\n", __FUNCTION__, dest, source);
+
 	if (dest == NULL || source == NULL || source->state == NULL)
 		return Z_STREAM_ERROR;
 
@@ -2329,14 +2331,14 @@ int nx_deflateCopy(z_streamp dest, z_streamp source)
 	memcpy((void *)dest, (const void *)source, sizeof(z_stream));
 
 	/* allocate nx specific struct for dest */
-	d = nx_alloc_buffer(sizeof(*d), nx_config.page_sz, 0);
+	d = nx_alloc_buffer(sizeof(nx_stream), nx_config.page_sz, 0);
 	if (d == NULL)
 		return Z_MEM_ERROR;
 
 	d->dict = d->fifo_in = d->fifo_out = NULL;
 
 	/* source nx state copied to dest nx state */
-	memcpy(d, s, sizeof(*s));
+	memcpy(d, s, sizeof(nx_stream));
 
 	/* dest points to its child nx_stream struct */
 	dest->state = (void *)d;
@@ -2370,6 +2372,8 @@ int nx_deflateCopy(z_streamp dest, z_streamp source)
 	return Z_OK;
 
 mem_error:
+
+	prt_info("%s: mem alloc error\n", __FUNCTION__);
 
 	if (d->dict != NULL)
 		nx_free_buffer(d->dict, d->dict_alloc_len, 0);

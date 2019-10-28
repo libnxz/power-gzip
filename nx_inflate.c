@@ -322,12 +322,12 @@ int nx_inflate(z_streamp strm, int flush)
 inf_forever:
 	/* inflate state machine */
 
-	prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
-
 	switch (s->inf_state) {
 		unsigned int c, copy;
 
 	case inf_state_header:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		if (s->wrap == (HEADER_ZLIB | HEADER_GZIP)) {
 			/* auto detect zlib/gzip */
@@ -373,6 +373,8 @@ inf_forever:
 
 	case inf_state_gzip_id1:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		nx_inflate_get_byte(s, c);
 		if (c != 0x1f) {
 			strm->msg = (char *)"incorrect gzip header";
@@ -384,6 +386,8 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_gzip_id2:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		if (c != 0x8b) {
@@ -397,6 +401,8 @@ inf_forever:
 
 	case inf_state_gzip_cm:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		nx_inflate_get_byte(s, c);
 		if (c != 0x08) {
 			strm->msg = (char *)"unknown compression method";
@@ -408,6 +414,8 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_gzip_flg:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		s->gzflags = c;
@@ -430,22 +438,29 @@ inf_forever:
 
 	case inf_state_gzip_mtime:
 
-		if (s->gzhead != NULL){
-			while( s->inf_held < 4) { /* need 4 bytes for MTIME */
-				nx_inflate_get_byte(s, c);
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
+		while (s->inf_held < 4) { /* need 4 bytes for MTIME */
+			nx_inflate_get_byte(s, c);
+			if (s->gzhead != NULL) {
 				s->gzhead->time = c << (8 * s->inf_held) | s->gzhead->time;
-				++ s->inf_held;
 			}
-			s->inf_held = 0;
-			assert( ((s->gzhead->time & (1<<31)) == 0) );
-			/* assertion is a reminder for endian check; either
-			   fires right away or in the year 2038 if we're still
-			   alive */
+			++ s->inf_held;
 		}
+		s->inf_held = 0;
+		if (s->gzhead != NULL) {
+			assert( ((s->gzhead->time & (1<<31)) == 0) );
+		}
+		/* assertion is a reminder for endian check; either
+		   fires right away or in the year 2038 if we're still
+		   alive */
+
 		s->inf_state = inf_state_gzip_xfl;
 		/* fall thru */
 
 	case inf_state_gzip_xfl:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		if (s->gzhead != NULL)
@@ -455,6 +470,8 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_gzip_os:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		if (s->gzhead != NULL)
@@ -467,8 +484,10 @@ inf_forever:
 
 	case inf_state_gzip_xlen:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		if (s->gzflags & 0x04) { /* fextra was set */
-			while( s->inf_held < 2 ) {
+			while (s->inf_held < 2) {
 				nx_inflate_get_byte(s, c);
 				s->length = s->length | (c << (s->inf_held * 8));
 				++ s->inf_held;
@@ -483,7 +502,10 @@ inf_forever:
 		s->inf_held = 0;
 		s->inf_state = inf_state_gzip_extra;
 		/* fall thru */
+
 	case inf_state_gzip_extra:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		if (s->gzflags & 0x04) { /* fextra was set */
 			copy = s->length;
@@ -508,6 +530,8 @@ inf_forever:
 
 	case inf_state_gzip_name:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		if (s->gzflags & 0x08) { /* fname was set */
 			if (s->avail_in == 0) goto inf_return;
 			copy = 0;
@@ -529,6 +553,8 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_gzip_comment:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		if (s->gzflags & 0x10) { /* fcomment was set */
 			if (s->avail_in == 0) goto inf_return;
@@ -552,6 +578,8 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_gzip_hcrc:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		if (s->gzflags & 0x02) { /* fhcrc was set */
 
@@ -583,6 +611,8 @@ inf_forever:
 
 	case inf_state_zlib_id1:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		nx_inflate_get_byte(s, c);
 		if ((c & 0x0f) != 0x08) {
 			strm->msg = (char *)"unknown compression method";
@@ -600,6 +630,8 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_zlib_flg:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		if ( ((s->zlib_cmf * 256 + c) % 31) != 0 ) {
@@ -622,6 +654,8 @@ inf_forever:
 
 	case inf_state_zlib_dictid:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		while (s->inf_held < 4) {
 			nx_inflate_get_byte(s, c);
 			s->dict_id = (s->dict_id << 8) | (c & 0xff);
@@ -635,6 +669,8 @@ inf_forever:
 
 	case inf_state_zlib_dict:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		if (s->dict_len == 0) {
 			return Z_NEED_DICT;
 		}
@@ -643,25 +679,35 @@ inf_forever:
 
 	case inf_state_inflate:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		rc = nx_inflate_(s, flush);
 		goto inf_return;
 
 	case inf_state_data_error:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		rc = Z_DATA_ERROR;
 		goto inf_return;
 
 	case inf_state_mem_error:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		rc = Z_MEM_ERROR;
 		break;
 
 	case inf_state_buf_error:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		rc = Z_BUF_ERROR;
 		break;
 
 	default:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		rc = Z_STREAM_ERROR;
 		break;

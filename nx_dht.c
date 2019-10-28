@@ -132,21 +132,37 @@ void *dht_begin(char *ifile, char *ofile)
 void *dht_copy(void *handle)
 {
 	dht_tab_t *new_tab;
+	dht_tab_t *old_tab = handle;
 
-	if (!handle)
+	if (!old_tab)
 		return NULL;
 
 	if (NULL == (new_tab = malloc(sizeof(dht_tab_t))))
 		return NULL;
 
-	memcpy((char *)new_tab, (const char *)handle, sizeof(dht_tab_t));
+	memcpy((char *)new_tab, (const char *)old_tab, sizeof(dht_tab_t));
 
-	if (((dht_tab_t *)handle)->last_used_entry != NULL) {
-		int offset;
-		/* last_used_entry points to a dht_tab->cache entry;
-		   compute its value relative to the base of the struct */
-		offset = (char *)((dht_tab_t *)handle)->last_used_entry - (char *)((dht_tab_t *)handle);
-		new_tab->last_used_entry = (void *)((char *)new_tab + offset);
+	if (old_tab->last_used_entry != NULL) {
+		uint64_t offset;
+		/* last_used_entry points to a dht_tab->cache or
+		   dht_tab->builtin entry; issue 123 first identify
+		   which table it's pointing to; then compute offset
+		   relative to that table */
+		if (((char *)old_tab->last_used_entry >= (char *)&old_tab->builtin[0]) &&
+		    ((char *)old_tab->last_used_entry <= (char *)&old_tab->builtin[DHT_NUM_BUILTIN-1])) {
+			/* points to a builtin entry; find byte offset relative to the table base */
+			offset = (char *)(old_tab->last_used_entry) - (char *)&old_tab->builtin[0];
+			new_tab->last_used_entry = (dht_entry_t *)((char *)&new_tab->builtin[0] + offset);
+		}
+		else if (((char *)old_tab->last_used_entry >= (char *)&old_tab->cache[0]) &&
+			 ((char *)old_tab->last_used_entry <= (char *)&old_tab->cache[DHT_NUM_MAX-1])) {
+			offset = (char *)(old_tab->last_used_entry) - (char *)&old_tab->cache[0];
+			new_tab->last_used_entry = (dht_entry_t *)((char *)&new_tab->cache[0] + offset);
+		}
+		else {
+			/* dht table out of bounds */
+			assert(0);
+		}
 	}
 
 	return (void *)new_tab;

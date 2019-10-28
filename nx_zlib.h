@@ -365,12 +365,12 @@ typedef enum {
 	inf_state_gzip_extra,
 	inf_state_gzip_name,
 	inf_state_gzip_comment,
-	inf_state_gzip_hcrc,
+	inf_state_gzip_hcrc, /* 12 */
 	inf_state_zlib_id1,
 	inf_state_zlib_flg,
 	inf_state_zlib_dict,
 	inf_state_zlib_dictid,		
-	inf_state_inflate,
+	inf_state_inflate, /* 17 */
 	inf_state_data_error,
 	inf_state_mem_error,
 	inf_state_buf_error,

@@ -160,6 +160,8 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 	char *buf;
 	nx_alloc_header_t h;
 
+	prt_info("%s: len %d alignment %ld\n", __FUNCTION__, len, alignment);
+
 	/* aligned_alloc library routine has a high overhead. We roll
 	   our own algorithm here: 1. Alloc more than the request
 	   amount by the alignment size plus a header. Header will
@@ -201,12 +203,16 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 			prt_err("mlock failed, errno= %d\n", errno);
 	}
 
+	prt_info("%s: alloc %p len %d\n", __FUNCTION__, buf, len);
+
 	return buf;
 }
 
 void nx_free_buffer(void *buf, uint32_t len, int unlock)
 {
 	nx_alloc_header_t *h;
+
+	prt_info("%s: free %p len %d\n", __FUNCTION__, buf, len);
 
 	if (buf == NULL)
 		return;

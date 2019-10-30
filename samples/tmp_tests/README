@@ -1,0 +1,43 @@
+Test the nx-gzip function:
+=========================
+
+Verify that following device exists:
+  /dev/crypto/nx-gzip
+If you get a permission error run as sudo or set the device permissions:
+   sudo chmod go+rw /dev/crypto/nx-gzip
+However, chmod may not survive across boots. You may create a udev file such as:
+   /etc/udev/rules.d/99-nx-gzip.rules
+
+
+Then make and run:
+$ make
+gcc -O3 -I./inc -o gzfht_test gzfht_test.c gzip_vas.c
+gcc -O3 -I./inc -o gunz_test gunz_test.c gzip_vas.c
+
+
+Compress any file. Output will contain .nx.gz suffix:
+$ ./gzfht_test gzip_vas.c
+file gzip_vas.c read, 7317 bytes
+compressed 7317 to 3727 bytes total, crc32 checksum = f011c84e
+
+
+Uncompress the same file. Output will contain nx.gunzip suffix:
+$ ./gunz_test gzip_vas.c.nx.gz
+gzHeader FLG 0
+00 00 00 00 04 03
+gzHeader MTIME, XFL, OS ignored
+computed checksum f011c84e isize 00001c95
+stored   checksum f011c84e isize 00001c95
+decomp is complete: fclose
+
+
+Compare two files:
+$ sha1sum gzip_vas.c.nx.gz.nx.gunzip gzip_vas.c
+313ed3b546af066625971a3dbdd6a356d9e696a1  gzip_vas.c.nx.gz.nx.gunzip
+313ed3b546af066625971a3dbdd6a356d9e696a1  gzip_vas.c
+
+
+Note that the code here are intended for testing functionality.
+They are not intended for demonstrating performance.
+For more information and source code consider using:
+https://github.com/abalib/power-gzip

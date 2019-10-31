@@ -527,7 +527,6 @@ static void nx_close_all()
 	for (i=0; i < nx_dev_count; i++)
 		if (!!nx_devices[i].vas_handle)
 			nx_function_end(nx_devices[i].vas_handle);
-	sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
 	return;
 }
 

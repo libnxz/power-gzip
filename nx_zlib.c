@@ -829,13 +829,14 @@ void nx_hw_init(void)
 	}
 
 	/* add a signal action */
+/* JVM handles all signals. nx-zlib will not handle sig 11.
 	act.sa_handler = 0;
 	act.sa_sigaction = sigsegv_handler;
 	act.sa_flags = SA_SIGINFO;
 	act.sa_restorer = 0;
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
-
+*/
 	nx_init_done = 1;
 }
 

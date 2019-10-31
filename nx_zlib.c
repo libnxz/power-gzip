@@ -71,7 +71,7 @@ int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
 int nx_gzip_chip_num = -1;
 
-int nx_gzip_trace = 0x0;		/* no trace by default */
+int nx_gzip_trace = 0x4;		/* enable minimal sw trace */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
 int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 

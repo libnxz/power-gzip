@@ -107,7 +107,7 @@ extern int nx_function_end(void *handle);
 static int compress_fht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
 			       int with_count, nx_gzip_crb_cpb_t *cmdp, void *handle)
 {
-	int i,cc;
+	int cc;
 	uint32_t fc;
 
 	assert(!!cmdp);
@@ -209,7 +209,6 @@ int read_alloc_input_file(char *fname, char **buf, size_t *bufsize)
 int write_output_file(char *fname, char *buf, size_t bufsize)
 {
 	FILE *fp;
-	char *p;
 	size_t num_bytes;
 	if (NULL == (fp = fopen(fname, "w"))) {
 		perror(fname);
@@ -303,11 +302,11 @@ int compress_file(int argc, char **argv, void *handle)
 	uint32_t srclen, dstlen;
 	uint32_t flushlen, chunk;
 	size_t inlen, outlen, dsttotlen, srctotlen;
-	uint32_t adler, crc, spbc, tpbc, tebc;
+	uint32_t crc, spbc, tpbc, tebc;
 	int lzcounts=0;
-	int cc,fc;
+	int cc;
 	int num_hdr_bytes;
-	nx_gzip_crb_cpb_t nxcmd, *cmdp;
+	nx_gzip_crb_cpb_t *cmdp;
 	uint32_t pagelen = 65536;
 	int fault_tries=50;
 

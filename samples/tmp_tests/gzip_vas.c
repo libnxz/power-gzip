@@ -153,19 +153,18 @@ void *nx_function_begin(int function, int pri)
 
 int nx_function_end(void *handle)
 {
-        int rc = 0;
-        struct nx_handle *nxhandle = handle;
-        /* check erro here? if unmap successfully, page fault usually found? */
-        // rc = munmap(nxhandle->paste_addr, 4096);
+	int rc = 0;
+	struct nx_handle *nxhandle = handle;
 
-        rc = munmap(nxhandle->paste_addr - 0x400, 4096);
-        if (rc < 0) {
-                fprintf(stderr, "munmap() failed, errno %d\n", errno);
-                return rc;
-        }
-        close(nxhandle->fd);
-        free(nxhandle);
-        return rc;
+	rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+	if (rc < 0) {
+		fprintf(stderr, "munmap() failed, errno %d\n", errno);
+		return rc;
+	}
+	close(nxhandle->fd);
+	free(nxhandle);
+
+	return rc;
 }
 
 static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
@@ -179,24 +178,24 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	   higher throughput on the core.
 	*/
 	cpu_pri_low();
-	
+
 #define CSB_MAX_POLL 200000000UL
 #define USLEEP_TH     300000UL
 
 	t = __ppc_get_timebase();
-	
+
 	while( getnn( cmdp->crb.csb, csb_v ) == 0 )
 	{
 		++poll;
 		hwsync();
 
 		cpu_pri_low();
-		
+
 		/* usleep(0) takes around 29000 ticks ~60 us.
 		   300000 is spinning for about 600 us then
 		   start sleeping */
 		if ( (__ppc_get_timebase() - t) > USLEEP_TH) {
-			cpu_pri_default();		  
+			cpu_pri_default();
 			usleep(1);
 		}
 
@@ -204,19 +203,19 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 			break;
 
 		/* CRB stamp should tell me the fault address */
-		/* if( get64( cmdp->crb.stamp.nx, fsa ) )	
+		/* if( get64( cmdp->crb.stamp.nx, fsa ) )
 		   return -EAGAIN; */
 
-		/* fault address from signal handler */		
+		/* fault address from signal handler */
 		if( nx_fault_storage_address ) {
 			cpu_pri_default();
 			return -EAGAIN;
 		}
-		
+
 	}
 
 	cpu_pri_default();
-	
+
 	/* hw has updated csb and output buffer */
 	hwsync();
 
@@ -230,13 +229,9 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	return 0;
 }
 
-#ifdef NX_JOB_CALLBACK			
-int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle, int (*callback)(const void *))
-#else
 int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
-#endif
 {
-	int i, ret, retries, once=0;
+	int i, ret, retries;
 	struct nx_handle *nxhandle = handle;
 
 	assert(handle != NULL);
@@ -251,18 +246,11 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 		ret = vas_paste(nxhandle->paste_addr, 0);
 		hwsync();
 		/* dbgtimer +=  __ppc_get_timebase() - t; */
-		
+
 		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
 
 		if ((ret == 2) || (ret == 3)) {
 
-#ifdef NX_JOB_CALLBACK			
-			if (!!callback && !once) {
-				/* do something useful while waiting
-				   for the accelerator */
-				(*callback)((void *)cmdp); ++once;
-			}
-#endif 
 			ret = nx_wait_for_csb( cmdp );
 			if (!ret) {
 				goto out;
@@ -284,7 +272,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			if (i < 10) {
 				/* spin for few ticks */
 #define SPIN_TH 500UL
-				uint64_t fail_spin;											
+				uint64_t fail_spin;
 				fail_spin = __ppc_get_timebase();
 				while ( (__ppc_get_timebase() - fail_spin) < SPIN_TH ) {;}
 			}
@@ -302,7 +290,6 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 
 out:
 	cpu_pri_default();
-	
+
 	return ret;
 }
-

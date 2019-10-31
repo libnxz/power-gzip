@@ -15,13 +15,13 @@ gcc -O3 -I./inc -o gzfht_test gzfht_test.c gzip_vas.c
 gcc -O3 -I./inc -o gunz_test gunz_test.c gzip_vas.c
 
 
-Compress any file. Output will contain .nx.gz suffix:
+Compress any file using Fixed Huffman mode. Output will have a .nx.gz suffix:
 $ ./gzfht_test gzip_vas.c
 file gzip_vas.c read, 7317 bytes
 compressed 7317 to 3727 bytes total, crc32 checksum = f011c84e
 
 
-Uncompress the same file. Output will contain nx.gunzip suffix:
+Uncompress the previous output. Output will have a .nx.gunzip suffix:
 $ ./gunz_test gzip_vas.c.nx.gz
 gzHeader FLG 0
 00 00 00 00 04 03
@@ -37,7 +37,7 @@ $ sha1sum gzip_vas.c.nx.gz.nx.gunzip gzip_vas.c
 313ed3b546af066625971a3dbdd6a356d9e696a1  gzip_vas.c
 
 
-Note that the code here are intended for testing functionality.
-They are not intended for demonstrating performance.
+Note that the code here are intended for testing the nx-gzip hardware function.
+They are not intended for demonstrating performance or compression ratio.
 For more information and source code consider using:
 https://github.com/abalib/power-gzip

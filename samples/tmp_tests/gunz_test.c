@@ -148,46 +148,6 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	nx_fault_storage_address = info->si_addr;
 }
 
-static void nx_print_dde(nx_dde_t *ddep, const char *msg)
-{
-	uint32_t indirect_count;
-	uint32_t buf_len;
-	uint64_t buf_addr;
-	nx_dde_t *dde_list;
-	int i;
-
-	assert(!!ddep);
-
-	indirect_count = getpnn(ddep, dde_count);
-	buf_len = getp32(ddep, ddebc);
-
-	NXPRT( fprintf(stderr, "%s dde %p dde_count %d, ddebc 0x%x\n", msg, ddep, indirect_count, buf_len) );
-
-	if (indirect_count == 0) {
-		/* Direct dde */
-		buf_len = getp32(ddep, ddebc);
-		buf_addr = getp64(ddep, ddead);
-		NXPRT( fprintf(stderr, "  direct dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len) );
-		return;
-	}
-
-	/* Indirect dde */
-	if (indirect_count > MAX_DDE_COUNT) {
-		NXPRT( fprintf(stderr, "  error MAX_DDE_COUNT\n") );
-		return;
-	}
-
-	/* First address of the list */
-	dde_list = (nx_dde_t *) getp64(ddep, ddead);
-
-	for (i=0; i < indirect_count; i++) {
-		buf_len = get32(dde_list[i], ddebc);
-		buf_addr = get64(dde_list[i], ddead);
-		NXPRT( fprintf(stderr, " indirect dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len) );
-	}
-	return;
-}
-
 /*
   Adds an (address, len) pair to the list of ddes (ddl) and updates
   the base dde.  ddl[0] is the only dde in a direct dde which
@@ -263,7 +223,6 @@ static inline uint32_t nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 */
 static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 {
-	volatile char t;
 	uint32_t indirect_count;
 	uint32_t buf_len;
 	long total;
@@ -299,7 +258,7 @@ static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 	/* First address of the list */
 	dde_list = (nx_dde_t *) getp64(ddep, ddead);
 
-	if( buf_sz == 0 )
+	if (buf_sz == 0)
 		buf_sz = getp32(ddep, ddebc);
 
 	total = 0;
@@ -311,7 +270,7 @@ static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 		NXPRT( fprintf(stderr, "touch loop len 0x%x ddead %p total 0x%lx\n", buf_len, (void *)buf_addr, total) );
 
 		/* Touching fewer pages than encoded in the ddebc */
-		if ( total > buf_sz) {
+		if (total > buf_sz) {
 			buf_len = NX_MIN(buf_len, total - buf_sz);
 			nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
 			NXPRT( fprintf(stderr, "touch loop break len 0x%x ddead %p\n", buf_len, (void *)buf_addr) );
@@ -331,7 +290,7 @@ static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 	int cc;
 	uint64_t csbaddr;
 
-	memset( (void *)&cmdp->crb.csb, 0, sizeof(cmdp->crb.csb) );
+	memset((void *)&cmdp->crb.csb, 0, sizeof(cmdp->crb.csb));
 
 	cmdp->crb.source_dde = *src;
 	cmdp->crb.target_dde = *dst;
@@ -349,13 +308,10 @@ static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 	put32(cmdp->cpb, out_crc, INIT_CRC );
 	put32(cmdp->cpb, out_adler, INIT_ADLER);
 
-	NXPRT( nx_print_dde(src, "source") );
-	NXPRT( nx_print_dde(dst, "target") );
-
 	cc = nxu_run_job(cmdp, handle);
 
-	if( !cc )
-		cc = getnn( cmdp->crb.csb, csb_cc );	/* CC Table 6-8 */
+	if (!cc)
+		cc = getnn(cmdp->crb.csb, csb_cc);	/* CC Table 6-8 */
 
 	return cc;
 }
@@ -386,10 +342,10 @@ int decompress_file(int argc, char **argv, void *devhandle)
 
 	/* Queuing, file ops, byte counting */
 	char *fifo_in, *fifo_out;
-	int used_in, cur_in, used_out, cur_out, free_in, read_sz, n;
+	int used_in, cur_in, used_out, cur_out, read_sz, n;
 	int first_free, last_free, first_used, last_used;
 	int first_offset, last_offset;
-	int write_sz, free_space, copy_sz, source_sz;
+	int write_sz, free_space, source_sz;
 	int source_sz_estimate, target_sz_estimate;
 	uint64_t last_comp_ratio; /* 1000 max */
 	uint64_t total_out;
@@ -406,12 +362,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	int pgfault_retries;
 
 	/* when using mmap'ed files */
-	off_t input_file_size;
 	off_t input_file_offset;
-	off_t fifo_in_mmap_offset;
-	off_t fifo_out_mmap_offset;
-	size_t fifo_in_mmap_size;
-	size_t fifo_out_mmap_size;
 
 	if (argc > 2) {
 		fprintf(stderr, "usage: %s <fname> or stdin\n", argv[0]);
@@ -495,15 +446,15 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	/* Allocate one page larger to prevent page faults due to NX overfetching */
 	/* Either do this (char*)(uintptr_t)aligned_alloc or use
 	   -std=c11 flag to make the int-to-pointer warning go away */
-	assert( NULL != (fifo_in  = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_in_len + page_sz) ) );
-	assert( NULL != (fifo_out = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_out_len + page_sz + line_sz) ) );
+	assert(NULL != (fifo_in  = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_in_len + page_sz) ));
+	assert(NULL != (fifo_out = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_out_len + page_sz + line_sz) ));
 	fifo_out = fifo_out + line_sz; /* Leave unused space due to history rounding rules */
 	nx_touch_pages(fifo_out, fifo_out_len, page_sz, 1);
 
 	ddl_in  = &dde_in[0];
 	ddl_out = &dde_out[0];
 	cmdp = &cmd;
-	memset( &cmdp->crb, 0, sizeof(cmdp->crb) );
+	memset(&cmdp->crb, 0, sizeof(cmdp->crb));
 
 read_state:
 
@@ -646,7 +597,7 @@ decomp_state:
 
 		if (history_len > 0) {
 			/* Chain in the history buffer to the DDE list */
-			if ( cur_out >= history_len ) {
+			if (cur_out >= history_len) {
 				nx_append_dde(ddl_in, fifo_out + (cur_out - history_len),
 					      history_len);
 			}
@@ -726,7 +677,7 @@ decomp_state:
 
 	/* source_sz includes history */
 	source_sz = getp32(ddl_in, ddebc);
-	assert( source_sz > history_len );
+	assert(source_sz > history_len);
 	source_sz = source_sz - history_len;
 
 	/* Estimating how much source is needed to 3/4 fill a
@@ -737,7 +688,7 @@ decomp_state:
 
 	source_sz_estimate = ((uint64_t)target_max * last_comp_ratio * 3UL)/4000;
 
-	if ( source_sz_estimate < source_sz ) {
+	if (source_sz_estimate < source_sz) {
 		/* Target might be small, therefore limiting the
 		   source data */
 		source_sz = source_sz_estimate;
@@ -779,7 +730,7 @@ restart_nx:
 		NXPRT( fprintf(stderr, "ERR_NX_TRANSLATION %p\n", (void *)cmdp->crb.csb.fsaddr) );
 
 		/* Touch 1 byte, read-only  */
-		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, page_sz, 0);
+		nx_touch_pages((void *)cmdp->crb.csb.fsaddr, 1, page_sz, 0);
 
 		if (pgfault_retries == retry_max) {
 			/* Try once with exact number of pages */
@@ -835,7 +786,7 @@ restart_nx:
 
 		/* Target buffer not large enough; retry smaller input
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
-		assert( source_sz > history_len );
+		assert(source_sz > history_len);
 		source_sz = ((source_sz - history_len + 2) / 2) + history_len;
 		NXPRT( fprintf(stderr, "ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, history_len) );
 		goto restart_nx;
@@ -901,7 +852,7 @@ ok_cc3:
 		cmdp->cpb.in_sfbt = 0;
 		putnn(cmdp->cpb, in_subc, subc % 8);
 		putnn(cmdp->cpb, in_sfbt, sfbt);
-		putnn(cmdp->cpb, in_rembytecnt, getnn( cmdp->cpb, out_rembytecnt));
+		putnn(cmdp->cpb, in_rembytecnt, getnn(cmdp->cpb, out_rembytecnt));
 		break;
 
 	case 0b1010: /* Within a FH block; */
@@ -995,7 +946,7 @@ finish_state:
 	if (is_final) {
 		if (used_out)
 			goto write_state; /* More data to write out */
-		else if(used_in < 8) {
+		else if (used_in < 8) {
 			/* Need at least 8 more bytes containing gzip crc and isize */
 			rc = -1;
 			goto err4;
@@ -1005,7 +956,7 @@ finish_state:
 			int i;
 			char tail[8];
 			uint32_t cksum, isize;
-			for(i=0; i<8; i++) tail[i] = fifo_in[(cur_in + i) % fifo_in_len];
+			for (i=0; i<8; i++) tail[i] = fifo_in[(cur_in + i) % fifo_in_len];
 			fprintf(stderr, "computed checksum %08x isize %08x\n", cmdp->cpb.out_crc, (uint32_t)(total_out % (1ULL<<32)));
 			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16 | tail[3]<<24);
 			isize = (tail[4] | tail[5]<<8 | tail[6]<<16 | tail[7]<<24);
@@ -1060,9 +1011,9 @@ int main(int argc, char **argv)
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
 
-	handle = nx_function_begin( NX_FUNC_COMP_GZIP, 0);
+	handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0);
 	if (!handle) {
-		fprintf( stderr, "Unable to init NX, errno %d\n", errno);
+		fprintf(stderr, "Unable to init NX, errno %d\n", errno);
 		exit(-1);
 	}
 

@@ -167,7 +167,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	nx_streamp s;
 	nx_devp_t h;
 
-	nx_hw_init();
+	//nx_hw_init();
 
 	if (version == Z_NULL || version[0] != ZLIB_VERSION[0] ||
 	    stream_size != (int)(sizeof(z_stream)))

@@ -485,48 +485,54 @@ nx_devp_t nx_open(int nx_id)
 	nx_devp_t nx_devp;
 	void *vas_handle;
 
-	int ocount = __atomic_fetch_add(&nx_ref_count, 1, __ATOMIC_RELAXED);
+	nx_devp = malloc(sizeof(*nx_devp));
 
-	if (ocount == 0) {
-		vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, -1);
-		if (!vas_handle) {
-			prt_err("nx_function_begin failed, errno %d\n", errno);
-			nx_devp = NULL;
-			ocount = __atomic_fetch_sub(&nx_ref_count, 1, __ATOMIC_RELAXED);
-			goto ret;
-		}
-		/* using only the default device for now; nx_dev_count
-		 * is either 0 to 1 */
-		nx_devp = &nx_devices[ nx_dev_count ];
-		nx_devp->vas_handle = vas_handle;
-		++ nx_dev_count;
-		sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
+	if (nx_devp == NULL) {
+		prt_err("malloc failed\n");
+		errno = ENOMEM;
+		return NULL;
 	}
-	else {
-		/* vas is already open; threads will reuse it */
-		volatile void *vh;
-		nx_devp = &nx_devices[0];
-		/* TODO; hack poll while the other thread is doing nx_function_begin */
-		while( NULL == (vh = __atomic_load_n(&nx_devp->vas_handle, __ATOMIC_RELAXED) ) ){;};
+
+	/* nx_id are zero based; -1 means open any */
+	if ((nx_id < -1) || (nx_id >= nx_dev_count))
+		nx_id = -1;
+
+	vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, nx_id);
+
+	if (!vas_handle) {
+		prt_err("nx_function_begin failed, errno %d\n", errno);
+		free(nx_devp);
+		return NULL;
 	}
+
+	nx_devp->vas_handle = vas_handle;
 	nx_devp->open_cnt++;
-ret:
+
+	sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
+
 	return nx_devp;
 }
 
-int nx_close(nx_devp_t nxdevp)
+int nx_close(nx_devp_t nx_devp)
 {
+	if (!nx_devp || !nx_devp->vas_handle) {
+		prt_err("nx_close got a NULL handle\n");
+		return -1;
+	}
+
+	nx_function_end(nx_devp->vas_handle);
+
+	nx_devp->open_cnt--; /* for future */
+
+	free(nx_devp);
+
+	sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
+
 	return 0;
 }
 
 static void nx_close_all()
 {
-	int i;
-
-	/* no need to lock anything; we're exiting */
-	for (i=0; i < nx_dev_count; i++)
-		if (!!nx_devices[i].vas_handle)
-			nx_function_end(nx_devices[i].vas_handle);
 	sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
 	return;
 }
@@ -761,6 +767,7 @@ void nx_hw_init(void)
 	}
 
 	nx_count = nx_enumerate_engines();
+	nx_dev_count = nx_count;
 	if (nx_count == 0) {
 		prt_err("NX-gzip accelerators found: %d\n", nx_count);
 		return;
@@ -844,7 +851,6 @@ static void _nx_hwinit(void) __attribute__((constructor));
 static void _nx_hwinit(void)
 {
 	nx_hw_init();
-	/* nx_open(-1); */
 }
 
 void nx_hw_done(void)

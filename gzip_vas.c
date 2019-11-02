@@ -158,7 +158,7 @@ int nx_function_end(void *handle)
         /* check erro here? if unmap successfully, page fault usually found? */
         // rc = munmap(nxhandle->paste_addr, 4096);
 
-        rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+        rc = munmap((char *)nxhandle->paste_addr - 0x400, 4096);
         if (rc < 0) {
                 fprintf(stderr, "munmap() failed, errno %d\n", errno);
                 return rc;

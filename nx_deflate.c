@@ -793,8 +793,6 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	nx_streamp s;
 	nx_devp_t h;
 
-	//nx_hw_init();
-
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 
 	/* statistic */

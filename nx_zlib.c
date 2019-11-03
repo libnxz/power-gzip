@@ -67,6 +67,11 @@ static int nx_dev_count = 0;
 static int nx_ref_count = 0;
 static int nx_init_done = 0;
 
+static int pid_is_saved = 0;
+static pid_t saved_pid = 0;
+static nx_devp_t saved_nx_devp = NULL;
+static int disable_saved_nx_devp = 0;
+
 int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
 int nx_gzip_chip_num = -1;
@@ -484,6 +489,18 @@ nx_devp_t nx_open(int nx_id)
 {
 	nx_devp_t nx_devp;
 	void *vas_handle;
+	pid_t my_pid;
+
+	my_pid = getpid();
+
+	prt_info("%s pid %d saved nx_devp %p\n", __FUNCTION__, my_pid, saved_nx_devp);
+
+	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid && disable_saved_nx_devp == 0) {
+		/* appears we were not forked therefore return the
+		   saved device pointer */
+		assert(!!saved_nx_devp);
+		return saved_nx_devp;
+	}
 
 	nx_devp = malloc(sizeof(*nx_devp));
 
@@ -508,16 +525,35 @@ nx_devp_t nx_open(int nx_id)
 	nx_devp->vas_handle = vas_handle;
 	nx_devp->open_cnt++;
 
-	sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
+	if (disable_saved_nx_devp == 0) {
+		/* we will reuse this handle */
+		pid_is_saved = 1;
+		saved_pid = my_pid;
+		saved_nx_devp = nx_devp;
+	}
+
+	/* sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());*/
 
 	return nx_devp;
 }
 
 int nx_close(nx_devp_t nx_devp)
 {
+	pid_t my_pid;
+
 	if (!nx_devp || !nx_devp->vas_handle) {
 		prt_err("nx_close got a NULL handle\n");
 		return -1;
+	}
+
+	my_pid = getpid();
+
+	prt_info("%s pid %d saved nx_devp %p\n", __FUNCTION__, my_pid, saved_nx_devp);
+
+	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid && disable_saved_nx_devp == 0) {
+		/* appears we were not forked therefore
+		   we return and not close the device */
+		return 0;
 	}
 
 	nx_function_end(nx_devp->vas_handle);
@@ -526,13 +562,31 @@ int nx_close(nx_devp_t nx_devp)
 
 	free(nx_devp);
 
-	sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
+	if (disable_saved_nx_devp == 0) {
+		/* unsave the handle */
+		pid_is_saved = 0;
+		saved_pid = 0;
+		saved_nx_devp = NULL;
+	}
+
+	/* sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid()); */
 
 	return 0;
 }
 
 static void nx_close_all()
 {
+	pid_t my_pid = getpid();
+
+	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid) {
+		if (saved_nx_devp != NULL) {
+			nx_close(saved_nx_devp);
+			saved_nx_devp = NULL;
+		}
+		pid_is_saved = 0;
+		saved_pid = 0;
+	}
+
 	return;
 }
 
@@ -716,6 +770,7 @@ void nx_hw_init(void)
 	pthread_mutex_init (&mutex_log, NULL);
 	pthread_mutex_init (&nx_devices_mutex, NULL);
 
+	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP"); /* 0 or 1 */
 	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
@@ -782,6 +837,10 @@ void nx_hw_init(void)
 		nx_config.verbose = str_to_num(verbo_s);
 		z = nx_config.verbose & NX_VERBOSE_LIBNX_MASK;
 		nx_lib_debug(z);
+	}
+
+	if (dis_savdev != NULL) {
+		disable_saved_nx_devp = str_to_num(dis_savdev);
 	}
 
 	if (def_bufsz != NULL) {

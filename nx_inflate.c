@@ -1084,9 +1084,9 @@ restart_nx:
 	putp32(ddl_in, ddebc, source_sz);
 
 	/* fault in pages */
-	nx_touch_pages( (void *)cmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_in, source_sz, nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_out, target_sz, nx_config.page_sz, 1);
+	nx_touch_pages( (void *)cmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
 
 	/*
 	 * send job to NX

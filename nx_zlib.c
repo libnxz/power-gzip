@@ -67,11 +67,16 @@ static int nx_dev_count = 0;
 static int nx_ref_count = 0;
 static int nx_init_done = 0;
 
+static int pid_is_saved = 0;
+static pid_t saved_pid = 0;
+static nx_devp_t saved_nx_devp = NULL;
+static int disable_saved_nx_devp = 0;
+
 int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
 int nx_gzip_chip_num = -1;
 
-int nx_gzip_trace = 0x0;		/* no trace by default */
+int nx_gzip_trace = 0x4;		/* enable minimal sw trace */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
 int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 
@@ -480,6 +485,15 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 
 	cc = nxu_run_job(cmdp, ((nx_devp_t)handle)->vas_handle);
 
+	/* JVM catching signals work around; if handler didn't touch
+	   faulting address nxu_run_job will spin needlessly until
+	   times out */
+	if (cc) {
+		prt_err("%s:%d job did not complete in alloted time, asking resend cc %d\n", __FUNCTION__, __LINE__, cc);
+		cc = ERR_NX_TRANSLATION; /* this will force resubmit */
+		return cc;
+	}
+
 	if( !cc )
 		cc = getnn( cmdp->crb.csb, csb_cc );	/* CC Table 6-8 */
 
@@ -490,50 +504,104 @@ nx_devp_t nx_open(int nx_id)
 {
 	nx_devp_t nx_devp;
 	void *vas_handle;
+	pid_t my_pid;
 
-	int ocount = __atomic_fetch_add(&nx_ref_count, 1, __ATOMIC_RELAXED);
+	my_pid = getpid();
 
-	if (ocount == 0) {
-		vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, -1);
-		if (!vas_handle) {
-			prt_err("nx_function_begin failed, errno %d\n", errno);
-			nx_devp = NULL;
-			ocount = __atomic_fetch_sub(&nx_ref_count, 1, __ATOMIC_RELAXED);
-			goto ret;
-		}
-		/* using only the default device for now; nx_dev_count
-		 * is either 0 to 1 */
-		nx_devp = &nx_devices[ nx_dev_count ];
-		nx_devp->vas_handle = vas_handle;
-		++ nx_dev_count;
-		sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
+	prt_info("%s pid %d saved nx_devp %p\n", __FUNCTION__, my_pid, saved_nx_devp);
+
+	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid && disable_saved_nx_devp == 0) {
+		/* appears we were not forked therefore return the
+		   saved device pointer */
+		assert(!!saved_nx_devp);
+		return saved_nx_devp;
 	}
-	else {
-		/* vas is already open; threads will reuse it */
-		volatile void *vh;
-		nx_devp = &nx_devices[0];
-		/* TODO; hack poll while the other thread is doing nx_function_begin */
-		while( NULL == (vh = __atomic_load_n(&nx_devp->vas_handle, __ATOMIC_RELAXED) ) ){;};
+
+	nx_devp = malloc(sizeof(*nx_devp));
+
+	if (nx_devp == NULL) {
+		prt_err("malloc failed\n");
+		errno = ENOMEM;
+		return NULL;
 	}
+
+	/* nx_id are zero based; -1 means open any */
+	if ((nx_id < -1) || (nx_id >= nx_dev_count))
+		nx_id = -1;
+
+	vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, nx_id);
+
+	if (!vas_handle) {
+		prt_err("nx_function_begin failed, errno %d\n", errno);
+		free(nx_devp);
+		return NULL;
+	}
+
+	nx_devp->vas_handle = vas_handle;
 	nx_devp->open_cnt++;
-ret:
+
+	if (disable_saved_nx_devp == 0) {
+		/* we will reuse this handle */
+		pid_is_saved = 1;
+		saved_pid = my_pid;
+		saved_nx_devp = nx_devp;
+	}
+
+	/* sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());*/
+
 	return nx_devp;
 }
 
-int nx_close(nx_devp_t nxdevp)
+int nx_close(nx_devp_t nx_devp)
 {
+	pid_t my_pid;
+
+	if (!nx_devp || !nx_devp->vas_handle) {
+		prt_err("nx_close got a NULL handle\n");
+		return -1;
+	}
+
+	my_pid = getpid();
+
+	prt_info("%s pid %d saved nx_devp %p\n", __FUNCTION__, my_pid, saved_nx_devp);
+
+	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid && disable_saved_nx_devp == 0) {
+		/* appears we were not forked therefore
+		   we return and not close the device */
+		return 0;
+	}
+
+	nx_function_end(nx_devp->vas_handle);
+
+	nx_devp->open_cnt--; /* for future */
+
+	free(nx_devp);
+
+	if (disable_saved_nx_devp == 0) {
+		/* unsave the handle */
+		pid_is_saved = 0;
+		saved_pid = 0;
+		saved_nx_devp = NULL;
+	}
+
+	/* sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid()); */
+
 	return 0;
 }
 
 static void nx_close_all()
 {
-	int i;
+	pid_t my_pid = getpid();
 
-	/* no need to lock anything; we're exiting */
-	for (i=0; i < nx_dev_count; i++)
-		if (!!nx_devices[i].vas_handle)
-			nx_function_end(nx_devices[i].vas_handle);
-	sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
+	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid) {
+		if (saved_nx_devp != NULL) {
+			nx_close(saved_nx_devp);
+			saved_nx_devp = NULL;
+		}
+		pid_is_saved = 0;
+		saved_pid = 0;
+	}
+
 	return;
 }
 
@@ -721,6 +789,7 @@ void nx_hw_init(void)
 	pthread_mutex_init (&mutex_log, NULL);
 	pthread_mutex_init (&nx_devices_mutex, NULL);
 
+	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP"); /* 0 or 1 */
 	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
@@ -771,6 +840,7 @@ void nx_hw_init(void)
 	}
 
 	nx_count = nx_enumerate_engines();
+	nx_dev_count = nx_count;
 	if (nx_count == 0) {
 		prt_err("NX-gzip accelerators found: %d\n", nx_count);
 		return;
@@ -786,6 +856,10 @@ void nx_hw_init(void)
 		nx_config.verbose = str_to_num(verbo_s);
 		z = nx_config.verbose & NX_VERBOSE_LIBNX_MASK;
 		nx_lib_debug(z);
+	}
+
+	if (dis_savdev != NULL) {
+		disable_saved_nx_devp = str_to_num(dis_savdev);
 	}
 
 	if (def_bufsz != NULL) {
@@ -839,13 +913,14 @@ void nx_hw_init(void)
 	}
 
 	/* add a signal action */
+/* JVM handles all signals. nx-zlib will not handle sig 11.
 	act.sa_handler = 0;
 	act.sa_sigaction = sigsegv_handler;
 	act.sa_flags = SA_SIGINFO;
 	act.sa_restorer = 0;
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
-
+*/
 	nx_init_done = 1;
 }
 
@@ -854,7 +929,6 @@ static void _nx_hwinit(void) __attribute__((constructor));
 static void _nx_hwinit(void)
 {
 	nx_hw_init();
-	/* nx_open(-1); */
 }
 
 void nx_hw_done(void)

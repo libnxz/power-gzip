@@ -174,8 +174,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 
 	prt_info("%s:%d strm %p\n", __FUNCTION__, __LINE__, strm);
 
-	nx_hw_init();
-
 	if (version == Z_NULL || version[0] != ZLIB_VERSION[0] ||
 	    stream_size != (int)(sizeof(z_stream)))
 		return Z_VERSION_ERROR;
@@ -1141,9 +1139,9 @@ restart_nx:
 	putp32(ddl_in, ddebc, source_sz);
 
 	/* fault in pages */
-	nx_touch_pages( (void *)cmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_in, source_sz, nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_out, target_sz, nx_config.page_sz, 1);
+	nx_touch_pages( (void *)cmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
 
 	/*
 	 * send job to NX

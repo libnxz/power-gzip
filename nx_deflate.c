@@ -103,8 +103,8 @@ do { if ((s)->cur_in > (s)->len_in/2) { \
 //#define ASSERT(X) assert(X)
 
 static inline void print_ret(const char *s, int line) { prt_info("%s:%d\n", s, line); }
-#define TRACERET(X) (print_ret(#X,__LINE__),X)
-/* define TRACERET(X) (X) */
+/* #define TRACERET(X) (print_ret(#X,__LINE__),X) */
+#define TRACERET(X) (X)
 
 #ifndef __unused
 #  define __unused __attribute__((unused))

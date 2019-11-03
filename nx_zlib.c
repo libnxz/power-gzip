@@ -489,9 +489,10 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 	   faulting address nxu_run_job will spin needlessly until
 	   times out */
 	if (cc) {
-		prt_err("%s:%d job did not complete in alloted time, asking resend cc %d\n", __FUNCTION__, __LINE__, cc);
+		prt_err("%s:%d job did not complete in allotted time, cc %d\n", __FUNCTION__, __LINE__, cc);
 		cc = ERR_NX_TRANSLATION; /* this will force resubmit */
-		return cc;
+		/* return cc; */
+		exit(-1); /* safely exit and let hadoop deal with dead job */
 	}
 
 	if( !cc )

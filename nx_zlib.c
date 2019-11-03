@@ -479,6 +479,15 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 
 	cc = nxu_run_job(cmdp, ((nx_devp_t)handle)->vas_handle);
 
+	/* JVM catching signals work around; if handler didn't touch
+	   faulting address nxu_run_job will spin needlessly until
+	   times out */
+	if (cc) {
+		prt_err("%s:%d job did not complete in alloted time, asking resend cc %d\n", __FUNCTION__, __LINE__, cc);
+		cc = ERR_NX_TRANSLATION; /* this will force resubmit */
+		return cc;
+	}
+
 	if( !cc )
 		cc = getnn( cmdp->crb.csb, csb_cc );	/* CC Table 6-8 */
 

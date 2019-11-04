@@ -1489,8 +1489,8 @@ restart:
 			pgfault_retries, bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
 
 #ifdef NX_LOG_SOURCE_TARGET
-		nx_print_dde(src, "source");
-		nx_print_dde(dst, "target");
+		nx_print_dde(ddl_in, "source");
+		nx_print_dde(ddl_out, "target");
 #endif
 
 		if (pgfault_retries == nx_config.retry_max) {

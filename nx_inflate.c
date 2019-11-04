@@ -1158,6 +1158,11 @@ restart_nx:
 		   faulting address to fsaddr */
 		print_dbg_info(s, __LINE__);
 
+#ifdef NX_LOG_SOURCE_TARGET
+		nx_print_dde(ddl_in, "source");
+		nx_print_dde(ddl_out, "target");
+#endif
+
 		/* Touch 1 byte, read-only  */
 		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
 		/* get64 does the endian conversion */

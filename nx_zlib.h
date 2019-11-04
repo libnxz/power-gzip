@@ -114,6 +114,7 @@ struct nx_config_t {
 	int      window_max;
 	int      pgfault_retries;         
 	int      verbose;
+	int      mlock_nx_crb_csb;
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;

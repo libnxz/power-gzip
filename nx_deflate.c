@@ -794,7 +794,7 @@ int nx_deflateEnd(z_streamp strm)
 
 	nx_close(s->nxdevp);
 
-	nx_free_buffer(s, sizeof(*s), 0);
+	nx_free_buffer(s, sizeof(*s), nx_config.mlock_nx_crb_csb);
 
 	/* FIXME check for correctness */
 	return (status == NX_DEFLATE_ST) ? Z_DATA_ERROR : Z_OK;
@@ -858,7 +858,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	/* only support level 6 here */
 	level = 6;
 
-	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
+	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, nx_config.mlock_nx_crb_csb);
 	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
 
@@ -1487,6 +1487,12 @@ restart:
 
 		prt_info(" pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n",
 			pgfault_retries, bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
+
+#ifdef NX_LOG_SOURCE_TARGET
+		nx_print_dde(src, "source");
+		nx_print_dde(dst, "target");
+#endif
+
 		if (pgfault_retries == nx_config.retry_max) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
@@ -1563,9 +1569,9 @@ restart:
 
 		rc = LIBNX_OK_BIG_TARGET;
 		prt_info("ERR_NX_TPBC_GT_SPBC\n");
-		/* TODO treat as ERR_NX_OK currently */
-		nx_compress_block_get_cpb(s, fc);
-		goto do_no_update;
+		/* TODO treat as ERR_NX_OK currently; until issue 121 fixed */
+		// nx_compress_block_get_cpb(s, fc);
+		// goto do_no_update;
 
 	case ERR_NX_OK:
 		/* need to adjust strm and fifo offsets on return */
@@ -2107,6 +2113,9 @@ unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 
 	zlib_stats_inc(&zlib_stats.deflateBound);
 
+	return (sourceLen*2 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 )); /* TODO until issue 121 fixed */
+
+
 	if (strm == NULL) {
 		/* if no stream assume zlib format and no dict; simplifies compressBound() */
 		num_wrapper_bytes = 2 + zlib_trailer_len;
@@ -2332,7 +2341,7 @@ int nx_deflateCopy(z_streamp dest, z_streamp source)
 	memcpy((void *)dest, (const void *)source, sizeof(z_stream));
 
 	/* allocate nx specific struct for dest */
-	d = nx_alloc_buffer(sizeof(nx_stream), nx_config.page_sz, 0);
+	d = nx_alloc_buffer(sizeof(nx_stream), nx_config.page_sz, nx_config.mlock_nx_crb_csb);
 	if (d == NULL)
 		return Z_MEM_ERROR;
 
@@ -2383,7 +2392,7 @@ mem_error:
 	if (d->fifo_out != NULL)
 		nx_free_buffer(d->fifo_out, d->len_out, 0);
 	if (d != NULL)
-		nx_free_buffer(d, sizeof(*d), 0);
+		nx_free_buffer(d, sizeof(*d), nx_config.mlock_nx_crb_csb);
 
 	return Z_MEM_ERROR;
 }

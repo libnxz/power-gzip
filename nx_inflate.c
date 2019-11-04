@@ -191,7 +191,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 		return Z_STREAM_ERROR;
 	}
 
-	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
+	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, nx_config.mlock_nx_crb_csb);
 	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
 
@@ -260,7 +260,7 @@ int nx_inflateEnd(z_streamp strm)
 
 	// if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
 
-	nx_free_buffer(s, sizeof(*s), 0);
+	nx_free_buffer(s, sizeof(*s), nx_config.mlock_nx_crb_csb);
 
 	return Z_OK;
 }
@@ -1673,7 +1673,7 @@ int nx_inflateCopy(z_streamp dest, z_streamp source)
 	memcpy((void *)dest, (const void *)source, sizeof(z_stream));
 
 	/* allocate nx specific struct for dest */
-	if (NULL == (d = nx_alloc_buffer(sizeof(*d), nx_config.page_sz, 0)))
+	if (NULL == (d = nx_alloc_buffer(sizeof(*d), nx_config.page_sz, nx_config.mlock_nx_crb_csb)))
 		goto mem_error;
 
 	d->dict = d->fifo_in = d->fifo_out = NULL;
@@ -1718,7 +1718,7 @@ mem_error:
 	if (d->fifo_out != NULL)
 		nx_free_buffer(d->fifo_out, d->len_out, 0);
 	if (d != NULL)
-		nx_free_buffer(d, sizeof(*d), 0);
+		nx_free_buffer(d, sizeof(*d), nx_config.mlock_nx_crb_csb);
 
 	return Z_MEM_ERROR;
 }

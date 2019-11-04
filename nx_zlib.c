@@ -222,6 +222,10 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 	if (buf == NULL)
 		return;
 
+	if (unlock)
+		if (munlock(buf, len))
+			prt_err("munlock failed, errno= %d\n", errno);
+
 	/* retrieve the hidden address which is the actual address to
 	   be freed */
 	h = (nx_alloc_header_t *)((char *)buf - sizeof(nx_alloc_header_t));
@@ -232,10 +236,6 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 	   memory corruption */
 	assert( NX_MEM_ALLOC_CORRUPTED == h->signature );
 	h->signature = 0;
-
-	if (unlock)
-		if (munlock(buf, len))
-			prt_err("munlock failed, errno= %d\n", errno);
 
 	free(buf);
 
@@ -790,6 +790,7 @@ void nx_hw_init(void)
 	pthread_mutex_init (&mutex_log, NULL);
 	pthread_mutex_init (&nx_devices_mutex, NULL);
 
+	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB"); /* 0 or 1 */
 	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP"); /* 0 or 1 */
 	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
@@ -822,6 +823,7 @@ void nx_hw_init(void)
 	nx_config.retry_max = INT_MAX;
 	nx_config.pgfault_retries = INT_MAX;
 	nx_config.verbose = 0;
+	nx_config.mlock_nx_crb_csb = 0;
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;
 
@@ -861,6 +863,10 @@ void nx_hw_init(void)
 
 	if (dis_savdev != NULL) {
 		disable_saved_nx_devp = str_to_num(dis_savdev);
+	}
+
+	if (mlock_csb != NULL) {
+		nx_config.mlock_nx_crb_csb = str_to_num(mlock_csb);
 	}
 
 	if (def_bufsz != NULL) {

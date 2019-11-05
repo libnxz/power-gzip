@@ -57,6 +57,7 @@ pthread_mutex_t mutex_log;
 #define nx_gzip_per_stream_stat()     (nx_gzip_trace & 0x10)
 
 #define prt(fmt, ...) do { \
+  if (nx_gzip_log != NULL) { \
 	pthread_mutex_lock (&mutex_log);				\
 	flock(nx_gzip_log->_fileno, LOCK_EX);				\
 	time_t t; struct tm* m; time(&t); m=localtime(&t);		\
@@ -68,6 +69,7 @@ pthread_mutex_t mutex_log;
 	fflush(nx_gzip_log);						\
 	flock(nx_gzip_log->_fileno, LOCK_UN);				\
 	pthread_mutex_unlock (&mutex_log);				\
+  } \
 } while(0)
 
 /* Use in case of an error */
@@ -99,13 +101,13 @@ pthread_mutex_t mutex_log;
 
 /* Trace zlib hardware implementation */
 #define hw_trace(fmt, ...) do {						\
-		if (nx_gzip_hw_trace_enabled())				\
+		if (nx_gzip_log != NULL && nx_gzip_hw_trace_enabled())	\
 			fprintf(nx_gzip_log, "hhh " fmt, ## __VA_ARGS__); \
 	} while (0)
 
 /* Trace zlib software implementation */
 #define sw_trace(fmt, ...) do {						\
-		if (nx_gzip_sw_trace_enabled())				\
+		if (nx_gzip_log != NULL && nx_gzip_sw_trace_enabled())	\
 			fprintf(nx_gzip_log, "sss " fmt, ## __VA_ARGS__); \
 	} while (0)
 

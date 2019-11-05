@@ -48,6 +48,7 @@
 #include <sys/fcntl.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <endian.h>
 #include <pthread.h>
 #include <signal.h>
@@ -756,10 +757,17 @@ void nx_hw_init(void)
 	nx_gzip_accelerator = NX_GZIP_TYPE;
 
 	/* log file should be initialized first*/
-	if (logfile != NULL)
-		nx_gzip_log = fopen(logfile, "a+");
-	else
-		nx_gzip_log = fopen("/tmp/nx.log", "a+");
+	/* TODO we should really log to a process unique file but user
+	   starts thousands of processes per day. This is one log file for all */
+	if (logfile == NULL)
+		logfile = "/tmp/nx.log";
+
+	/* make it append only so that we can "chattr" the common log file if needed */
+	nx_gzip_log = fopen(logfile, "a");
+
+	if ( chmod(logfile, (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH )) ) {
+		perror("cannot 0666 log file: continuing\n");
+	}
 
 	/* Initialize the stats structure*/
 	if (nx_gzip_gather_statistics()) {

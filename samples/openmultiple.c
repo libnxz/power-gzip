@@ -20,7 +20,7 @@ FILE *nx_gzip_log = NULL;
 
 int main()
 {
-    nx_gzip_log = fopen("/tmp/nx.log", "a+");
+    nx_gzip_log = fopen("/tmp/nx.log", "a");
     if (NULL == nx_gzip_log) {
 	perror("cannot open\n");
 	return -1;
@@ -28,7 +28,7 @@ int main()
 
     /* read the definition of the sticky bit S_ISVTX; I don't
      * understand how it's used but I put it here anyway */
-    if ( chmod("/tmp/nx.log", (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH | S_ISVTX)) ) {
+    if ( chmod("/tmp/nx.log", (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH )) ) {
 	perror("cannot chmod but will continue\n");
     }
     

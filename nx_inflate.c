@@ -1151,25 +1151,23 @@ restart_nx:
 	switch (cc) {
 
 	case ERR_NX_TRANSLATION:
-
+		
 		/* We touched the pages ahead of time. In the most
 		   common case we shouldn't be here. But may be some
 		   pages were paged out. Kernel should have placed the
 		   faulting address to fsaddr */
 		print_dbg_info(s, __LINE__);
 
-#ifdef NX_LOG_SOURCE_TARGET
-		nx_print_dde(ddl_in, "source");
-		nx_print_dde(ddl_out, "target");
-#endif
-
 		/* Touch 1 byte, read-only  */
 		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
 		/* get64 does the endian conversion */
 
-		prt_info("pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
+		prt_err("ERR_NX_TRANSLATION: pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
 			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz);
-
+#ifdef NX_LOG_SOURCE_TARGET
+		nx_print_dde(ddl_in, "source");
+		nx_print_dde(ddl_out, "target");
+#endif
 		if (pgfault_retries == nx_config.retry_max) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
@@ -1201,6 +1199,7 @@ restart_nx:
 				target_sz = INF_MAX_EXPANSION_BYTES;
 
 			--pgfault_retries;
+			prt_err("ERR_NX_TRANSLATION: more retry, %d\n", pgfault_retries);
 			goto restart_nx;
 		}
 		else {

@@ -70,7 +70,7 @@ static int nx_init_done = 0;
 static int pid_is_saved = 0;
 static pid_t saved_pid = 0;
 static nx_devp_t saved_nx_devp = NULL;
-static int disable_saved_nx_devp = 0;
+static int disable_saved_nx_devp = 1;
 
 int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
@@ -78,6 +78,7 @@ int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x4;		/* enable minimal sw trace */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
+FILE *nx_gzip_critical_log = NULL;	/* log critical issue, like wait_for_csb timeout */
 int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
@@ -428,19 +429,19 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
 	indirect_count = getpnn(ddep, dde_count);
 	buf_len = getp32(ddep, ddebc);
 
-	prt_trace("%s dde %p dde_count %d, ddebc 0x%x\n", msg, ddep, indirect_count, buf_len);
+	prt_err("%s dde %p dde_count %d, ddebc 0x%x\n", msg, ddep, indirect_count, buf_len);
 
 	if (indirect_count == 0) {
 		/* direct dde */
 		buf_len = getp32(ddep, ddebc);
 		buf_addr = getp64(ddep, ddead);
-		prt_trace("  direct dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
+		prt_err("  direct dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
 		return;
 	}
 
 	/* indirect dde */
 	if (indirect_count > MAX_DDE_COUNT) {
-		prt_trace("  error MAX_DDE_COUNT\n");
+		prt_err("  error MAX_DDE_COUNT\n");
 		return;
 	}
 
@@ -450,7 +451,7 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
 	for (i=0; i < indirect_count; i++) {
 		buf_len = get32(dde_list[i], ddebc);
 		buf_addr = get64(dde_list[i], ddead);
-		prt_trace(" indirect dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
+		prt_err(" indirect dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
 	}
 	return;
 }
@@ -489,7 +490,7 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 	   faulting address nxu_run_job will spin needlessly until
 	   times out */
 	if (cc) {
-		prt_err("%s:%d job did not complete in allotted time, cc %d\n", __FUNCTION__, __LINE__, cc);
+		prt_critical("%s:%d job did not complete in allotted time, cc %d\n", __FUNCTION__, __LINE__, cc);
 		cc = ERR_NX_TRANSLATION; /* this will force resubmit */
 		/* return cc; */
 		exit(-1); /* safely exit and let hadoop deal with dead job */
@@ -831,7 +832,9 @@ void nx_hw_init(void)
 	if (logfile != NULL)
 		nx_gzip_log = fopen(logfile, "a+");
 	else
-		nx_gzip_log = fopen("/tmp/nx.log", "a+");
+		nx_gzip_log = fopen("/data/ibm/nxtmp/nx.log", "a+");
+
+	nx_gzip_critical_log = fopen("/data/ibm/nxtmp/nx_critical.log", "a+");
 
 	/* Initialize the stats structure*/
 	if (nx_gzip_gather_statistics()) {
@@ -929,6 +932,7 @@ void nx_hw_init(void)
 	sigaction(SIGSEGV, &act, NULL);
 */
 	nx_init_done = 1;
+	prt_err("libnxz loaded\n");
 }
 
 static void _nx_hwinit(void) __attribute__((constructor));
@@ -945,10 +949,14 @@ void nx_hw_done(void)
 	nx_close_all();
 	
 	if (!!nx_gzip_log) fflush(nx_gzip_log);
+	if (!!nx_gzip_critical_log) fflush(nx_gzip_critical_log);
 	fflush(stderr);
 
 	if (nx_gzip_log != stderr) {
 		nx_gzip_log = NULL;
+	}
+	if (nx_gzip_critical_log != stderr) {
+		nx_gzip_critical_log = NULL;
 	}
 }
 

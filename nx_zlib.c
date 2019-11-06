@@ -48,6 +48,7 @@
 #include <sys/fcntl.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <endian.h>
 #include <pthread.h>
 #include <signal.h>
@@ -778,6 +779,50 @@ static void print_stats(void)
 	return;
 }
 
+FILE* open_logfile(char *filename)
+{
+	/* multi processes with differnt UID, GID need to write the log file */
+	FILE *logfile;
+	int ret;
+
+	if (!filename)
+		return NULL;
+	
+	/* try to open in append mode */
+	if (logfile = fopen(filename, "a+")) {
+		/* ok, try to chmod so all users can access it. 
+                 * the first process creating this file should success, others are expected to fail */
+		//fprintf(stderr, "try chmod: %s\n", filename);
+		chmod(filename, (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
+		return logfile;
+	}
+
+	/* the path may be incorrect, check file exist? */	
+	ret = access(filename, F_OK);
+	if (ret != 0) {
+		/* file not exist, fall back to use /tmp/nx.log */
+		if (logfile = fopen("/tmp/nx.log", "a+")) {
+			//fprintf(stderr, "%s not exists, use /tmp/nx.log\n", filename);
+			/* ok, try to chmod so all users can access it. */
+			//fprintf(stderr, "try chmod: /tmp/nx.log\n");
+			chmod("/tmp/nx.log", (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
+			return logfile;
+		}
+	} else {
+		//fprintf(stderr, "cannot access %s\n", filename);
+		/* file exists, we might have no access right, try to use /tmp/nx.log,
+		 * but this may fail if no right to access /tmp/log */
+		if (logfile = fopen("/tmp/nx.log", "a+")) {
+			//fprintf(stderr, "use /tmp/nx.log\n");
+			return logfile;
+		}
+		//fprintf(stderr, "cannot access /tmp/nx.log\n");
+	}
+	
+	//fprintf(stderr, "cannot open %s or /tmp/nx.log, cannot log\n");
+	return NULL; 
+}
+
 /*
  * Execute on library load
  */
@@ -830,12 +875,13 @@ void nx_hw_init(void)
 
 	/* log file should be initialized first*/
 	if (logfile != NULL)
-		nx_gzip_log = fopen(logfile, "a+");
+		nx_gzip_log = open_logfile(logfile);
 	else
-		nx_gzip_log = fopen("/data/ibm/nxtmp/nx.log", "a+");
-
-	nx_gzip_critical_log = fopen("/data/ibm/nxtmp/nx_critical.log", "a+");
-
+		nx_gzip_log = open_logfile("/data/ibm/nxtmp/nx.log");
+	
+	nx_gzip_critical_log = open_logfile("/data/ibm/nxtmp/nx_critical.log");
+	/* log file pointer may be NULL, the worst case is we log nothing */
+	
 	/* Initialize the stats structure*/
 	if (nx_gzip_gather_statistics()) {
 		rc = pthread_mutex_init(&zlib_stats_mutex, NULL);

@@ -2179,7 +2179,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	uint32_t adler;
 	int cc;
 
-	sw_trace("%s\n", __FUNCTION__);
+	//sw_trace("%s\n", __FUNCTION__);
 	if (dictionary == NULL || strm == NULL)
 		return Z_STREAM_ERROR;
 

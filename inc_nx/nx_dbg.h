@@ -64,25 +64,29 @@ pthread_mutex_t mutex_log;
 } while(0)
 
 #define prt(fmt, ...) do { \
-	pthread_mutex_lock (&mutex_log);				\
-	flock(nx_gzip_log->_fileno, LOCK_EX);				\
-	prt_timestamp(nx_gzip_log);					\
-	fprintf(nx_gzip_log, "pid %d: " fmt,				\
-		(int)getpid(), ## __VA_ARGS__);				\
-	fflush(nx_gzip_log);						\
-	flock(nx_gzip_log->_fileno, LOCK_UN);				\
-	pthread_mutex_unlock (&mutex_log);				\
+	if (nx_gzip_log) { \
+		pthread_mutex_lock (&mutex_log);				\
+		flock(nx_gzip_log->_fileno, LOCK_EX);				\
+		prt_timestamp(nx_gzip_log);					\
+		fprintf(nx_gzip_log, "pid %d: " fmt,				\
+			(int)getpid(), ## __VA_ARGS__);				\
+		fflush(nx_gzip_log);						\
+		flock(nx_gzip_log->_fileno, LOCK_UN);				\
+		pthread_mutex_unlock (&mutex_log);				\
+	} \
 } while(0)
 
 #define prt_critical(fmt, ...) do { \
-	pthread_mutex_lock (&mutex_log);				\
-	flock(nx_gzip_critical_log->_fileno, LOCK_EX);			\
-	prt_timestamp(nx_gzip_critical_log);				\
-	fprintf(nx_gzip_critical_log, "pid %d: " fmt,			\
-		(int)getpid(), ## __VA_ARGS__);				\
-	fflush(nx_gzip_critical_log);					\
-	flock(nx_gzip_critical_log->_fileno, LOCK_UN);			\
-	pthread_mutex_unlock (&mutex_log);				\
+	if (nx_gzip_critical_log) { \
+		pthread_mutex_lock (&mutex_log);				\
+		flock(nx_gzip_critical_log->_fileno, LOCK_EX);			\
+		prt_timestamp(nx_gzip_critical_log);				\
+		fprintf(nx_gzip_critical_log, "pid %d: " fmt,			\
+			(int)getpid(), ## __VA_ARGS__);				\
+		fflush(nx_gzip_critical_log);					\
+		flock(nx_gzip_critical_log->_fileno, LOCK_UN);			\
+		pthread_mutex_unlock (&mutex_log);				\
+	} \
 } while(0)
 
 /* Use in case of an error */
@@ -111,21 +115,6 @@ pthread_mutex_t mutex_log;
 #define prt_stat(fmt, ...) do {	if (nx_gzip_gather_statistics()) {	\
 	prt("### "fmt, ## __VA_ARGS__);					\
 }} while (0)
-
-/* Trace zlib hardware implementation */
-#define hw_trace(fmt, ...) do {						\
-		if (nx_gzip_hw_trace_enabled())				\
-			fprintf(nx_gzip_log, "hhh " fmt, ## __VA_ARGS__); \
-	} while (0)
-
-/* Trace zlib software implementation */
-#define sw_trace(fmt, ...) do {						\
-		if (nx_gzip_sw_trace_enabled()) {			\
-			prt_timestamp(nx_gzip_log);			\
-			fprintf(nx_gzip_log, "sss " fmt, ## __VA_ARGS__); \
-		}							\
-	} while (0)
-
 
 /**
  * str_to_num - Convert string into number and copy with endings like

@@ -40,8 +40,11 @@ int main(int argc, char **argv)
     num -= 1;
     if (num > 0) {
 	pid_t pid = fork();
-	if (pid == 0) /* child continues; parent dies */
+	if (pid == 0) { /* child continues; parent dies */
+	    if (p != NULL)
+		free(p);
 	    goto rpt;
+	}
 	else if (pid < 0) {
 	    perror("forke failed\n");
 	    return pid;

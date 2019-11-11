@@ -1776,7 +1776,7 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 }
 
 /* deflate interface */
-int nx_deflate(z_streamp strm, int flush)
+int _nx_deflate(z_streamp strm, int flush)
 {
 	retlibnx_t rc;
 	nx_streamp s;
@@ -2156,6 +2156,21 @@ int nx_deflateSetHeader(z_streamp strm, gz_headerp head)
 	s->gzhead = head;
 
 	return Z_OK;
+}
+
+/* wrapper for easy stats */
+int nx_deflate(z_streamp strm, int flush)
+{
+	unsigned long total_in_stat = strm->total_in;
+	int rc = _nx_deflate(strm, flush);
+	__atomic_fetch_add(&zlib_stats.deflate_len, strm->total_in - total_in_stat, __ATOMIC_RELAXED);
+	
+	//if (rc == Z_STREAM_END || flush == Z_FINISH)
+	/* log if there is error or stream end */
+	if (rc != Z_OK || flush == Z_FINISH)
+		prt_err("deflate data length: %ld KiB\n", zlib_stats.deflate_len/1024);
+
+	return rc;
 }
 
 int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, unsigned int dictLength)

@@ -53,8 +53,10 @@ pthread_mutex_t mutex_log;
 #define nx_gzip_trace_enabled()       (nx_gzip_trace & 0x1)
 #define nx_gzip_hw_trace_enabled()    (nx_gzip_trace & 0x2)
 #define nx_gzip_sw_trace_enabled()    (nx_gzip_trace & 0x4)
-#define nx_gzip_gather_statistics()   (nx_gzip_trace & 0x8)
+#define nx_gzip_gather_stats()   (nx_gzip_trace & 0x8)
 #define nx_gzip_per_stream_stat()     (nx_gzip_trace & 0x10)
+// old, will remove
+#define nx_gzip_gather_statistics()   (0)
 
 #define prt_timestamp(F) do {	\
 	time_t t; struct tm* m; time(&t); m=localtime(&t);	\
@@ -104,7 +106,11 @@ pthread_mutex_t mutex_log;
 }} while (0)
 
 /* Trace statistics */
-#define prt_stat(fmt, ...) do {	if (nx_gzip_gather_statistics()) {	\
+#define prt_stats(fmt, ...) do { if (nx_gzip_gather_stats()) {		\
+	prt(fmt, ## __VA_ARGS__);					\
+}} while (0)
+/* old, will remove */
+#define prt_stat(fmt, ...) do { if (nx_gzip_gather_statistics()) {	\
 	prt("### "fmt, ## __VA_ARGS__);					\
 }} while (0)
 

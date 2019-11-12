@@ -2168,7 +2168,7 @@ int nx_deflate(z_streamp strm, int flush)
 	//if (rc == Z_STREAM_END || flush == Z_FINISH)
 	/* log if there is error or stream end */
 	if (rc != Z_OK || flush == Z_FINISH)
-		prt_err("deflate data length: %ld KiB\n", zlib_stats.deflate_len/1024);
+		prt_stats("deflate data length: %ld KiB\n", zlib_stats.deflate_len/1024);
 
 	return rc;
 }

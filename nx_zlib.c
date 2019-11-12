@@ -79,7 +79,6 @@ int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x4;		/* enable minimal sw trace */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
-FILE *nx_gzip_critical_log = NULL;	/* log critical issue, like wait_for_csb timeout */
 int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
@@ -491,7 +490,7 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 	   faulting address nxu_run_job will spin needlessly until
 	   times out */
 	if (cc) {
-		prt_critical("%s:%d job did not complete in allotted time, cc %d\n", __FUNCTION__, __LINE__, cc);
+		prt_err("%s:%d job did not complete in allotted time, cc %d\n", __FUNCTION__, __LINE__, cc);
 		cc = ERR_NX_TRANSLATION; /* this will force resubmit */
 		/* return cc; */
 		exit(-1); /* safely exit and let hadoop deal with dead job */
@@ -787,17 +786,16 @@ FILE* open_logfile(char *filename)
 
 	if (!filename)
 		return NULL;
-	
 	/* try to open in append mode */
 	if (logfile = fopen(filename, "a+")) {
-		/* ok, try to chmod so all users can access it. 
+		/* ok, try to chmod so all users can access it.
                  * the first process creating this file should success, others are expected to fail */
 		//fprintf(stderr, "try chmod: %s\n", filename);
 		chmod(filename, (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
 		return logfile;
 	}
 
-	/* the path may be incorrect, check file exist? */	
+	/* the path may be incorrect, check file exist? */
 	ret = access(filename, F_OK);
 	if (ret != 0) {
 		/* file not exist, fall back to use /tmp/nx.log */
@@ -818,9 +816,9 @@ FILE* open_logfile(char *filename)
 		}
 		//fprintf(stderr, "cannot access /tmp/nx.log\n");
 	}
-	
+
 	//fprintf(stderr, "cannot open %s or /tmp/nx.log, cannot log\n");
-	return NULL; 
+	return NULL;
 }
 
 /*
@@ -877,11 +875,10 @@ void nx_hw_init(void)
 	if (logfile != NULL)
 		nx_gzip_log = open_logfile(logfile);
 	else
-		nx_gzip_log = open_logfile("/data/ibm/nxtmp/nx.log");
-	
-	nx_gzip_critical_log = open_logfile("/data/ibm/nxtmp/nx_critical.log");
+		nx_gzip_log = open_logfile("/tmp/nx.log");
+
 	/* log file pointer may be NULL, the worst case is we log nothing */
-	
+
 	/* Initialize the stats structure*/
 	if (nx_gzip_gather_statistics()) {
 		rc = pthread_mutex_init(&zlib_stats_mutex, NULL);
@@ -978,7 +975,7 @@ void nx_hw_init(void)
 	sigaction(SIGSEGV, &act, NULL);
 */
 	nx_init_done = 1;
-	prt_err("libnxz loaded\n");
+	prt_critical("libnxz loaded\n");
 }
 
 static void _nx_hwinit(void) __attribute__((constructor));
@@ -993,16 +990,12 @@ void nx_hw_done(void)
 	int flags = (nx_gzip_inflate_flags | nx_gzip_deflate_flags);
 
 	nx_close_all();
-	
+
 	if (!!nx_gzip_log) fflush(nx_gzip_log);
-	if (!!nx_gzip_critical_log) fflush(nx_gzip_critical_log);
 	fflush(stderr);
 
 	if (nx_gzip_log != stderr) {
 		nx_gzip_log = NULL;
-	}
-	if (nx_gzip_critical_log != stderr) {
-		nx_gzip_critical_log = NULL;
 	}
 }
 

@@ -76,22 +76,14 @@ pthread_mutex_t mutex_log;
 	} \
 } while(0)
 
-#define prt_critical(fmt, ...) do { \
-	if (nx_gzip_critical_log) { \
-		pthread_mutex_lock (&mutex_log);				\
-		flock(nx_gzip_critical_log->_fileno, LOCK_EX);			\
-		prt_timestamp(nx_gzip_critical_log);				\
-		fprintf(nx_gzip_critical_log, "pid %d: " fmt,			\
-			(int)getpid(), ## __VA_ARGS__);				\
-		fflush(nx_gzip_critical_log);					\
-		flock(nx_gzip_critical_log->_fileno, LOCK_UN);			\
-		pthread_mutex_unlock (&mutex_log);				\
-	} \
-} while(0)
+/* print anyway */
+#define prt_critical(fmt, ...) do { if (nx_dbg >= 0) {			\
+	prt(fmt, ## __VA_ARGS__);					\
+}} while (0)
 
 /* Use in case of an error */
 #define prt_err(fmt, ...) do { if (nx_dbg >= 0) {			\
-	prt("%s:%u: "fmt,					\
+	prt("%s:%u: Err: "fmt,						\
 		__FILE__, __LINE__, ## __VA_ARGS__);			\
 }} while (0)
 

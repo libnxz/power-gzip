@@ -2163,9 +2163,9 @@ int nx_deflate(z_streamp strm, int flush)
 {
 	unsigned long total_in_stat = strm->total_in;
 	int rc = _nx_deflate(strm, flush);
-	__atomic_fetch_add(&zlib_stats.deflate_len, strm->total_in - total_in_stat, __ATOMIC_RELAXED);
-	
-	//if (rc == Z_STREAM_END || flush == Z_FINISH)
+	if (nx_gzip_gather_stats())
+		__atomic_fetch_add(&zlib_stats.deflate_len,
+			strm->total_in - total_in_stat, __ATOMIC_RELAXED);
 	/* log if there is error or stream end */
 	if (rc != Z_OK || flush == Z_FINISH)
 		prt_stats("deflate data length: %ld KiB\n", zlib_stats.deflate_len/1024);

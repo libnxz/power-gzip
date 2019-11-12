@@ -733,7 +733,9 @@ int nx_inflate(z_streamp strm, int flush)
 {
 	unsigned long total_in_stat = strm->total_in;
 	int rc = _nx_inflate(strm, flush);
-	__atomic_fetch_add(&zlib_stats.inflate_len, strm->total_in - total_in_stat, __ATOMIC_RELAXED);
+	if (nx_gzip_gather_stats())
+		__atomic_fetch_add(&zlib_stats.inflate_len,
+			strm->total_in - total_in_stat, __ATOMIC_RELAXED);
 	/* log if there is error or stream end */
         if (rc != Z_OK || flush == Z_FINISH)
                 prt_stats("inflate data length: %ld KiB\n", zlib_stats.inflate_len/1024);

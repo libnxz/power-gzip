@@ -2035,14 +2035,14 @@ s3:
 		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, nx_config.per_job_len);
 
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
-			/* compressed data has expanded; write a type0
-			 * block; we're going to repeat with last
-			 * source */
-			s->need_stored_block = s->spbc;
+			/* compressed data has expanded; we're
+			 * going to repeat with last source using
+			 * fixed Huffman block */
+			s->strategy = Z_FIXED;
 			s->tebc = 0; /* not valid since we're
 				      * repeating; last block would
 				      * have sync flushed */
-			prt_info("%s:%d need_stored_block, spbc %d, tebc %d\n", __FUNCTION__, __LINE__, s->spbc, s->tebc);
+			prt_info("%s:%d Expanded, trying fixed Huffman, spbc %d, tebc %d\n", __FUNCTION__, __LINE__, s->spbc, s->tebc);
 			goto s1;
 		}
 		if (rc != LIBNX_OK) {

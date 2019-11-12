@@ -1176,7 +1176,7 @@ restart_nx:
 		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
 		/* get64 does the endian conversion */
 
-		prt_err("ERR_NX_TRANSLATION: pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
+		prt_warn("ERR_NX_TRANSLATION: pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
 			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz);
 #ifdef NX_LOG_SOURCE_TARGET
 		nx_print_dde(ddl_in, "source");
@@ -1213,7 +1213,7 @@ restart_nx:
 				target_sz = INF_MAX_EXPANSION_BYTES;
 
 			--pgfault_retries;
-			prt_err("ERR_NX_TRANSLATION: more retry, %d\n", pgfault_retries);
+			prt_warn("ERR_NX_TRANSLATION: more retry, %d\n", pgfault_retries);
 			goto restart_nx;
 		}
 		else {

@@ -1484,7 +1484,7 @@ restart:
 
 	switch (cc) {
 	case ERR_NX_TRANSLATION:
-		prt_err("ERR_NX_TRANSLATION: pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n",
+		prt_warn("ERR_NX_TRANSLATION: pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n",
 			pgfault_retries, bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
 
 #ifdef NX_LOG_SOURCE_TARGET
@@ -1517,7 +1517,7 @@ restart:
 				bytes_out = DEF_MAX_EXPANSION_LEN;
 
 			--pgfault_retries;
-			prt_err("ERR_NX_TRANSLATION: more retry, %d\n", pgfault_retries);
+			prt_warn("ERR_NX_TRANSLATION: more retry, %d\n", pgfault_retries);
 			goto restart;
 		}
 		else {

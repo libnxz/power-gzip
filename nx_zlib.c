@@ -507,6 +507,18 @@ nx_devp_t nx_open(int nx_id)
 	nx_devp_t nx_devp;
 	void *vas_handle;
 	pid_t my_pid;
+	int ocount;
+	
+	if (disable_saved_nx_devp == 0) {
+		/* sharing a nx handle in this process */
+		ocount = __atomic_fetch_add(&nx_ref_count, 1, __ATOMIC_RELAXED);
+		if (ocount > 0) {
+			/* vas is already open; threads will reuse it */
+			volatile void *vh;
+			/* TODO; hack poll while the other thread is doing nx_function_begin */
+			while( NULL == (vh = __atomic_load_n(&saved_nx_devp, __ATOMIC_RELAXED) ) ){;};
+		}
+	}
 
 	my_pid = getpid();
 
@@ -557,21 +569,23 @@ nx_devp_t nx_open(int nx_id)
 int nx_close(nx_devp_t nx_devp)
 {
 	pid_t my_pid;
+	int ocount;	
 
 	if (!nx_devp || !nx_devp->vas_handle) {
 		prt_err("nx_close got a NULL handle\n");
 		return -1;
 	}
+		
+	if (disable_saved_nx_devp == 0) {
+		ocount = __atomic_fetch_sub(&nx_ref_count, 1, __ATOMIC_RELAXED);
+		/* the shared handle is in use */
+		if (ocount > 0)
+			return 0;
+	}
 
 	my_pid = getpid();
 
 	prt_info("%s pid %d saved nx_devp %p\n", __FUNCTION__, my_pid, saved_nx_devp);
-
-	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid && disable_saved_nx_devp == 0) {
-		/* appears we were not forked therefore
-		   we return and not close the device */
-		return 0;
-	}
 
 	nx_function_end(nx_devp->vas_handle);
 

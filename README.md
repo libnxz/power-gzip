@@ -25,13 +25,23 @@ make clean; make
 ```
 
 ## How to Run Test
+1. Regression test:
 ```
 cd test
 make clean; make
-export LD_LIBRARY_PATH=../:$LD_LIBRARY_PATH
-./test_deflate
-./test_inflate
+./run_test.sh
 ```
+2. NX multi-thread throughput test
+```
+cd samples
+make clean; make
+./run-series.sh /tmp/kernel.tar (note, you can change the input file)
+(The output is saved in file log.log as input for run-series.plot)
+```
+3. z-testsuite
+
+refer to: https://github.ibm.com/abali/power-gzip/issues/112
+
 ## How to Select NXs
 By default, the NX-GZIP device with the nearest process to cpu affinity is selected
 Consider using numactl -N 0 (or 8) to force your process attach to a particular device

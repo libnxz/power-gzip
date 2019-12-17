@@ -70,3 +70,13 @@ For example, use "nx_compress" instead of "compress".
     
 - deflateInit_, deflateInit2_, deflateEnd, deflate, deflateBound
 
+## Enable nx-gzip on Power9 machine
+nx-gzip feature depends on firmware(skiboot) and kernel.
+1. skiboot:
+The skiboot should contain this patch: https://github.com/open-power/skiboot/commit/ad8cdd0f83bf55e9717326afb7af6eeedb33e031
+(This patch is currently on upstream skiboot master branch).
+2. Kernel:
+nx-gzip kernel patch is not upstream yet. Use the kernel with nx-gzip patch here: https://github.com/hmyneni/linux . There are patches for different kernel version:
+* 4.14.49-8: https://github.com/hmyneni/linux/tree/4.14.49-tlbie-8-nx-gzip
+* 4.19: https://github.com/hmyneni/linux/tree/4.19-nx-gzip-v2
+* stable-5.0.15: https://github.com/hmyneni/linux/tree/stable-5.0.15-nx-gzip

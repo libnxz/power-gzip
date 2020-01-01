@@ -60,6 +60,7 @@
 #include "nx.h"
 #include "nx-gzip.h"
 #include "nx_dbg.h"
+#include "nx_utils.h"
 #include "nx_zlib.h"
 
 struct nx_config_t nx_config;
@@ -508,7 +509,7 @@ nx_devp_t nx_open(int nx_id)
 	void *vas_handle;
 	pid_t my_pid;
 	int ocount;
-	
+
 	if (disable_saved_nx_devp == 0) {
 		/* sharing a nx handle in this process */
 		ocount = __atomic_fetch_add(&nx_ref_count, 1, __ATOMIC_RELAXED);
@@ -569,13 +570,13 @@ nx_devp_t nx_open(int nx_id)
 int nx_close(nx_devp_t nx_devp)
 {
 	pid_t my_pid;
-	int ocount;	
+	int ocount;
 
 	if (!nx_devp || !nx_devp->vas_handle) {
 		prt_err("nx_close got a NULL handle\n");
 		return -1;
 	}
-		
+
 	if (disable_saved_nx_devp == 0) {
 		ocount = __atomic_fetch_sub(&nx_ref_count, 1, __ATOMIC_RELAXED);
 		/* the shared handle is in use */
@@ -845,12 +846,16 @@ void nx_hw_init(void)
 
 	/* only init one time for the program */
 	if (nx_init_done == 1) return;
+
+	/* configure file path */
+	char *cfg_file_s = getenv("NX_GZIP_CONFIG");
+	struct nx_cfg_tab cfg_tab;
+
 	pthread_mutex_init (&mutex_log, NULL);
 	pthread_mutex_init (&nx_devices_mutex, NULL);
 
 	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB"); /* 0 or 1 */
 	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP"); /* 0 or 1 */
-	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE"); /* KiB MiB GiB suffix */
@@ -858,8 +863,7 @@ void nx_hw_init(void)
 	char *logfile    = getenv("NX_GZIP_LOGFILE");
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");  /* default 0 is using literals only, odd is lit and lens */
-	char *strategy_ovrd  = getenv("NX_GZIP_DEFLATE");
-	strategy_ovrd = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
+	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
 
 	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
@@ -884,6 +888,36 @@ void nx_hw_init(void)
 	nx_config.mlock_nx_crb_csb = 0;
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;
+
+	if (!cfg_file_s)
+		cfg_file_s = "/etc/nx-zlib.conf";
+	memset(&cfg_tab, 0, sizeof(cfg_tab));
+
+	rc = nx_read_cfg(cfg_file_s, &cfg_tab);
+	if (rc == 0) {
+		/* configures loaded from file,
+		 * but evironment settings override config file */
+		if (!verbo_s)
+			verbo_s = nx_get_cfg("verbose", &cfg_tab);
+		if (!chip_num_s)
+			chip_num_s = nx_get_cfg("dev_num", &cfg_tab);
+		if (!def_bufsz)
+			def_bufsz = nx_get_cfg("dev_buf_size", &cfg_tab);
+		if (!inf_bufsz)
+			inf_bufsz = nx_get_cfg("inf_buf_size", &cfg_tab);
+		if (!logfile)
+			logfile = nx_get_cfg("logfile", &cfg_tab);
+		if (!trace_s)
+			trace_s = nx_get_cfg("trace", &cfg_tab);
+		if (!dht_config)
+			dht_config = nx_get_cfg("dht_config", &cfg_tab);
+		if (!strategy_ovrd)
+			strategy_ovrd = nx_get_cfg("strategy", &cfg_tab);
+		if (!mlock_csb)
+			mlock_csb = nx_get_cfg("mlock_csb", &cfg_tab);
+		if (!dis_savdev)
+			dis_savdev = nx_get_cfg("dis_savedevp", &cfg_tab);
+	}
 
 	/* log file should be initialized first*/
 	if (logfile != NULL)
@@ -988,6 +1022,9 @@ void nx_hw_init(void)
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
 */
+	if (nx_dbg >= 2)
+		nx_dump_cfg(&cfg_tab, nx_gzip_log); 
+	nx_close_cfg(&cfg_tab);
 	nx_init_done = 1;
 	prt_critical("libnxz loaded\n");
 }

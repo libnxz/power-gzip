@@ -60,6 +60,7 @@
 #include "nx.h"
 #include "nx-gzip.h"
 #include "nx_dbg.h"
+#include "nx_utils.h"
 #include "nx_zlib.h"
 
 struct nx_config_t nx_config;
@@ -719,10 +720,14 @@ void nx_hw_init(void)
 
 	/* only init one time for the program */
 	if (nx_init_done == 1) return;
+
+	/* configure file path */
+	char *cfg_file_s = getenv("NX_GZIP_CONFIG");
+	struct nx_cfg_tab cfg_tab;
+
 	pthread_mutex_init (&mutex_log, NULL);
 	pthread_mutex_init (&nx_devices_mutex, NULL);
 
-	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE"); /* KiB MiB GiB suffix */
@@ -730,8 +735,7 @@ void nx_hw_init(void)
 	char *logfile    = getenv("NX_GZIP_LOGFILE");
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");  /* default 0 is using literals only, odd is lit and lens */
-	char *strategy_ovrd  = getenv("NX_GZIP_DEFLATE");
-	strategy_ovrd = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
+	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
 
 	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
@@ -756,6 +760,32 @@ void nx_hw_init(void)
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;
 
+	if (!cfg_file_s)
+		cfg_file_s = "/etc/nx-zlib.conf";
+	memset(&cfg_tab, 0, sizeof(cfg_tab));
+
+	rc = nx_read_cfg(cfg_file_s, &cfg_tab);
+	if (rc == 0) {
+		/* configures loaded from file,
+		 * but evironment settings override config file */
+		if (!verbo_s)
+			verbo_s = nx_get_cfg("verbose", &cfg_tab);
+		if (!chip_num_s)
+			chip_num_s = nx_get_cfg("dev_num", &cfg_tab);
+		if (!def_bufsz)
+			def_bufsz = nx_get_cfg("dev_buf_size", &cfg_tab);
+		if (!inf_bufsz)
+			inf_bufsz = nx_get_cfg("inf_buf_size", &cfg_tab);
+		if (!logfile)
+			logfile = nx_get_cfg("logfile", &cfg_tab);
+		if (!trace_s)
+			trace_s = nx_get_cfg("trace", &cfg_tab);
+		if (!dht_config)
+			dht_config = nx_get_cfg("dht_config", &cfg_tab);
+		if (!strategy_ovrd)
+			strategy_ovrd = nx_get_cfg("strategy", &cfg_tab);
+	}
+
 	/* log file should be initialized first*/
 	/* TODO we should really log to a process unique file but user
 	   starts thousands of processes per day. This is one log file for all */
@@ -766,7 +796,7 @@ void nx_hw_init(void)
 	nx_gzip_log = fopen(logfile, "a");
 
 	if ( chmod(logfile, (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH )) ) {
-		perror("cannot 0666 log file: continuing\n");
+		fprintf(stderr, "cannot 0666 log file: %s: continuing\n", logfile);
 	}
 
 	/* Initialize the stats structure*/
@@ -854,6 +884,9 @@ void nx_hw_init(void)
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
 
+	if (nx_dbg >= 2)
+		nx_dump_cfg(&cfg_tab, nx_gzip_log); 
+	nx_close_cfg(&cfg_tab);
 	nx_init_done = 1;
 }
 
@@ -870,7 +903,7 @@ void nx_hw_done(void)
 	int flags = (nx_gzip_inflate_flags | nx_gzip_deflate_flags);
 
 	nx_close_all();
-	
+
 	if (!!nx_gzip_log) fflush(nx_gzip_log);
 	fflush(stderr);
 

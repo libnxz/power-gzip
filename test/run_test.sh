@@ -1,4 +1,5 @@
-export NX_GZIP_LOGFILE=./nx.log
+export NX_GZIP_CONFIG=./nx-zlib.conf
+#export NX_GZIP_LOGFILE=./nx.log
 export LD_LIBRARY_PATH=../:$LD_LIBRARY_PATH
 
 ./test_deflate && \

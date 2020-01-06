@@ -246,6 +246,9 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 	int ret = 0;
 	int paste_ret = 0;
 	struct nx_handle *nxhandle = handle;
+#ifdef NX_JOB_CALLBACK
+	int once=0;
+#endif
 
 	assert(handle != NULL);
 	i = 0;

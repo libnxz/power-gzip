@@ -1153,8 +1153,6 @@ static void _nx_hwinit(void)
 
 void nx_hw_done(void)
 {
-	int flags = (nx_gzip_inflate_flags | nx_gzip_deflate_flags);
-
 	nx_close_all();
 
 	if (!!nx_gzip_log) fflush(nx_gzip_log);

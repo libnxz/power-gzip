@@ -171,7 +171,6 @@ int nx_dump_cfg(struct nx_cfg_tab *cfg_table, FILE *fp)
 char* nx_get_cfg(char *key, struct nx_cfg_tab *cfg_table)
 {
 	int i;
-	struct cfg_item *configs;
 	char *val;
 
 	if (!cfg_table || !cfg_table->configs || !key)

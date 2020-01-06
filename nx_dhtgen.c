@@ -431,7 +431,6 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
     leaf_node_t leafarr[NLEN]; /* [NLEN]; */
     tree_node_t nodearr[NLEN];
     tree_node_t remaining_node;    
-    int tree_node_number =  0;  
     q_t leaf_q, node_q;
     int nz_nsym;
 
@@ -541,7 +540,7 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 	    Deflate case left child should be the lexicographically
 	    smaller symbol value; but do we really care? We only need
 	    code lengths */
-	new_node.sc.symbol = node_q.tail;  /* tree_node_number ++; */
+	new_node.sc.symbol = node_q.tail;
 	new_node.sc.count = node[0].sc.count + node[1].sc.count;
 	new_node.child[0] = node[0].sc.symbol;
 	new_node.child[1] = node[1].sc.symbol;

@@ -752,7 +752,7 @@ void nx_hw_init(void)
 	nx_config.compress_threshold = (10*1024); /* collect as much input */
 	nx_config.inflate_fifo_in_len = ((1<<16)*2); /* default 128K, half used */
 	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
-	nx_config.deflate_fifo_in_len = 1<<17; /* ((1<<20)*2); /* default 8M, half used */
+	nx_config.deflate_fifo_in_len = 1<<17; /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.retry_max = INT_MAX;
 	nx_config.pgfault_retries = INT_MAX;

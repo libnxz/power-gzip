@@ -238,11 +238,6 @@ typedef struct nx_stream_s {
         int32_t         used_out;
         int32_t         cur_out;
 
-	/* locate the BFINAL bit */ 	
-	/* char            *last_block_head;    /* the byte offset */
-	/* int             last_block_head_bit; /* the bfinal bit pos */
-	/* partial byte bits counts that couldn't be output */
-	
         /* return status */
         int             nx_cc;          /* nx return codes */
         uint32_t        nx_ce;          /* completion extension Fig.6-7 */       

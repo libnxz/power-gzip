@@ -47,8 +47,6 @@
    value to amortize dht_lookup overheads over many */
 #define DHT_NUM_SRC_BYTES    (512*1024) 
 
-/* #define DHT_ATOMICS            /* define if multithreaded; nx_zlib should not need this */
-
 typedef struct dht_entry_t {
 	/* 32bit XOR of the entire struct, inclusive of cksum, must
 	   equal 0. May use the cksum if this struct is read/write to

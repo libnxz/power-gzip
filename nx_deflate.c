@@ -185,7 +185,6 @@ static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int
 	flush = ((0x1ULL & final) << shift) | *buf;
 	shift = shift + 3; /* BFINAL and BTYPE written */
 	shift = (shift <= 8) ? 8 : 16;
-	/* flush |= (0xFFFF0000ULL) << shift; /* Zero length block */
 	flush |= blen << shift; /* blen length block */
 	shift = shift + 32;
 	while (shift > 0) {

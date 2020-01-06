@@ -88,8 +88,6 @@ out:
  * may be room for performance improvement here.
  */
 uint32_t crc32_ppc(uint32_t crc, unsigned char *data, unsigned len) {
-  unsigned char *buf2;
-
   if (!data) {
     return 0;
   } else {

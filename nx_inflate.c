@@ -223,7 +223,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	return ret;
 
 reset_err:
-alloc_err:
 	//if (s->gzhead)
 	//	nx_free_buffer(s->gzhead, 0, 0);
 	if (s)
@@ -750,7 +749,6 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 	char *tail;
 	uint32_t cksum, isize;
-	int i;
 
 	if (copy > 0) {
 		/* to handle the case of crc and isize spanning fifo_in
@@ -942,8 +940,6 @@ copy_fifo_out_to_next_out:
 	if (s->used_out == 0 && s->avail_in == 0 && s->used_in == 0) return Z_OK;
 	/* we should flush all data to next_out here, s->used_out should be 0 */
 
-small_next_in:
-
 	/* used_in is the data amount waiting in fifo_in; avail_in is
 	   the data amount waiting in the user buffer next_in */
 	if (s->avail_in < nx_config.soft_copy_threshold && s->avail_out > 0) {
@@ -968,8 +964,6 @@ small_next_in:
 		}
 	}
 	print_dbg_info(s, __LINE__);
-
-decomp_state:
 
 	/* NX decompresses input data */
 
@@ -1727,7 +1721,7 @@ mem_error:
 
 int nx_inflateGetHeader(z_streamp strm, gz_headerp head)
 {
-	nx_streamp s, d;
+	nx_streamp s;
 
 	prt_info("%s:%d strm %p gzhead %p\n", __FUNCTION__, __LINE__, strm, head);
 

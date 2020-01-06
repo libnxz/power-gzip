@@ -598,7 +598,6 @@ search_cache:
 	if (!dht_search_builtin(cmdp, dht_tab, top))
 		return 0; /* found */
 
-search_lru:
 	/* Did not find the DHT. Throw away LRU cache entry*/
 	while (1) {
 		/* advance the clock hand */
@@ -640,7 +639,6 @@ force_dhtgen:
 	if (request == dht_gen_req) /* without updating cache */
 		return 0;
 
-copy_to_cache:
 	/* make a copy in the cache at the least used position */
 	memcpy(dht_cache[clock].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
 	dht_cache[clock].in_dhtlen = dhtlen;

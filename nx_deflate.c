@@ -115,10 +115,7 @@ static inline void print_ret(const char *s, int line) { prt_info("%s:%d\n", s, l
 
 /* config variables */
 static const int nx_stored_block_len = 60000;
-static uint32_t nx_max_byte_count_low = (1UL<<30);
-static uint32_t nx_max_byte_count_high = (1UL<<30);
 static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
-static uint32_t nx_max_target_dde_count = MAX_DDE_COUNT;
 
 typedef int retlibnx_t;
 typedef int retz_t;
@@ -1582,7 +1579,6 @@ restart:
 do_update_offsets:
 	nx_compress_block_update_offsets(s, fc);
 
-do_append_flush:
 	nx_compress_block_append_flush_block(s);
 
 do_no_update:

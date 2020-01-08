@@ -1244,7 +1244,7 @@ static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, u
 int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
 {
 	int cc = ERR_NX_OK;
-	uint32_t in_crc, in_adler, out_crc, out_adler;
+	uint32_t in_crc=0, in_adler=0, out_crc, out_adler;
 
 	if (len < nx_config.soft_copy_threshold && !crc && !adler) {
 		memcpy(dst, src, len);

@@ -159,11 +159,11 @@ typedef struct nx_stream_s {
         int             strategy;       /* force compression algorithm */
 
         /* stream data management */
-        char            *next_in;       /* next input byte */
+        unsigned char   *next_in;       /* next input byte */
         uint32_t        avail_in;       /* # of bytes available at next_in */
         unsigned long   total_in;       /* total nb of inp read so far */
 
-        char            *next_out;      /* next obyte should be put there */
+        unsigned char   *next_out;      /* next obyte should be put there */
         uint32_t        avail_out;      /* remaining free space at next_out*/
         unsigned long   total_out;      /* total nb of bytes output so far */
 
@@ -331,7 +331,7 @@ typedef struct nx_stream_s *nx_streamp;
 		update_stream_in(s,1); update_stream_in(s->zstrm, 1);\
 		if ((s)->ckidx == sizeof(ckbuf_t)) {			\
 			/* when the buffer is near full do a partial checksum */ \
-			(s)->cksum = nx_crc32((s)->cksum, (s)->ckbuf.buf, (s)->ckidx); \
+			(s)->cksum = nx_crc32((s)->cksum, (const unsigned char *)(s)->ckbuf.buf, (s)->ckidx); \
 			(s)->ckidx = 0;	}				\
 	} while(0)
 

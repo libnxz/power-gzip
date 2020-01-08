@@ -109,7 +109,7 @@ int  dhtgen (
 #define ASSERT(X)  assert(X)
 #define DBG(X)     do{ X ;} while(0)
 #else  /* _DHTGEN_DEBUG */
-#define ASSERT(X)  do{ ; } while(0)
+#define ASSERT(X)  ((void)(X))
 #define DBG(X)     do{ ; } while(0)
 #endif /* _DHTGEN_DEBUG */
 
@@ -430,7 +430,7 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 {
     leaf_node_t leafarr[NLEN]; /* [NLEN]; */
     tree_node_t nodearr[NLEN];
-    tree_node_t remaining_node;    
+    tree_node_t remaining_node = {0};
     q_t leaf_q, node_q;
     int nz_nsym;
 
@@ -718,7 +718,7 @@ static void print_hclen(hclen_t *hclen_tab)
 static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 {
     int i,j, count, cur_idx;
-    int state=0, next_state;
+    int state=0, next_state=0;
     u9 cur_len, next_len, new_len;
     hclen_t hclen[19];
     int num_sym_len = num_lsym + num_dsym;

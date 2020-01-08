@@ -209,7 +209,7 @@ static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int
  * closed. sync and full flush blocks are identical; treatment
  * of the history are different
 */
-static int inline append_sync_flush(char *buf, uint32_t tebc, int final)
+static int inline append_sync_flush(unsigned char *buf, uint32_t tebc, int final)
 {
 	uint64_t flush;
 	int32_t shift = (tebc & 0x7);
@@ -234,7 +234,7 @@ static int inline append_sync_flush(char *buf, uint32_t tebc, int final)
 	return(((tebc > 5) || (tebc == 0)) ? 5 : 4);
 }
 
-static int inline append_full_flush(char *buf, uint32_t tebc, int final)
+static int inline append_full_flush(unsigned char *buf, uint32_t tebc, int final)
 {
 	return append_sync_flush(buf, tebc, final);
 }
@@ -243,7 +243,7 @@ static int inline append_full_flush(char *buf, uint32_t tebc, int final)
  * Appends 10 bits of partial flush and returns the new tebc in the
  * argument. Returns bytes appended
 */
-static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
+static int inline append_partial_flush(unsigned char *buf, uint32_t *tebc, int final)
 {
 	uint64_t flush;
 	int32_t shift = (*tebc & 0x7);
@@ -277,8 +277,8 @@ static int inline append_partial_flush(char *buf, uint32_t *tebc, int final)
 */
 static int append_spanning_flush(nx_streamp s, int flush, uint32_t tebc, int final)
 {
-	char tmp[16]; /* issue 106 buffer overran */
-	char *ptr;
+	unsigned char tmp[16]; /* issue 106 buffer overran */
+	unsigned char *ptr;
 	int  nb, k;
 	uint32_t next_tebc = tebc;
 
@@ -1004,7 +1004,7 @@ static int nx_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 
 	if (copy_bytes > 0) {
 		rc = nx_copy(s->fifo_in + s->cur_in,
-			     s->next_in,
+			     (char*) s->next_in,
 			     copy_bytes, NULL, NULL,
 			     s->nxdevp);
 		if (rc != LIBNX_OK ) {
@@ -1022,7 +1022,7 @@ static int nx_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 
 		if (copy_bytes > 0) {
 			rc = nx_copy(s->fifo_in,
-				     s->next_in,
+				     (char*) s->next_in,
 				     copy_bytes, NULL, NULL,
 				     s->nxdevp);
 			if (rc != LIBNX_OK ) {
@@ -1946,7 +1946,7 @@ s3:
 
 		while (s->avail_out > 0 && s->need_stored_block > 0) {
 			/* reminder of the output block start offset */
-			char *blk_head = s->next_out;
+			char *blk_head = (char*) s->next_out;
 
 			/* ensure that job size is nx_stored_block_len or less */
 			uint32_t nbytes_this_iteration = NX_MIN( s->need_stored_block, nx_stored_block_len );

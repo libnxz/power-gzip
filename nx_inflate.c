@@ -271,7 +271,7 @@ int nx_inflate(z_streamp strm, int flush)
 	int rc = Z_OK;
 	nx_streamp s;
 	unsigned int avail_in_slot, avail_out_slot;
-	uint64_t t1, t2;
+	uint64_t t1=0, t2=0;
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
@@ -419,7 +419,7 @@ inf_forever:
 		nx_inflate_get_byte(s, c);
 		s->gzflags = c;
 
-		if (s->gzflags & 0xe0 != 0) { /* reserved bits are set */
+		if ((s->gzflags & 0xe0) != 0) { /* reserved bits are set */
 			strm->msg = (char *)"unknown header flags set";
 			s->inf_state = inf_state_data_error;
 			break;
@@ -593,7 +593,7 @@ inf_forever:
 
 			/* Compare stored and compute hcrc checksums here */
 
-			if (s->hcrc16 != s->cksum & 0xffff) {
+			if (s->hcrc16 != (s->cksum & 0xffff)) {
 				strm->msg = (char *)"header crc mismatch";
 				s->inf_state = inf_state_data_error;
 				break;
@@ -879,7 +879,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 	nx_dde_t *ddl_in = s->ddl_in;
 	nx_dde_t *ddl_out = s->ddl_out;
 
-	int pgfault_retries, target_space_retries, partial_bits;
+	int pgfault_retries, target_space_retries, partial_bits=0;
 	int cc, rc;
 	int nx_history_len; /* includes dictionary and history going in to nx-gzip */
 

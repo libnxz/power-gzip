@@ -355,17 +355,6 @@ static int cmp_count(const void *p1, const void *p2)
 }
 
 /* 
-   sort by symbol; *arg=1 ascending *arg= -1 descending sort 
-*/
-static int cmp_symbol(const void *p1, const void *p2, void *arg)
-{
-    if( *(int *)arg > 0) 
-	return (  ((leaf_node_t *)p1) -> symbol >  ((leaf_node_t *)p2) -> symbol );
-    else
-	return (  ((leaf_node_t *)p1) -> symbol < ((leaf_node_t *)p2) -> symbol );	
-}
-
-/* 
    extract the depth of each symbol
 */
 static void tree_walk( huff_tree_t *htree, u9 node, int depth )

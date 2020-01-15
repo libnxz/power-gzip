@@ -85,38 +85,6 @@ struct sigaction act;
 void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 /* **************************************************************** */
 
-static int nx_wait_exclusive(int *excp)
-{
-	/* __sync_bool_compare_and_swap(ptr, oldval, newval) is a gcc
-	   built-in function atomically performing the equivalent of:
-	   if (*ptr == oldval) *ptr = newval; It returns true if the
-	   test yielded true and *ptr was updated. */
-	/* while (!__sync_bool_compare_and_swap(excp, 0, 1)) {;}  */
-
-	return 0;
-}
-
-/*
-   Return 0 for normal exit.  Return -1 for errors; when not in the
-   critical section
-*/
-static int nx_exit_exclusive(int *excp)
-{
-	return 0;
-
-/*	if (__sync_bool_compare_and_swap(excp, 1, 0))
-		return 0;
-	else {
-		assert(0);
-		} */
-}
-
-static void nx_init_exclusive(int *excp)
-{
-	*excp = 0;
-}
-
-
 /*
   Fault in pages prior to NX job submission.  wr=1 may be required to
   touch writeable pages. System zero pages do not fault-in the page as

@@ -85,38 +85,6 @@ struct sigaction act;
 void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 /* **************************************************************** */
 
-static int nx_wait_exclusive(int *excp)
-{
-	/* __sync_bool_compare_and_swap(ptr, oldval, newval) is a gcc
-	   built-in function atomically performing the equivalent of:
-	   if (*ptr == oldval) *ptr = newval; It returns true if the
-	   test yielded true and *ptr was updated. */
-	/* while (!__sync_bool_compare_and_swap(excp, 0, 1)) {;}  */
-
-	return 0;
-}
-
-/*
-   Return 0 for normal exit.  Return -1 for errors; when not in the
-   critical section
-*/
-static int nx_exit_exclusive(int *excp)
-{
-	return 0;
-
-/*	if (__sync_bool_compare_and_swap(excp, 1, 0))
-		return 0;
-	else {
-		assert(0);
-		} */
-}
-
-static void nx_init_exclusive(int *excp)
-{
-	*excp = 0;
-}
-
-
 /*
   Fault in pages prior to NX job submission.  wr=1 may be required to
   touch writeable pages. System zero pages do not fault-in the page as
@@ -752,7 +720,7 @@ void nx_hw_init(void)
 	nx_config.compress_threshold = (10*1024); /* collect as much input */
 	nx_config.inflate_fifo_in_len = ((1<<16)*2); /* default 128K, half used */
 	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
-	nx_config.deflate_fifo_in_len = 1<<17; /* ((1<<20)*2); /* default 8M, half used */
+	nx_config.deflate_fifo_in_len = 1<<17; /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.retry_max = INT_MAX;
 	nx_config.pgfault_retries = INT_MAX;
@@ -900,8 +868,6 @@ static void _nx_hwinit(void)
 
 void nx_hw_done(void)
 {
-	int flags = (nx_gzip_inflate_flags | nx_gzip_deflate_flags);
-
 	nx_close_all();
 
 	if (!!nx_gzip_log) fflush(nx_gzip_log);
@@ -993,7 +959,7 @@ static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, u
 int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
 {
 	int cc = ERR_NX_OK;
-	uint32_t in_crc, in_adler, out_crc, out_adler;
+	uint32_t in_crc=0, in_adler=0, out_crc, out_adler;
 
 	if (len < nx_config.soft_copy_threshold && !crc && !adler) {
 		memcpy(dst, src, len);

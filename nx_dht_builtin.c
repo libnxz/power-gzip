@@ -71,7 +71,6 @@
   5269  [2018-12-10 09:53:56] cat a_dream_of_red_mansions.txt >> allfiles.bin
   5353  [2018-12-10 10:22:19] sudo ../gzip_nxdht_test allfiles.bin
 
-/* 
    Dhtgen related.
 
    LZCOUNT file format: 

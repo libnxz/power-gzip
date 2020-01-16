@@ -63,8 +63,6 @@ typedef off_t    z_off64_t;
 #  endif /* !DYNAMIC_CRC_TABLE */
 #endif /* MAKECRCH */
 
-/* #include "zutil.h"      /* for STDC and FAR definitions */
-
 /* Definitions for doing the crc four data bytes at a time. */
 #if !defined(NOBYFOUR) && defined(Z_U4)
 #  define BYFOUR

@@ -467,7 +467,10 @@ static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym
 
 				dht_atomic_store( &dht_tab->last_used_entry, &(dht_cache[sidx]) );
 
-				read_unlock( &dht_cache[sidx].ref_count );
+				if (!read_unlock( &dht_cache[sidx].ref_count )){
+					DHTPRT( fprintf(stderr, "dht_cache unlock failed\n") );
+					return -1;
+				}
 
 				return 0;
 			}
@@ -491,7 +494,8 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 	if (read_lock( &dht_entry->ref_count)) {
 
 		if (dht_atomic_load( &dht_entry->valid) == 0) {
-			read_unlock( &dht_entry->ref_count );			
+			if (!read_unlock( &dht_entry->ref_count ))
+				DHTPRT( fprintf(stderr, "dht_entry unlock failed\n") );
 			return -1;
 		}
 
@@ -540,7 +544,8 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 		if (source_bytes == 0 || (dht_atomic_load( &dht_tab->nbytes_accumulated ) >= DHT_NUM_SRC_BYTES)) {
 			dht_atomic_store( &dht_tab->last_used_entry, NULL );
 			dht_atomic_store( &dht_tab->nbytes_accumulated, source_bytes);
-			read_unlock( &dht_entry->ref_count );			
+			if (!read_unlock( &dht_entry->ref_count ))
+				DHTPRT( fprintf(stderr, "dht_entry unlock failed\n") );
 			DHTPRT( fprintf(stderr, "dht_use_last: quit reusing, search caches or dhtgen\n") );
 			return -1;
 		}
@@ -553,7 +558,10 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 		/* for lru */
 		dht_atomic_store( &dht_entry->accessed, 1);
 
-		read_unlock( &dht_entry->ref_count );
+		if (!read_unlock( &dht_entry->ref_count )){
+			DHTPRT( fprintf(stderr, "dht_entry unlock failed\n") );
+			return -1;
+		}
 
 		return 0;
 	}
@@ -598,7 +606,6 @@ search_cache:
 	if (!dht_search_builtin(cmdp, dht_tab, top))
 		return 0; /* found */
 
-search_lru:
 	/* Did not find the DHT. Throw away LRU cache entry*/
 	while (1) {
 		/* advance the clock hand */
@@ -640,7 +647,6 @@ force_dhtgen:
 	if (request == dht_gen_req) /* without updating cache */
 		return 0;
 
-copy_to_cache:
 	/* make a copy in the cache at the least used position */
 	memcpy(dht_cache[clock].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
 	dht_cache[clock].in_dhtlen = dhtlen;

@@ -1449,7 +1449,7 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	/* Tell NX size of the history (resume) buffer; needs to be 16 byte integral */
 	putnn(nxcmdp->cpb, in_histlen, resume_len/sizeof(nx_qw_t));
 
-	pgfault_retries = nx_config.retry_max;
+	pgfault_retries = nx_config.pgfault_retries;
 
 	/* setup ddes */
 	bytes_in = nx_compress_nxstrm_to_ddl_in(s, resume_buf, resume_len);
@@ -1492,7 +1492,7 @@ restart:
 		nx_print_dde(ddl_out, "target");
 #endif
 
-		if (pgfault_retries == nx_config.retry_max) {
+		if (pgfault_retries == nx_config.pgfault_retries) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
 			goto restart;

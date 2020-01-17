@@ -864,6 +864,10 @@ void nx_hw_init(void)
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");  /* default 0 is using literals only, odd is lit and lens */
 	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
+	char *csb_poll_max = getenv("NX_GZIP_CSB_POLL_MAX"); /* maximum poll number before wait_for_csb() timeout */
+	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES"); /* number of retries if vas_paste() failed */
+	/* number of retries if nx_submit_job() returns ERR_NX_TRANSLATION */
+	char *pgfault_retries = getenv("NX_GZIP_PGFAULT_RETRIES");
 
 	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
@@ -882,10 +886,11 @@ void nx_hw_init(void)
 	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
 	nx_config.deflate_fifo_in_len = 1<<17; /* ((1<<20)*2); /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
-	nx_config.retry_max = INT_MAX;
-	nx_config.pgfault_retries = INT_MAX;
 	nx_config.verbose = 0;
 	nx_config.mlock_nx_crb_csb = 0;
+	nx_config.csb_poll_max = 2000000; /* est. 120 seconds */
+	nx_config.paste_retries = 5000;
+	nx_config.pgfault_retries = INT_MAX;
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;
 
@@ -917,6 +922,12 @@ void nx_hw_init(void)
 			mlock_csb = nx_get_cfg("mlock_csb", &cfg_tab);
 		if (!dis_savdev)
 			dis_savdev = nx_get_cfg("dis_savedevp", &cfg_tab);
+		if (!csb_poll_max)
+			csb_poll_max = nx_get_cfg("csb_poll_max", &cfg_tab);
+		if (!paste_retries)
+			paste_retries = nx_get_cfg("paste_retries", &cfg_tab);
+		if (!pgfault_retries)
+			pgfault_retries = nx_get_cfg("pgfault_retries", &cfg_tab);
 	}
 
 	/* log file should be initialized first*/
@@ -1013,6 +1024,24 @@ void nx_hw_init(void)
 		}
 	}
 
+	if (csb_poll_max) {
+		nx_config.csb_poll_max = str_to_num(csb_poll_max);
+		if (nx_config.csb_poll_max < 1)
+			nx_config.csb_poll_max = 1;
+	}
+
+	if (paste_retries) {
+		nx_config.paste_retries = str_to_num(paste_retries);
+		if (nx_config.paste_retries < 1)
+			nx_config.paste_retries = 1;
+	}
+
+	if (pgfault_retries) {
+		nx_config.pgfault_retries = str_to_num(pgfault_retries);
+		if (nx_config.pgfault_retries < 1)
+			nx_config.pgfault_retries = 1;
+	}
+
 	/* add a signal action */
 /* JVM handles all signals. nx-zlib will not handle sig 11.
 	act.sa_handler = 0;
@@ -1023,7 +1052,7 @@ void nx_hw_init(void)
 	sigaction(SIGSEGV, &act, NULL);
 */
 	if (nx_dbg >= 2)
-		nx_dump_cfg(&cfg_tab, nx_gzip_log); 
+		nx_dump_cfg(&cfg_tab, nx_gzip_log);
 	nx_close_cfg(&cfg_tab);
 	nx_init_done = 1;
 	prt_critical("libnxz loaded\n");
@@ -1084,7 +1113,7 @@ static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, u
 	int cc;
 	int pgfault_retries;
 
-	pgfault_retries = nx_config.retry_max;
+	pgfault_retries = nx_config.pgfault_retries;
 
 	ASSERT(!!dst && !!src && len > 0);
 

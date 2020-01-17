@@ -1145,7 +1145,7 @@ decomp_state:
 	/* Some NX condition codes require submitting the NX job
 	  again. Kernel doesn't fault-in NX page faults. Expects user
 	  code to touch pages */
-	pgfault_retries = nx_config.retry_max;
+	pgfault_retries = nx_config.pgfault_retries;
 	target_space_retries = 0;
 
 restart_nx:
@@ -1165,7 +1165,7 @@ restart_nx:
 	switch (cc) {
 
 	case ERR_NX_TRANSLATION:
-		
+
 		/* We touched the pages ahead of time. In the most
 		   common case we shouldn't be here. But may be some
 		   pages were paged out. Kernel should have placed the
@@ -1182,7 +1182,7 @@ restart_nx:
 		nx_print_dde(ddl_in, "source");
 		nx_print_dde(ddl_out, "target");
 #endif
-		if (pgfault_retries == nx_config.retry_max) {
+		if (pgfault_retries == nx_config.pgfault_retries) {
 			/* try once with exact number of pages */
 			--pgfault_retries;
 			goto restart_nx;

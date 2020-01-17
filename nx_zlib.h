@@ -112,11 +112,12 @@ struct nx_config_t {
 	int 	 inflate_fifo_out_len;
 	int 	 deflate_fifo_in_len;
 	int 	 deflate_fifo_out_len;
-	int      retry_max;
 	int      window_max;
-	int      pgfault_retries;         
+	int      pgfault_retries;
 	int      verbose;
 	int      mlock_nx_crb_csb;
+	int      csb_poll_max;
+	int      paste_retries;
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;
@@ -130,7 +131,7 @@ struct nx_dev_t {
 	int socket_id;  /* one NX-gzip per cpu socket */
 	int nx_id;      /* unique */
 	int open_cnt;
-	
+
 	/* https://github.com/sukadev/linux/blob/vas-kern-v8.1/tools/testing/selftests/powerpc/user-nx842/compress.c#L514 */
 	struct {
 		int16_t version;

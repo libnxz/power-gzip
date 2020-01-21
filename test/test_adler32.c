@@ -13,7 +13,7 @@
 
 typedef size_t  z_size_t;
 
-void test_adler32  OF((uLong adler, Byte* buf, z_size_t len, uLong chk, int line));
+int test_adler32  OF((uLong adler, Byte* buf, z_size_t len, uLong chk, int line));
 int main         OF((void));
 
 typedef struct {
@@ -24,7 +24,7 @@ typedef struct {
     uLong expect;
 } adler32_test;
 
-void test_adler32(adler, buf, len, chk, line)
+int test_adler32(adler, buf, len, chk, line)
     uLong adler;
     Byte *buf;
     z_size_t len;
@@ -35,8 +35,9 @@ void test_adler32(adler, buf, len, chk, line)
     if (res != chk) {
         fprintf(stderr, "FAIL [%d]: adler32 returned 0x%08X expected 0x%08X\n",
                 line, (unsigned int)res, (unsigned int)chk);
-        exit(1);
+        return 1;
     }
+    return 0;
 }
 
 static const adler32_test tests[] = {
@@ -188,8 +189,12 @@ int main(void)
 {
     int i;
     for (i = 0; i < test_size; i++) {
-        test_adler32(tests[i].adler, tests[i].buf, tests[i].len,
-                   tests[i].expect, tests[i].line);
+        if ( test_adler32(tests[i].adler, tests[i].buf, tests[i].len,
+                   tests[i].expect, tests[i].line) ) {
+            printf("run_case test_adler32 failed\n");
+            exit(1);
+        }
     }
+    printf("run_case test_adler32 passed\n");
     return 0;
 }

@@ -28,5 +28,15 @@ int main()
 	check ( run_case8() );
 	check ( run_case9() );
 	check ( run_case9_1() );
+
+	check ( run_case12() );
+	check ( run_case13() );
+	check ( run_case14() );
+	check ( run_case15() );
+	check ( run_case16() );
+	check ( run_case17() );
+	check ( run_case18() );
+	check ( run_case19() );
+	check ( run_case19_1() );
 }
 

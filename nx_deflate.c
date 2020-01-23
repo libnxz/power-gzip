@@ -1695,9 +1695,10 @@ static int nx_deflate_add_header(nx_streamp s)
 				int j = 0;
 				int xlen = s->gzhead->extra_len;
 				s->header_len += xlen;
-				while (j++ < xlen) {
+				while (j < xlen) {
 					val = s->gzhead->extra[j];
 					nx_put_byte(s, (uint8_t)val);
+					j++;
 				}
 			}
 

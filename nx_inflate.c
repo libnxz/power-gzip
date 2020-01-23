@@ -418,6 +418,7 @@ inf_forever:
 
 		nx_inflate_get_byte(s, c);
 		s->gzflags = c;
+		prt_info("%d: s->gzflags=0x%x\n",__LINE__,s->gzflags);
 
 		if ((s->gzflags & 0xe0) != 0) { /* reserved bits are set */
 			strm->msg = (char *)"unknown header flags set";
@@ -517,6 +518,8 @@ inf_forever:
 					       len + copy > s->gzhead->extra_max ?
 					       s->gzhead->extra_max - len : copy);
 				}
+				if (s->gzflags & 0x02) /* fhcrc was set */
+					s->cksum = crc32(s->cksum, s->next_in, copy);
 				update_stream_in(s, copy);
 				s->length -= copy;
 			}
@@ -541,6 +544,8 @@ inf_forever:
 				    s->length < s->gzhead->name_max )
 					s->gzhead->name[s->length++] = (char) c;
 			} while (!!c && copy < s->avail_in);
+			if (s->gzflags & 0x02) /* fhcrc was set */
+				s->cksum = crc32(s->cksum, s->next_in, copy);
 			update_stream_in(s, copy);
 			if (!!c) goto inf_return; /* need more name */
 		}
@@ -565,6 +570,8 @@ inf_forever:
 				    s->length < s->gzhead->comm_max )
 					s->gzhead->comment[s->length++] = (char) c;
 			} while (!!c && copy < s->avail_in);
+			if (s->gzflags & 0x02) /* fhcrc was set */
+				s->cksum = crc32(s->cksum, s->next_in, copy);
 			update_stream_in(s, copy);
 			if (!!c) goto inf_return; /* need more comment */
 		}
@@ -581,10 +588,11 @@ inf_forever:
 		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		if (s->gzflags & 0x02) { /* fhcrc was set */
+			uint32_t checksum = s->cksum; /*check sum for data before hcrc16 field.*/
 
 			while( s->inf_held < 2 ) {
 				nx_inflate_get_byte(s, c);
-				s->hcrc16 = s->hcrc16 << 8 | c;
+				s->hcrc16 = s->hcrc16 | (c << (s->inf_held * 8));
 				++ s->inf_held;
 			}
 			s->hcrc16 = le16toh(s->hcrc16);
@@ -592,15 +600,16 @@ inf_forever:
 			s->gzhead->done = 1;
 
 			/* Compare stored and compute hcrc checksums here */
-
-			if (s->hcrc16 != (s->cksum & 0xffff)) {
+			if (s->hcrc16 != (checksum & 0xffff)) {
 				strm->msg = (char *)"header crc mismatch";
 				s->inf_state = inf_state_data_error;
 				break;
 			}
 		}
-		else if (s->gzhead != NULL)
+		else if (s->gzhead != NULL){
 			s->gzhead->hcrc = 0;
+			s->gzhead->done = 1;
+		}
 
 		s->inf_held = 0;
 		s->adler = s->crc32 = INIT_CRC;

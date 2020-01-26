@@ -158,6 +158,7 @@ int nx_dump_cfg(struct nx_cfg_tab *cfg_table, FILE *fp)
 	if (!cfg_table || !fp)
 		return -1;
 
+	fprintf(fp, "nx-zlib config file ========\n");
 	for (i = 0; i < cfg_table->cfg_num; i++) {
 		key = (!cfg_table->configs[i].key) ? "NULL" : cfg_table->configs[i].key;
 		val = (!cfg_table->configs[i].val) ? "NULL" : cfg_table->configs[i].val;
@@ -210,7 +211,7 @@ int nx_read_cfg(const char *filename, struct nx_cfg_tab *cfg_table)
 
 	configs = malloc(sizeof(struct cfg_item) * MAX_CONFIG_ITEM);
 	if (!configs) {
-		syslog(LOG_ERR, "cannot alloc config memory\n");
+		syslog(LOG_ERR, "cannot alloc nx-zlib config memory\n");
 		fclose(cfg_file);
 		return -1;
 	}

@@ -53,6 +53,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <dirent.h>
+#include <syslog.h>
 #include "zlib.h"
 #include "copy-paste.h"
 #include "nx-ftw.h"
@@ -814,6 +815,8 @@ FILE* open_logfile(char *filename)
 	ret = access(filename, F_OK);
 	if (ret != 0) {
 		/* file not exist, fall back to use /tmp/nx.log */
+		syslog(LOG_NOTICE, "nx-zlib: cannot open log file: %s, %s\n",
+			filename, strerror(errno));
 		if (logfile = fopen("/tmp/nx.log", "a+")) {
 			//fprintf(stderr, "%s not exists, use /tmp/nx.log\n", filename);
 			/* ok, try to chmod so all users can access it. */
@@ -823,6 +826,7 @@ FILE* open_logfile(char *filename)
 		}
 	} else {
 		//fprintf(stderr, "cannot access %s\n", filename);
+		syslog(LOG_NOTICE, "nx-zlib: cannot access log file: %s\n", filename);
 		/* file exists, we might have no access right, try to use /tmp/nx.log,
 		 * but this may fail if no right to access /tmp/log */
 		if (logfile = fopen("/tmp/nx.log", "a+")) {
@@ -832,9 +836,85 @@ FILE* open_logfile(char *filename)
 		//fprintf(stderr, "cannot access /tmp/nx.log\n");
 	}
 
-	//fprintf(stderr, "cannot open %s or /tmp/nx.log, cannot log\n");
+	syslog(LOG_WARNING, "nx-zlib: cannot open %s or /tmp/nx.log, cannot log\n");
 	return NULL;
 }
+
+static int print_nx_env(FILE *fp)
+{
+	if (!fp)
+		return -1;
+
+	char *cfg_file_s = getenv("NX_GZIP_CONFIG");
+	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB");
+	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP");
+	char *verbo_s    = getenv("NX_GZIP_VERBOSE");
+	char *chip_num_s = getenv("NX_GZIP_DEV_NUM");
+	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE");
+	char *inf_bufsz  = getenv("NX_GZIP_INF_BUF_SIZE");
+	char *logfile    = getenv("NX_GZIP_LOGFILE");
+	char *trace_s    = getenv("NX_GZIP_TRACE");
+	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");
+	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY");
+	char *csb_poll_max = getenv("NX_GZIP_CSB_POLL_MAX");
+	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES");
+	char *pgfault_retries = getenv("NX_GZIP_PGFAULT_RETRIES");
+
+	fprintf(fp, "env variables ==============\n");
+	if (cfg_file_s)
+		fprintf(fp, "NX_GZIP_CONFIG: \'%s\'\n", cfg_file_s);
+	if (mlock_csb)
+		fprintf(fp, "NX_GZIP_MLOCK_CSB: \'%s'\n", mlock_csb);
+	if (dis_savdev)
+		fprintf(fp, "NX_GZIP_DIS_SAVDEVP: \'%s\'\n", dis_savdev);
+	if (verbo_s)
+		fprintf(fp, "NX_GZIP_VERBOSE: \'%s\'\n", verbo_s);
+	if (chip_num_s)
+		fprintf(fp, "NX_GZIP_DEV_NUM: \'%s\'\n", chip_num_s);
+	if (def_bufsz)
+		fprintf(fp, "NX_GZIP_DEF_BUF_SIZE: \'%s\'\n", def_bufsz);
+	if (inf_bufsz)
+		fprintf(fp, "NX_GZIP_INF_BUF_SIZE: \'%s\'\n", inf_bufsz);
+	if (logfile)
+		fprintf(fp, "NX_GZIP_LOGFILE: \'%s\'\n", logfile);
+	if (trace_s)
+		fprintf(fp, "NX_GZIP_TRACE: \'%s\'\n", trace_s);
+	if (dht_config)
+		fprintf(fp, "NX_GZIP_DHT_CONFIG: \'%s\'\n", dht_config);
+	if (strategy_ovrd)
+		fprintf(fp, "NX_GZIP_STRATEGY: \'%s\'\n", strategy_ovrd);
+	if (csb_poll_max)
+		fprintf(fp, "NX_GZIP_CSB_POLL_MAX: \'%s\'\n", csb_poll_max);
+	if (paste_retries)
+		fprintf(fp, "NX_GZIP_PASTE_RETRIES: \'%s\'\n", paste_retries);
+	if (pgfault_retries)
+		fprintf(fp, "NX_GZIP_PGFAULT_RETRIES: \'%s\'\n", pgfault_retries);
+
+	return 0;
+}
+
+static int print_nx_config(FILE *fp)
+{
+	if (!fp)
+		return -1;
+
+	fprintf(fp, "nx-zlib configuration ======\n");
+	fprintf(fp, "verbose: %d\n", nx_config.verbose);
+	fprintf(fp, "dev_num: %d\n", nx_gzip_chip_num);
+	fprintf(fp, "page_sz: %ld\n", nx_config.page_sz);
+	fprintf(fp, "inf_buf_size: %lu\n", nx_config.strm_inf_bufsz);
+	fprintf(fp, "def_buf_size: %lu\n", nx_config.strm_def_bufsz);
+	fprintf(fp, "trace: %d\n", nx_gzip_trace);
+	fprintf(fp, "dht_config: %d\n", nx_dht_config);
+	fprintf(fp, "strategy: %d\n", nx_strategy_override);
+	fprintf(fp, "mlock_csb: %d\n", nx_config.mlock_nx_crb_csb);
+	fprintf(fp, "dis_savedevp: %d\n", disable_saved_nx_devp);
+	fprintf(fp, "csb_poll_max: %d\n", nx_config.csb_poll_max);
+	fprintf(fp, "pgfault_retries: %d\n", nx_config.pgfault_retries);
+	fprintf(fp, "paste_retries: %d\n", nx_config.paste_retries);
+
+	return 0;
+};
 
 /*
  * Execute on library load
@@ -931,10 +1011,10 @@ void nx_hw_init(void)
 	}
 
 	/* log file should be initialized first*/
-	if (logfile != NULL)
-		nx_gzip_log = open_logfile(logfile);
-	else
-		nx_gzip_log = open_logfile("/tmp/nx.log");
+	if (!logfile)
+		logfile = "/tmp/nx.log";
+
+	nx_gzip_log = open_logfile(logfile);
 
 	/* log file pointer may be NULL, the worst case is we log nothing */
 
@@ -1051,8 +1131,14 @@ void nx_hw_init(void)
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
 */
-	if (nx_dbg >= 2)
+	if (nx_dbg >= 2 && nx_gzip_log) {
+		fprintf(nx_gzip_log, "nx-zlib log file: %s\n", logfile);
+		fprintf(nx_gzip_log, "nx-zlib config file: %s\n", cfg_file_s);
+		print_nx_env(nx_gzip_log);
 		nx_dump_cfg(&cfg_tab, nx_gzip_log);
+		print_nx_config(nx_gzip_log);
+	}
+
 	nx_close_cfg(&cfg_tab);
 	nx_init_done = 1;
 	prt_critical("libnxz loaded\n");

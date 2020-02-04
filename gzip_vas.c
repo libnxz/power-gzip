@@ -232,13 +232,19 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	return 0;
 }
 
+/*
+ * returns 0 on success;
+ * returns -ETIMEOUT if vas_paste() or wait_for_csb() timeout.
+ */
 #ifdef NX_JOB_CALLBACK
 int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle, int (*callback)(const void *))
 #else
 int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 #endif
 {
-	int i, ret, retries, once=0;
+	int i, retries, once=0;
+	int ret = 0;
+	int paste_ret = 0;
 	struct nx_handle *nxhandle = handle;
 
 	assert(handle != NULL);
@@ -250,13 +256,13 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 		/* t = __ppc_get_timebase(); */
 		hwsync();
 		vas_copy( &cmdp->crb, 0);
-		ret = vas_paste(nxhandle->paste_addr, 0);
+		paste_ret = vas_paste(nxhandle->paste_addr, 0);
 		hwsync();
 		/* dbgtimer +=  __ppc_get_timebase() - t; */
 
-		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
+		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, paste_ret) );
 
-		if ((ret == 2) || (ret == 3)) {
+		if ((paste_ret == 2) || (paste_ret == 3)) {
 
 #ifdef NX_JOB_CALLBACK
 			if (!!callback && !once) {
@@ -280,7 +286,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			}
 			else {
 				prt_err("wait_for_csb() returns %d\n", ret);
-				break;
+				goto out;
 			}
 		} else {
 			if (i < 10) {
@@ -302,6 +308,11 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 		}
 	}
 
+	if (i > retries) {
+		/* vas_paste() may return 0 when retry reaches limit */
+		prt_err("vas_paste() timeout: %d/%d, %d\n", i, retries, paste_ret);
+		ret = -ETIMEDOUT;
+	}
 out:
 	cpu_pri_default();
 

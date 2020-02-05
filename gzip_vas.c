@@ -171,56 +171,67 @@ int nx_function_end(void *handle)
         return rc;
 }
 
-static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
+/* wait for ticks amount; accumulated_ticks is the accumulated wait so
+   far. Return value is >= accumulated_ticks + ticks. If sleep==1 and
+   accumulated_ticks is non-zero and greater than some threshold then
+   the function may usleep() for about 1/4 of the accumulated time to
+   reduce cpu utilization
+*/
+static uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int sleepon)
 {
+	uint64_t ts, te, mhz, sleep_overhead, sleep_threshold;
 	volatile long poll = 0;
-	uint64_t t;
 
-	/* Save power and let other threads use the h/w. top may show
-	   100% but only because OS doesn't know we slowed the this
-	   h/w thread while polling. We're letting other threads have
-	   higher throughput on the core.
-	*/
+	mhz = __ppc_get_timebase_freq() / 1000000; /* 500 MHz */
+	ts = te =  __ppc_get_timebase();  /* start */
+
+	sleep_overhead = 30000;  /* usleep(0) overhead */
+	sleep_threshold = 4 * sleep_overhead;
+
+	if (!!sleepon && (accumulated_ticks > sleep_threshold)) {
+		uint64_t us;
+		us = (accumulated_ticks / mhz) / 4;
+		us = ( us > 1000 ) ? 1000 : us; /* 1 ms */
+		usleep( (useconds_t) us );
+	}
+
+	/* Save power and let other threads use the core. top may show
+	   100%, only because OS doesn't know the thread runs slowly */
 	cpu_pri_low();
 
-#define USLEEP_TH     300000UL
-
-	t = __ppc_get_timebase();
-
-	while( getnn( cmdp->crb.csb, csb_v ) == 0 )
-	{
+	/* busy wait */
+	while ((te - ts) <= ticks) {
 		++poll;
-		hwsync();
-
-		cpu_pri_low();
-
-		/* usleep(0) takes around 29000 ticks ~60 us.
-		   300000 is spinning for about 600 us then
-		   start sleeping */
-		if ( (__ppc_get_timebase() - t) > USLEEP_TH) {
-			cpu_pri_default();
-			usleep(1);
-		}
-
-		if (poll > nx_config.csb_poll_max)
-			break;
-
-		/* CRB stamp should tell me the fault address */
-		/* if( get64( cmdp->crb.stamp.nx, fsa ) )
-		   return -EAGAIN; */
-
-		/* fault address from signal handler */
-		if( nx_fault_storage_address ) {
-			cpu_pri_default();
-			return -EAGAIN;
-		}
-
+		te = __ppc_get_timebase();
 	}
 
 	cpu_pri_default();
 
-	/* hw has updated csb and output buffer */
-	hwsync();
+	return (te - ts) + accumulated_ticks;
+}
+
+static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
+{
+	volatile long poll = 0;
+	uint64_t t = 0;
+	const int sleepon = 1;
+
+	uint64_t onesecond = __ppc_get_timebase_freq();
+
+	while (getnn( cmdp->crb.csb, csb_v ) == 0)
+	{
+		t = nx_wait_ticks(100, t, sleepon);
+
+		if (t > (60UL * onesecond)) /* 1 min */
+			break;
+
+		/* fault address from signal handler */
+		if( nx_fault_storage_address ) {
+			return -EAGAIN;
+		}
+
+		hwsync();
+	}
 
 	/* check CSB flags */
 	if( getnn( cmdp->crb.csb, csb_v ) == 0 ) {
@@ -232,52 +243,31 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	return 0;
 }
 
-/*
- * returns 0 on success;
- * returns -ETIMEOUT if vas_paste() or wait_for_csb() timeout.
- */
-#ifdef NX_JOB_CALLBACK
-int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle, int (*callback)(const void *))
-#else
 int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
-#endif
 {
-	int i, retries, once=0;
-	int ret = 0;
-	int paste_ret = 0;
+	int ret, retries=0;
 	struct nx_handle *nxhandle = handle;
-#ifdef NX_JOB_CALLBACK
-	int once=0;
-#endif
+	uint64_t ticks_total = 0;
 
 	assert(handle != NULL);
-	i = 0;
-	retries = nx_config.paste_retries;
-	while (i++ < retries) {
-		/* uint64_t t; */
 
-		/* t = __ppc_get_timebase(); */
+	while (1) {
+
 		hwsync();
 		vas_copy( &cmdp->crb, 0);
-		paste_ret = vas_paste(nxhandle->paste_addr, 0);
+		ret = vas_paste(nxhandle->paste_addr, 0);
 		hwsync();
-		/* dbgtimer +=  __ppc_get_timebase() - t; */
 
-		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, paste_ret) );
+		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
 
-		if ((paste_ret == 2) || (paste_ret == 3)) {
+		if ((ret == 2) || (ret == 3)) {
 
-#ifdef NX_JOB_CALLBACK
-			if (!!callback && !once) {
-				/* do something useful while waiting
-				   for the accelerator */
-				(*callback)((void *)cmdp); ++once;
-			}
-#endif
 			ret = nx_wait_for_csb( cmdp );
+
 			if (!ret) {
 				goto out;
-			} else if (ret == -EAGAIN) {
+			}
+			else if (ret == -EAGAIN) {
 				volatile long x;
 				prt_err("Touching address %p, 0x%lx\n",
 					 nx_fault_storage_address,
@@ -289,36 +279,27 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			}
 			else {
 				prt_err("wait_for_csb() returns %d\n", ret);
-				goto out;
+				break;
 			}
-		} else {
-			if (i < 10) {
-				/* spin for few ticks */
-#define SPIN_TH 500UL
-				uint64_t fail_spin;
-				fail_spin = __ppc_get_timebase();
-				while ( (__ppc_get_timebase() - fail_spin) < SPIN_TH ) {;}
+		}
+		else {
+			const int sleepoff = 0;
+			static unsigned int pr=0;
+
+			ticks_total = nx_wait_ticks(500, ticks_total, sleepoff);
+
+			if (ticks_total > (60 * __ppc_get_timebase_freq()))
+				return -ETIMEDOUT;
+
+			++retries;
+
+			if (pr++ % 100 == 0) {
+				prt_err("Paste attempt %d, failed pid= %d\n", retries, getpid());
 			}
-			else {
-				/* sleep */
-				static unsigned int pr=0;
-				if (pr++ % 100 == 0) {
-					prt_err("Paste attempt %d/%d, failed pid= %d\n", i, retries, getpid());
-				}
-				usleep(1);
-			}
-			continue;
 		}
 	}
 
-	if (i > retries) {
-		/* vas_paste() may return 0 when retry reaches limit */
-		prt_err("vas_paste() timeout: %d/%d, %d\n", i, retries, paste_ret);
-		ret = -ETIMEDOUT;
-	}
 out:
-	cpu_pri_default();
-
 	return ret;
 }
 

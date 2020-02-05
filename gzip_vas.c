@@ -67,12 +67,14 @@
 #define cpu_pri_default()  __ppc_set_ppr_med()
 #define cpu_pri_low()      __ppc_set_ppr_very_low()
 #else
-#define cpu_pri_default()  do{;}while(0)
-#define cpu_pri_low()      do{;}while(0)
+#define cpu_pri_default()  ((void)(0))
+#define cpu_pri_low()      ((void)(0))
 #endif
 
 void *nx_fault_storage_address;
 uint64_t dbgtimer=0;
+
+const uint64_t timeout_seconds = 60;
 
 struct nx_handle {
 	int fd;
@@ -154,19 +156,17 @@ void *nx_function_begin(int function, int pri)
 
 int nx_function_end(void *handle)
 {
-        int rc = 0;
-        struct nx_handle *nxhandle = handle;
-        /* check erro here? if unmap successfully, page fault usually found? */
-        // rc = munmap(nxhandle->paste_addr, 4096);
+	int rc = 0;
+	struct nx_handle *nxhandle = handle;
 
-        rc = munmap(nxhandle->paste_addr - 0x400, 4096);
-        if (rc < 0) {
-                fprintf(stderr, "munmap() failed, errno %d\n", errno);
-                return rc;
-        }
-        close(nxhandle->fd);
-        free(nxhandle);
-        return rc;
+	rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+	if (rc < 0) {
+		fprintf(stderr, "munmap() failed, errno %d\n", errno);
+		return rc;
+	}
+	close(nxhandle->fd);
+	free(nxhandle);
+	return rc;
 }
 
 /* wait for ticks amount; accumulated_ticks is the accumulated wait so
@@ -210,20 +210,19 @@ static uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int sl
 
 static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 {
-	volatile long poll = 0;
 	uint64_t t = 0;
 	const int sleepon = 1;
-
 	uint64_t onesecond = __ppc_get_timebase_freq();
 
 	while (getnn( cmdp->crb.csb, csb_v ) == 0)
 	{
+		/* check for job completion every 100 ticks */
 		t = nx_wait_ticks(100, t, sleepon);
 
-		if (t > (60UL * onesecond)) /* 1 min */
+		if (t > (timeout_seconds * onesecond)) /* 1 min */
 			break;
 
-		/* fault address from signal handler */		
+		/* fault address from signal handler */
 		if( nx_fault_storage_address ) {
 			return -EAGAIN;
 		}
@@ -233,8 +232,8 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 
 	/* check CSB flags */
 	if( getnn( cmdp->crb.csb, csb_v ) == 0 ) {
-		fprintf( stderr, "CSB still not valid after %d polls, giving up", (int) poll );
-		prt_err("CSB still not valid after %d polls, giving up.\n", (int) poll);
+		fprintf( stderr, "CSB still not valid after %ld seconds, giving up", timeout_seconds);
+		prt_err("CSB still not valid after %ld seconds, giving up.\n", timeout_seconds);
 		return -ETIMEDOUT;
 	}
 
@@ -255,10 +254,12 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 		vas_copy( &cmdp->crb, 0);
 		ret = vas_paste(nxhandle->paste_addr, 0);
 		hwsync();
-		
+
 		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
 
 		if ((ret == 2) || (ret == 3)) {
+			/* paste succeeded; now wait for job to
+			   complete */
 
 			ret = nx_wait_for_csb( cmdp );
 
@@ -277,21 +278,25 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			}
 			else {
 				prt_err("wait_for_csb() returns %d\n", ret);
-				break;
+				return ret;
 			}
 		}
 		else {
+			/* paste has failed; should happen when NX
+			   queue is full or the paste buffer in the
+			   cache was being used
+			*/
 			const int sleepoff = 0;
 			static unsigned int pr=0;
 
 			ticks_total = nx_wait_ticks(500, ticks_total, sleepoff);
 
-			if (ticks_total > (60 * __ppc_get_timebase_freq()))
+			if (ticks_total > (timeout_seconds * __ppc_get_timebase_freq()))
 				return -ETIMEDOUT;
 
 			++retries;
 
-			if (pr++ % 100 == 0) {
+			if (pr++ % 1000 == 0) {
 				prt_err("Paste attempt %d, failed pid= %d\n", retries, getpid());
 			}
 		}
@@ -300,4 +305,3 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 out:
 	return ret;
 }
-

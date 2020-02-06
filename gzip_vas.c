@@ -180,7 +180,6 @@ int nx_function_end(void *handle)
 static uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int sleepon)
 {
 	uint64_t ts, te, mhz, sleep_overhead, sleep_threshold;
-	volatile long poll = 0;
 
 	mhz = __ppc_get_timebase_freq() / 1000000; /* 500 MHz */
 	ts = te =  __ppc_get_timebase();  /* start */
@@ -201,7 +200,6 @@ static uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int sl
 
 	/* busy wait */
 	while ((te - ts) <= ticks) {
-		++poll;
 		te = __ppc_get_timebase();
 	}
 

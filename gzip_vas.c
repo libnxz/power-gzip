@@ -285,18 +285,16 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			   cache was being used
 			*/
 			const int sleepoff = 0;
-			static unsigned int pr=0;
 
 			ticks_total = nx_wait_ticks(500, ticks_total, sleepoff);
 
 			if (ticks_total > (timeout_seconds * __ppc_get_timebase_freq()))
 				return -ETIMEDOUT;
 
-			++retries;
-
-			if (pr++ % 1000 == 0) {
+			if (retries % 1000 == 0) {
 				prt_err("Paste attempt %d, failed pid= %d\n", retries, getpid());
 			}
+			++retries;
 		}
 	}
 

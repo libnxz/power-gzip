@@ -112,7 +112,7 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 		rc = -errno;
 		goto out;
 	}
-	/* printf("Window paste addr @%p\n", addr); */
+	/* TODO: document the 0x400 offset */
 	handle->fd = fd;
 	handle->paste_addr = (void *)((char *)addr + 0x400);
 
@@ -164,18 +164,18 @@ int nx_function_end(void *handle)
 		fprintf(stderr, "munmap() failed, errno %d\n", errno);
 		return rc;
 	}
-	close(nxhandle->fd);
+	close(nxhandle->fd); /* see issue 164 comment */
 	free(nxhandle);
 	return rc;
 }
 
 /* wait for ticks amount; accumulated_ticks is the accumulated wait so
-   far. Return value is >= accumulated_ticks + ticks. If sleep==1 and
+   far. Return value is >= accumulated_ticks + ticks. If do_sleep==1 and
    accumulated_ticks is non-zero and greater than some threshold then
    the function may usleep() for about 1/4 of the accumulated time to
    reduce cpu utilization
 */
-static uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int sleepon)
+static uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int do_sleep)
 {
 	uint64_t ts, te, mhz, sleep_overhead, sleep_threshold;
 
@@ -185,7 +185,7 @@ static uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int sl
 	sleep_overhead = 30000;  /* usleep(0) overhead */
 	sleep_threshold = 4 * sleep_overhead;
 
-	if (!!sleepon && (accumulated_ticks > sleep_threshold)) {
+	if (!!do_sleep && (accumulated_ticks > sleep_threshold)) {
 		uint64_t us;
 		us = (accumulated_ticks / mhz) / 4;
 		us = ( us > 1000 ) ? 1000 : us; /* 1 ms */
@@ -209,13 +209,13 @@ static uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int sl
 static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 {
 	uint64_t t = 0;
-	const int sleepon = 1;
+	const int may_sleep = 1;
 	uint64_t onesecond = __ppc_get_timebase_freq();
 
 	while (getnn( cmdp->crb.csb, csb_v ) == 0)
 	{
 		/* check for job completion every 100 ticks */
-		t = nx_wait_ticks(100, t, sleepon);
+		t = nx_wait_ticks(100, t, may_sleep);
 
 		if (t > (timeout_seconds * onesecond)) /* 1 min */
 			break;
@@ -240,7 +240,7 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 
 int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 {
-	int ret, retries=0;
+	int ret=0, retries=0;
 	struct nx_handle *nxhandle = handle;
 	uint64_t ticks_total = 0;
 
@@ -262,7 +262,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			ret = nx_wait_for_csb( cmdp );
 
 			if (!ret) {
-				goto out;
+				return ret;
 			}
 			else if (ret == -EAGAIN) {
 				volatile long x;
@@ -284,9 +284,9 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			   queue is full or the paste buffer in the
 			   cache was being used
 			*/
-			const int sleepoff = 0;
+			const int no_sleep = 0;
 
-			ticks_total = nx_wait_ticks(500, ticks_total, sleepoff);
+			ticks_total = nx_wait_ticks(500, ticks_total, no_sleep);
 
 			if (ticks_total > (timeout_seconds * __ppc_get_timebase_freq()))
 				return -ETIMEDOUT;
@@ -297,7 +297,5 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			++retries;
 		}
 	}
-
-out:
 	return ret;
 }

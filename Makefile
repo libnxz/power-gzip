@@ -15,9 +15,12 @@ OBJS = nx_inflate.o nx_deflate.o nx_zlib.o nx_crc.o nx_dht.o nx_dhtgen.o nx_dht_
        nx_adler32.o gzip_vas.o nx_compress.o nx_uncompr.o crc32_ppc.o crc32_ppc_asm.o nx_utils.o
 
 VERSION ?= $(shell git describe --tags | cut -d - -f 1,2 | tr - . | cut -c 2-)
-STATICLIB = libnxz.a
-SHAREDLIB = libnxz.so.$(VERSION)
-LIBLINK = libnxz.so
+SOVERSION = $(shell echo $(VERSION) | cut -d . -f 1)
+PACKAGENAME = libnxz
+STATICLIB = $(PACKAGENAME).a
+SHAREDSONAMELIB = $(PACKAGENAME).so.$(SOVERSION)
+SHAREDLIB = $(PACKAGENAME).so.$(VERSION)
+LIBLINK = $(PACKAGENAME).so
 
 INC = ./inc_nx
 
@@ -32,11 +35,12 @@ $(STATICLIB): $(OBJS)
 
 $(SHAREDLIB): $(OBJS)
 	rm -f $@ $(LIBLINK) 
-	$(CC) -shared  -Wl,-soname,libnxz.so,--version-script,zlib.map -o $@ $(OBJS)
+	$(CC) -shared  -Wl,-soname,$(SHAREDSONAMELIB),--version-script,zlib.map -o $@ $(OBJS)
 	ln -s $@ $(LIBLINK)
+	ln -s $@ $(SHAREDSONAMELIB)
 
 clean:
-	/bin/rm -f *.o *.gcda *.gcno *.so *.a *~ $(SHAREDLIB)
+	/bin/rm -f *.o *.gcda *.gcno *.so* *.a *~
 	$(MAKE) -C test $@
 
 check:

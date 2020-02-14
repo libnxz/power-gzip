@@ -836,7 +836,7 @@ FILE* open_logfile(char *filename)
 		//fprintf(stderr, "cannot access /tmp/nx.log\n");
 	}
 
-	syslog(LOG_WARNING, "nx-zlib: cannot open %s or /tmp/nx.log, cannot log\n");
+	syslog(LOG_WARNING, "nx-zlib: cannot open %s or /tmp/nx.log, cannot log\n", filename);
 	return NULL;
 }
 

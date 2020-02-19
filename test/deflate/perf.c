@@ -213,10 +213,12 @@ static int run(unsigned int len, int step, const char* test)
 	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
 	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
 
+    printf("*** %s %s passed\n", __FILE__, test);
 	free(compr);
 	free(uncompr);
 	return TEST_OK;
 err:
+    printf("*** %s %s failed\n", __FILE__, test);
 	free(compr);
 	free(uncompr);
 	return TEST_ERROR;

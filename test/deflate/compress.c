@@ -64,6 +64,7 @@ static int run(unsigned int len, int all, char digit, const char* test)
 	free(uncompr);
 	return TEST_OK;
 err:
+	printf("*** %s %s failed\n", __FILE__, test);
 	free(compr);
 	free(uncompr);
 	return TEST_ERROR;

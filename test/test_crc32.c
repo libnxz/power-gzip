@@ -13,7 +13,7 @@
 
 typedef size_t  z_size_t;
 
-void test_crc32  OF((uLong crc, Byte* buf, z_size_t len, uLong chk, int line));
+int test_crc32  OF((uLong crc, Byte* buf, z_size_t len, uLong chk, int line));
 int main         OF((void));
 
 typedef struct {
@@ -24,7 +24,7 @@ typedef struct {
     uLong expect;
 } crc32_test;
 
-void test_crc32(crc, buf, len, chk, line)
+int test_crc32(crc, buf, len, chk, line)
     uLong crc;
     Byte *buf;
     z_size_t len;
@@ -35,8 +35,9 @@ void test_crc32(crc, buf, len, chk, line)
 	if (res != chk) {
         fprintf(stderr, "FAIL [%d]: crc32 returned 0x%08X expected 0x%08X\n",
                 line, (unsigned int)res, (unsigned int)chk);
-        exit(1);
+        return 1; 
     }
+    return 0;
 }
 
 static const crc32_test tests[] = {
@@ -189,8 +190,13 @@ int main(void)
 {
     int i;
     for (i = 0; i < test_size; i++) {
-        test_crc32(tests[i].crc, tests[i].buf, tests[i].len,
-                   tests[i].expect, tests[i].line);
+        if( test_crc32(tests[i].crc, tests[i].buf, tests[i].len,
+                   tests[i].expect, tests[i].line) ) {
+            printf("run_case test_crc32 failed\n");            
+            exit(1);
+        }
     }
+
+    printf("run_case test_crc32 passed\n");            
     return 0;
 }

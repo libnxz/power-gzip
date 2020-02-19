@@ -10,13 +10,13 @@ run_test_report=run_test_report_${TS}.txt
 
 echo "running test_deflate..."
 ./test_deflate >> $run_test_log 2>&1
-if [ $? -ne 0 ];then
+if [ $? -ne 0 ]; then
     echo "test_deflate failed."
     exit 1;
 fi
 echo "running test_inflate..."
 ./test_inflate >> $run_test_log 2>&1
-if [ $? -ne 0 ];then
+if [ $? -ne 0 ]; then
     echo "test_inflate failed."
     exit 1;
 fi
@@ -24,13 +24,13 @@ echo "running test_stress..."
 ./test_stress  >> $run_test_log 2>&1
 echo "running test_crc32..."
 ./test_crc32   >> $run_test_log 2>&1
-if [ $? -ne 0 ];then
+if [ $? -ne 0 ]; then
     echo "test_crc32 failed."
     exit 1;
 fi
 echo "running test_adler32..."
 ./test_adler32 >> $run_test_log 2>&1
-if [ $? -ne 0 ];then
+if [ $? -ne 0 ]; then
     echo "test_adler32 failed."
     exit 1;
 fi

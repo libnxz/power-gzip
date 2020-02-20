@@ -1131,7 +1131,7 @@ void nx_hw_init(void)
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
 */
-	if (nx_dbg >= 2 && nx_gzip_log) {
+	if (nx_dbg >= 1 && nx_gzip_log) {
 		fprintf(nx_gzip_log, "nx-zlib log file: %s\n", logfile);
 		fprintf(nx_gzip_log, "nx-zlib config file: %s\n", cfg_file_s);
 		print_nx_env(nx_gzip_log);
@@ -1141,7 +1141,7 @@ void nx_hw_init(void)
 
 	nx_close_cfg(&cfg_tab);
 	nx_init_done = 1;
-	prt_critical("libnxz loaded\n");
+	prt_warn("libnxz loaded\n");
 }
 
 static void _nx_hwinit(void) __attribute__((constructor));

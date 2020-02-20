@@ -325,10 +325,10 @@ typedef struct nx_stream_s *nx_streamp;
 #define nx_inflate_get_byte(s,b) \
 	do { if ((s)->avail_in == 0) goto inf_return; b = (s)->ckbuf.buf[(s)->ckidx++] = *((s)->next_in); \
 		update_stream_in(s,1); update_stream_in(s->zstrm, 1);\
-		if ((s)->ckidx == sizeof(ckbuf_t)) {			\
+		if ((s)->gzflags & 0x02) {			\
 			/* when the buffer is near full do a partial checksum */ \
-			(s)->cksum = nx_crc32((s)->cksum, (const unsigned char *)(s)->ckbuf.buf, (s)->ckidx); \
-			(s)->ckidx = 0;	}				\
+			(s)->cksum = crc32((s)->cksum, (const unsigned char *)(s)->ckbuf.buf, (s)->ckidx); \
+			(s)->ckidx = 0; }\
 	} while(0)
 
 #define print_dbg_info(s, line) \

@@ -89,10 +89,5 @@ int uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLe
 	return rc;
 }
 
-int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen)
-{
-	return nx_uncompress2(dest, destLen, source, sourceLen);
-}
-
 #endif
 

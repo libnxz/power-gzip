@@ -40,4 +40,4 @@ clean:
 
 .SECONDEXPANSION:
 test_%: $$(obj_$$@)
-	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^  -lnxz -lpthread
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^  -lnxz -lpthread -ldl

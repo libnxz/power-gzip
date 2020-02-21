@@ -1016,10 +1016,10 @@ void nx_hw_init(void)
 		nx_close_cfg(&cfg_tab);
 		prt_err("NX-gzip accelerators found: %d\n", nx_count);
 		gzip_selector = GZIP_SW; /*fallback to use software zlib*/
-		//return;
 	}
 
 	prt_info("%d NX GZIP Accelerator Found!\n",nx_count);
+
 	if(type_selector != NULL){
 		gzip_selector = str_to_num(type_selector);
 		prt("gzip_selector: %d (1-SW;2-NX;3-MIX)\n", gzip_selector);
@@ -1147,7 +1147,6 @@ static void _nx_hwinit(void) __attribute__((constructor));
 static void _nx_hwinit(void)
 {
 	nx_hw_init();
-	/* nx_open(-1); */
 	sw_zlib_init();
 }
 
@@ -1162,7 +1161,6 @@ void nx_hw_done(void)
 		fclose(nx_gzip_log);
 		nx_gzip_log = NULL;
 	}
-	sw_zlib_close();
 }
 
 static void _nx_hwdone(void) __attribute__((destructor));
@@ -1175,6 +1173,7 @@ static void _nx_hwdone(void)
 	}
 
 	nx_hw_done();
+	sw_zlib_close();
 	return;
 }
 

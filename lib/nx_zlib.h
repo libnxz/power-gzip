@@ -310,7 +310,7 @@ inline int has_nx_state(z_streamp strm)
 	nx_streamp nx_state;
 
 	if (strm == NULL) return 0;
-	nx_state = (struct nx_stream_s *)strm->state;
+	nx_state = (struct nx_stream_s *)(strm->state);
 	if (nx_state == NULL) return 0;
 
 	return ((nx_state->magic1 == MAGIC1) && (nx_state->magic2 == MAGIC2));
@@ -321,7 +321,8 @@ static inline int use_nx_inflate(z_streamp strm)
 	uint64_t rnd;
 	assert(strm != NULL);
 
-	/*TBD: add more strategy here for determining use nx or sw zlib*/
+	if(gzip_selector == GZIP_NX) return 1;
+	if(gzip_selector == GZIP_SW) return 0;
 
 	/* #1 Threshold*/
 	if(strm->avail_in <= DECOMPRESS_THRESHOLD) return 0;
@@ -339,7 +340,8 @@ static inline int use_nx_deflate(z_streamp strm)
 {
 	assert(strm != NULL);
 
-	/*TBD: add more strategy here for determining use nx or sw zlib*/
+        if(gzip_selector == GZIP_NX) return 1;
+        if(gzip_selector == GZIP_SW) return 0;
 
 	/* #1 Threshold */
 	if(strm->avail_in <= COMPRESS_THRESHOLD) return 0;
@@ -580,6 +582,7 @@ extern int s_deflateResetKeep(z_streamp strm);
 extern int s_deflateSetHeader(z_streamp strm, gz_headerp head);
 extern uLong s_deflateBound(z_streamp strm, uLong sourceLen);
 extern int s_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
+extern int s_deflateCopy(z_streamp dest, z_streamp source);
 extern int s_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 extern int s_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 
@@ -592,6 +595,8 @@ extern int s_inflateResetKeep(z_streamp strm);
 extern int s_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
 extern int s_inflate(z_streamp strm, int flush);
 extern int s_inflateEnd(z_streamp strm);
+extern int s_inflateCopy(z_streamp dest, z_streamp source);
+extern int s_inflateGetHeader(z_streamp strm, gz_headerp head);
 extern int s_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 extern int s_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);
 extern uLong s_compressBound(uLong sourceLen);

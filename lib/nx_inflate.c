@@ -180,7 +180,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	int ret;
 	nx_streamp s;
 	nx_devp_t h;
-	void *temp = NULL;
 
 	prt_info("%s:%d strm %p\n", __FUNCTION__, __LINE__, strm);
 
@@ -189,13 +188,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 		return Z_VERSION_ERROR;
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
-
-	/*If the stream has been initialized by sw*/
-	if(strm->state && (0 == has_nx_state(strm))){
-		temp = (void *)strm->state; /*keep this pointer*/
-		strm->state = NULL;
-		prt_info("this stream has been initialized by sw\n");
-	}
 
 	nx_hw_init();
 
@@ -233,11 +225,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 
 	s->switchable = 0;
 	s->bak_stream = NULL;
-
-	if(temp){ /*keep the software state*/
-		s->bak_stream = temp;
-		s->switchable = 1;
-	}
 
 	ret = nx_inflateReset2(strm, windowBits);
 	if (ret != Z_OK) {
@@ -310,25 +297,16 @@ int nx_inflate(z_streamp strm, int flush)
 	if (s == NULL) return Z_STREAM_ERROR;
 
 	/* check for sw deflate first*/
-	//if( has_nx_state(strm) && s->switchable && (strm->avail_in <= DECOMPRESS_THRESHOLD)){
 	if(has_nx_state(strm) && s->switchable && (0 == use_nx_inflate(strm))){
 		/*Use software zlib, switch the sw and hw state*/
 		s = (nx_streamp) strm->state;
-		s->switchable = 0; /*decided to use sw zlib and not switchable */
-		temp  = s->bak_stream;  /*sw pointer*/
+		s->switchable = 0; /* decided to use sw zlib and not switchable */
+		temp  = s->bak_stream;  /* save the sw pointer */
 		s->bak_stream = NULL;
 
-		/*free the hw resource, copied from nx_inflateEnd()*/
-		nx_free_buffer(s->fifo_in, s->len_in, 0);
-		nx_free_buffer(s->fifo_out, s->len_out, 0);
-		nx_close(s->nxdevp);
-
-		if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
-		nx_free_buffer(s, sizeof(*s), 0);
-
-		prt_info("clean the hw resource,rc=%d\n",rc);
-
-		strm->state = temp;
+		rc = nx_inflateEnd(strm); /* free the hw resource */
+		prt_info("call nx_inflateEnd to clean the hw resource,rc=%d\n",rc);
+		strm->state = temp;  /* restore the sw pointer */
 		prt_info("call software inflate,len=%d\n", strm->avail_in);
 		rc = s_inflate(strm,flush);
 		prt_info("call software inflate, rc=%d\n", rc);
@@ -1907,14 +1885,35 @@ int inflateInit_(z_streamp strm, const char *version, int stream_size)
 int inflateInit2_(z_streamp strm, int windowBits, const char *version, int stream_size)
 {
 	int rc;
+	void *temp = NULL;
+	nx_streamp s;
 
 	/* statistic */
 	zlib_stats_inc(&zlib_stats.inflateInit);
-
+	prt_info("call inflateInit2_,gzip_selector:%d\n", gzip_selector);
 	strm->state = NULL;
 	if(gzip_selector == GZIP_MIX){
 		rc = s_inflateInit2_(strm, windowBits, version, stream_size);
+		if(rc != Z_OK) return rc;
+
+		/*If the stream has been initialized by sw*/
+		if(strm->state && (0 == has_nx_state(strm))){
+			temp = (void *)strm->state; /*record the sw context*/
+			strm->state = NULL;
+			prt_info("this stream has been initialized by sw\n");
+		}
+
 		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
+		if(rc != Z_OK){
+			s_inflateEnd(strm);
+			return rc;
+		}
+
+		if(temp){ /* recorded sw context*/
+			s = (nx_streamp) strm->state;
+			s->bak_stream = temp;
+			s->switchable = 1;
+		}
 	}else if(gzip_selector == GZIP_NX){
 		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
 	}else{
@@ -2046,12 +2045,28 @@ int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLengt
 
 int inflateCopy(z_streamp dest, z_streamp source)
 {
-	return nx_inflateCopy(dest, source);
+	int rc;
+
+	if (0 == has_nx_state(source)){
+		rc = s_inflateCopy(dest, source);
+	}else{
+		rc = nx_inflateCopy(dest, source);
+	}
+
+	return rc;
 }
 
 int inflateGetHeader(z_streamp strm, gz_headerp head)
 {
-	return nx_inflateGetHeader(strm, head);
+	int rc;
+
+	if (0 == has_nx_state(strm)){
+		rc = s_inflateGetHeader(strm, head);
+	}else{
+		rc = nx_inflateGetHeader(strm, head);
+	}
+
+	return rc;
 }
 
 int inflateSyncPoint(z_streamp strm)

@@ -158,6 +158,13 @@ int s_deflateEnd(z_streamp strm)
 	return (* p_deflateEnd)(strm);
 }
 
+static int (* p_deflateCopy)(z_streamp dest, z_streamp source);
+int s_deflateCopy(z_streamp dest, z_streamp source)
+{
+	check_sym(p_deflateCopy, Z_STREAM_ERROR);
+	return (* p_deflateCopy)(dest, source);
+}
+
 static int (* p_uncompress)(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 int s_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
 {
@@ -226,6 +233,19 @@ int s_inflateEnd(z_streamp strm)
 	return (* p_inflateEnd)(strm);
 }
 
+static int (* p_inflateCopy)(z_streamp dest, z_streamp source);
+int s_inflateCopy(z_streamp dest, z_streamp source)
+{
+	check_sym(p_inflateCopy, Z_STREAM_ERROR);
+	return (* p_inflateCopy)(dest, source);
+}
+
+static int (* p_inflateGetHeader)(z_streamp strm, gz_headerp head);
+int s_inflateGetHeader(z_streamp strm, gz_headerp head)
+{
+	check_sym(p_inflateGetHeader, Z_STREAM_ERROR);
+	return (* p_inflateGetHeader)(strm, head);
+}
 
 static int (* p_compress)(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 int s_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
@@ -272,6 +292,8 @@ void sw_zlib_init(void)
 	register_sym(deflateSetHeader);
 	register_sym(deflate);
 	register_sym(deflateEnd);
+	register_sym(deflateCopy);
+	register_sym(deflateSetDictionary);
 	register_sym(uncompress);
 
 	register_sym(inflateInit_);
@@ -282,6 +304,8 @@ void sw_zlib_init(void)
 	register_sym(inflateSetDictionary);
 	register_sym(inflate);
 	register_sym(inflateEnd);
+	register_sym(inflateCopy);
+	register_sym(inflateGetHeader);
 	register_sym(compress);
 	register_sym(compress2);
 

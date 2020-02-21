@@ -253,8 +253,6 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 		ret = vas_paste(nxhandle->paste_addr, 0);
 		hwsync();
 
-		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
-
 		if ((ret == 2) || (ret == 3)) {
 			/* paste succeeded; now wait for job to
 			   complete */
@@ -291,10 +289,10 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			if (ticks_total > (timeout_seconds * __ppc_get_timebase_freq()))
 				return -ETIMEDOUT;
 
+			++retries;
 			if (retries % 1000 == 0) {
 				prt_err("Paste attempt %d, failed pid= %d\n", retries, getpid());
 			}
-			++retries;
 		}
 	}
 	return ret;

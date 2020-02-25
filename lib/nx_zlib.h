@@ -55,15 +55,17 @@
 #include <endian.h>
 #include <pthread.h>
 #include <sys/platform/ppc.h>
+#include <zlib.h>
 #include "nxu.h"
 #include "nx_dbg.h"
 
 #ifndef _NX_ZLIB_H
 #define _NX_ZLIB_H
 
-#define GZIP_SW		0x01 /* software gzip */
-#define GZIP_NX		0x02 /* nx gzip */
-#define GZIP_MIX	0x03 /* mix sw and nx*/
+#define GZIP_SW		0x01 /* all ops to software gzip */
+#define GZIP_NX		0x02 /* all ops to nx gzip */
+#define GZIP_MIX	0x03 /* mix sw and nx with specific ratio*/
+#define GZIP_MIX2	0x04 /* deflate: nx ; inflate: sw */
 
 #define COMPRESS_THRESHOLD	(4*1024)
 #define DECOMPRESS_THRESHOLD	(4*1024)
@@ -322,7 +324,7 @@ static inline int use_nx_inflate(z_streamp strm)
 	assert(strm != NULL);
 
 	if(gzip_selector == GZIP_NX) return 1;
-	if(gzip_selector == GZIP_SW) return 0;
+	if(gzip_selector == GZIP_SW || gzip_selector == GZIP_MIX2) return 0;
 
 	/* #1 Threshold*/
 	if(strm->avail_in <= DECOMPRESS_THRESHOLD) return 0;
@@ -340,7 +342,7 @@ static inline int use_nx_deflate(z_streamp strm)
 {
 	assert(strm != NULL);
 
-        if(gzip_selector == GZIP_NX) return 1;
+        if(gzip_selector == GZIP_NX || gzip_selector == GZIP_MIX2) return 1;
         if(gzip_selector == GZIP_SW) return 0;
 
 	/* #1 Threshold */
@@ -584,8 +586,9 @@ extern uLong s_deflateBound(z_streamp strm, uLong sourceLen);
 extern int s_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
 extern int s_deflateCopy(z_streamp dest, z_streamp source);
 extern int s_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
-extern int s_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
-
+#if ZLIB_VERNUM >= 0x1290
+extern int s_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
+#endif
 
 extern int s_inflateInit_(z_streamp strm, const char *version, int stream_size);
 extern int s_inflateInit2_(z_streamp strm, int  windowBits, const char *version, int stream_size);

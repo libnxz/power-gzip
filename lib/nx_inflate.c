@@ -1890,7 +1890,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 
 	/* statistic */
 	zlib_stats_inc(&zlib_stats.inflateInit);
-	prt_info("call inflateInit2_,gzip_selector:%d\n", gzip_selector);
+
 	strm->state = NULL;
 	if(gzip_selector == GZIP_MIX){
 		rc = s_inflateInit2_(strm, windowBits, version, stream_size);

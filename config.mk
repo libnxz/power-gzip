@@ -13,6 +13,7 @@ LD = $(shell which ld)
 FLG    = -std=gnu11
 SFLAGS = -O3 -Wall -Werror -Wno-error=pointer-sign -fPIC
 ZLIB   = -DZLIB_API
+ZLIB_PATH ?= /lib64/libz.so.1
 
 ## Compiler related flags
 GCC_VER = $(shell $(CC) -dumpversion)
@@ -22,4 +23,4 @@ ifeq "$(shell expr $(GCC_VER_MAIN) \>= 6)" "1"
     SFLAGS += -mcpu=power9
 endif
 
-CFLAGS = $(FLG) $(SFLAGS) $(ZLIB)
+CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) -DZLIB_PATH=\"$(ZLIB_PATH)\"

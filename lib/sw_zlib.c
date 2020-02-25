@@ -172,6 +172,12 @@ int s_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong source
 	return (* p_uncompress)(dest, destLen, source, sourceLen);
 }
 
+static int (* p_uncompress2)(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
+int s_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen)
+{
+	check_sym(p_uncompress2, Z_STREAM_ERROR);
+	return (* p_uncompress2)(dest, destLen, source, sourceLen);
+}
 
 static int (* p_inflateInit_)(z_streamp strm, const char *version, int stream_size);
 int s_inflateInit_(z_streamp strm, const char *version, int stream_size)
@@ -276,7 +282,7 @@ void sw_zlib_init(void)
 {
 	char *error;
 
-	sw_handler = dlopen(DEFAULT_ZLIB_PATH, RTLD_LAZY);
+	sw_handler = dlopen(ZLIB_PATH, RTLD_LAZY);
 	if(sw_handler == NULL) {
 		prt_err(" %s\n", dlerror());
 		return;
@@ -295,6 +301,9 @@ void sw_zlib_init(void)
 	register_sym(deflateCopy);
 	register_sym(deflateSetDictionary);
 	register_sym(uncompress);
+#if ZLIB_VERNUM >= 0x1290
+	register_sym(uncompress2);
+#endif
 
 	register_sym(inflateInit_);
 	register_sym(inflateInit2_);

@@ -2208,7 +2208,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		}
 
 
-	}else if(gzip_selector == GZIP_NX){
+	}else if(gzip_selector == GZIP_NX || gzip_selector == GZIP_MIX2){
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 	}else{
 		rc = s_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);

@@ -35,7 +35,7 @@ $(STATICLIB): $(OBJS)
 
 $(SHAREDLIB): $(OBJS)
 	rm -f $@ $(LIBLINK) 
-	$(CC) -shared  -Wl,-soname,$(SHAREDSONAMELIB),--version-script,zlib.map -o $@ $(OBJS)
+	$(CC) -shared  -Wl,-soname,$(SHAREDSONAMELIB),--version-script,Versions -o $@ $(OBJS)
 	ln -s $@ $(LIBLINK)
 	ln -s $@ $(SHAREDSONAMELIB)
 

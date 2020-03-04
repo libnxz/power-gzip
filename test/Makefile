@@ -16,7 +16,7 @@ obj_test_adler32 = ${patsubst %.c, %.o, test_adler32.c}
 
 TEST_OBJS = $(sort $(obj_test_deflate) $(obj_test_inflate) $(obj_test_stress) \
     $(obj_test_crc32) $(obj_test_adler32))
-EXE = test_inflate test_deflate test_stress test_crc32 test_adler32 nx_gzip
+EXE = test_inflate test_deflate test_stress test_crc32 test_adler32
 
 all: $(EXE)
 
@@ -32,7 +32,3 @@ clean:
 .SECONDEXPANSION:
 test_%: $$(obj_$$@)
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^  -lnxz -lpthread
-
-nx_gzip: nx_gzip.c
-	$(CC) $(CFLAGS) -o $@ $^ -lz
-

@@ -245,7 +245,7 @@ int nx_inflateEnd(z_streamp strm)
 	if (s == NULL) return Z_STREAM_ERROR;
 
 	/* statistic */
-	zlib_stats_inc(&zlib_stats.inflateEnd);	
+	zlib_stats_inc(&zlib_stats.inflateEnd);
 
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
@@ -264,7 +264,7 @@ int nx_inflateEnd(z_streamp strm)
 	return Z_OK;
 }
 
-int _nx_inflate(z_streamp strm, int flush)
+int nx_inflate(z_streamp strm, int flush)
 {
 	int rc = Z_OK;
 	nx_streamp s;
@@ -734,21 +734,6 @@ inf_return:
 		pthread_mutex_unlock(&zlib_stats_mutex);
 	}
 	return rc;
-}
-
-/* wrapper for easy stats */
-int nx_inflate(z_streamp strm, int flush)
-{
-	unsigned long total_in_stat = strm->total_in;
-	int rc = _nx_inflate(strm, flush);
-	if (nx_gzip_gather_stats())
-		__atomic_fetch_add(&zlib_stats.inflate_len,
-			strm->total_in - total_in_stat, __ATOMIC_RELAXED);
-	/* log if there is error or stream end */
-        if (rc != Z_OK || flush == Z_FINISH)
-                prt_stats("inflate data length: %ld KiB\n", zlib_stats.inflate_len/1024);
-
-        return rc;
 }
 
 static inline void nx_inflate_update_checksum(nx_streamp s)

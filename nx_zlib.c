@@ -943,7 +943,7 @@ void nx_hw_init(void)
 	nx_gzip_accelerator = NX_GZIP_TYPE;
 
 	if (!cfg_file_s)
-		cfg_file_s = "/data/nx/nx-zlib.conf";
+		cfg_file_s = "./nx-zlib.conf";
 	memset(&cfg_tab, 0, sizeof(cfg_tab));
 
 	rc = nx_read_cfg(cfg_file_s, &cfg_tab);

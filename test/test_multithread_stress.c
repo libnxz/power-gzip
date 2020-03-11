@@ -10,6 +10,14 @@
 #define DATA_NUM	10
 
 
+#ifdef ZLIB_API
+#define COMPRESS 	compress
+#define UNCOMPRESS 	uncompress
+#else
+#define COMPRESS	nx_compress
+#define UNCOMPRESS	nx_uncompress
+#endif
+
 static unsigned int buf_size_array[DATA_NUM] = {4096, 4096, 65536, 65536, 131072, 131072, 262144, 262144, 1048576, 1048576};
 char *data_buf[DATA_NUM];
 
@@ -97,7 +105,7 @@ static int free_data_buffer(char **buffer)
 	return 0;
 }
 
-/* use zlib to deflate */
+/* deflate */
 static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned int compr_len)
 {
 	int rc = 0;
@@ -106,7 +114,7 @@ static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned 
 	sourceLen = src_len;
 	destLen = compr_len;
 	
-	rc = compress(compr, &destLen, src, sourceLen);
+	rc = COMPRESS(compr, &destLen, src, sourceLen);
 	if( rc != Z_OK){	
 		printf("compress error:%d\n",rc);
 		return TEST_ERROR;
@@ -114,7 +122,7 @@ static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned 
 	return TEST_OK;
 }
 
-/* use zlib to infalte */
+/* infalte */
 static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsigned int uncomprLen)
 {
 	int rc = 0;
@@ -123,7 +131,7 @@ static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsi
 	sourceLen = comprLen;
 	destLen = uncomprLen;
 
-	rc = uncompress(uncompr, &destLen, compr, sourceLen);
+	rc = UNCOMPRESS(uncompr, &destLen, compr, sourceLen);
 	if( rc != Z_OK){
 		printf("uncompress error:%d\n",rc);
 		return TEST_ERROR;
@@ -143,7 +151,6 @@ static int run(const char* test)
 	
 	index = __ppc_get_timebase() % (sizeof(buf_size_array)/sizeof(unsigned int));
 	src_len = buf_size_array[index];
-
 	compr_len = src_len*2;
 	uncompr_len = src_len*2;
 

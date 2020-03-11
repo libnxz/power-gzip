@@ -34,6 +34,12 @@ if [ $? -ne 0 ]; then
     echo "test_adler32 failed."
     exit 1;
 fi
+echo "running test_multithread_stress..."
+./test_multithread_stress `nproc` 10 6  >> $run_test_log 2>&1
+if [ $? -ne 0 ]; then
+    echo "test_multithread_stress failed."
+    exit 1;
+fi
 echo "------------------------------"
 
 grep -E 'run_case|failed' $run_test_log | tee -a $run_test_report

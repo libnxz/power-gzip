@@ -16,6 +16,7 @@ char *data_buf[DATA_NUM];
 int test_interval = 10;
 int test_iterations = 1;
 int finish_thread = 0;
+int failed_thread = 0;
 
 struct stats{
 	pthread_t tid;
@@ -187,6 +188,7 @@ static int run_case()
 		rc = run(__func__);
 		if(rc != TEST_OK) {
 			printf("thread %d failed. xxxxxxxxxxxxxxxxxx\n", pthread_self());
+			__atomic_fetch_add(&failed_thread, 1, __ATOMIC_RELAXED);
 			break;
 		}
 
@@ -264,5 +266,6 @@ int main(int argc, char **argv)
 	
 	printf("Total data: %lld GB\n", tsize/1024/1024/1024);	
 	
+	return failed_thread;
 }
 

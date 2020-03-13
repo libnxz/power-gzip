@@ -1,11 +1,6 @@
-OPTCC = /opt/at11.0/bin/gcc
-ifneq ("$(wildcard $(OPTCC))","")
-        CC = $(OPTCC)
-else
-        CC = gcc
-endif
 
-CFLAGS = -O3
+include ../config.mk
+
 SRC =
 INC = ../inc_nx
 TESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th
@@ -78,4 +73,4 @@ nx_gzip: nx_gzip.c
 
 clean:
 	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th makedata \
-	zpipe_dict_nx zpipe_dict_zlib crc_perf_test_zlib crc_perf_test_vmx gzm
+	zpipe_dict_nx zpipe_dict_zlib crc_perf_test_zlib crc_perf_test_vmx gzm nx_gzip

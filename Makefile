@@ -1,13 +1,4 @@
-OPTCC = /opt/at11.0/bin/gcc
-ifneq ("$(wildcard $(OPTCC))","")
-	CC = $(OPTCC)
-else
-	CC = gcc
-endif
-FLG = -std=gnu11
-SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
-ZLIB = -DZLIB_API
-CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) -mcpu=power9 #-DNXTIMER
+include config.mk
 
 SRCS = nx_inflate.c nx_deflate.c nx_zlib.c nx_crc.c nx_dht.c nx_dhtgen.c nx_dht_builtin.c \
        nx_adler32.c gzip_vas.c nx_compress.c nx_uncompr.c crc32_ppc.c crc32_ppc_asm.S nx_utils.c
@@ -31,17 +22,25 @@ $(OBJS): $(SRCS)
 
 $(STATICLIB): $(OBJS)
 	rm -f $@
-	ar rcs -o $@ $(OBJS)
+	$(AR) rcs -o $@ $(OBJS)
 
 $(SHAREDLIB): $(OBJS)
-	rm -f $@ $(LIBLINK) 
+	rm -f $@ $(LIBLINK) $(SHAREDSONAMELIB)
 	$(CC) -shared  -Wl,-soname,$(SHAREDSONAMELIB),--version-script,Versions -o $@ $(OBJS)
 	ln -s $@ $(LIBLINK)
 	ln -s $@ $(SHAREDSONAMELIB)
 
-clean:
-	/bin/rm -f *.o *.gcda *.gcno *.so* *.a *~
+samples: $(STATICLIB) $(SHAREDLIB)
+	$(MAKE) -C samples all
+
+test: $(STATICLIB) $(SHAREDLIB)
+	$(MAKE) -C test all
+
+check: $(STATICLIB) $(SHAREDLIB)
 	$(MAKE) -C test $@
 
-check:
+clean:
+	rm -f *.o *.gcda *.gcno *.so* *.a *~
 	$(MAKE) -C test $@
+	$(MAKE) -C samples $@
+

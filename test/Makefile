@@ -1,7 +1,6 @@
-CC = gcc
-FLG = -std=gnu11
-CFLAGS = -O3 $(FLG)
+include ../config.mk
 
+CFLAGS = $(FLG) $(SFLAGS)
 INC = -I../ -I../inc_nx
 LIB = -L../ -L/usr/lib/
 

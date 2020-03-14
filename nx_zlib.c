@@ -773,7 +773,7 @@ FILE* open_logfile(char *filename)
 	/* try to open in append mode */
 	if (logfile = fopen(filename, "a+")) {
 		/* ok, try to chmod so all users can access it.
-                 * the first process creating this file should success, others are expected to fail */
+		 * the first process creating this file should success, others are expected to fail */
 		//fprintf(stderr, "try chmod: %s\n", filename);
 		chmod(filename, (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
 		return logfile;
@@ -870,8 +870,8 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "verbose: %d\n", nx_config.verbose);
 	fprintf(fp, "dev_num: %d\n", nx_gzip_chip_num);
 	fprintf(fp, "page_sz: %ld\n", nx_config.page_sz);
-	fprintf(fp, "inf_buf_size: %lu\n", nx_config.strm_inf_bufsz);
-	fprintf(fp, "def_buf_size: %lu\n", nx_config.strm_def_bufsz);
+	fprintf(fp, "inf_buf_size: %u\n", nx_config.strm_inf_bufsz);
+	fprintf(fp, "def_buf_size: %u\n", nx_config.strm_def_bufsz);
 	fprintf(fp, "trace: %d\n", nx_gzip_trace);
 	fprintf(fp, "dht_config: %d\n", nx_dht_config);
 	fprintf(fp, "strategy: %d\n", nx_strategy_override);

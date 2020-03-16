@@ -1,8 +1,8 @@
 include ../config.mk
 
 CFLAGS = $(FLG) $(SFLAGS)
-INC = -I../ -I../inc_nx
-LIB = -L../ -L/usr/lib/
+INC = -I../lib -I../inc_nx
+LIB = -L../lib -L/usr/lib/
 
 SRC_DEFLATE = ${wildcard test_deflate.c test_utils.c deflate/*.c}
 SRC_INFLATE = ${wildcard test_inflate.c test_utils.c inflate/*.c}

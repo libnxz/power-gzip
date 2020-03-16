@@ -1,6 +1,6 @@
 export NX_GZIP_CONFIG=./nx-zlib.conf
 #export NX_GZIP_LOGFILE=./nx.log
-export LD_LIBRARY_PATH=../:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=../lib:$LD_LIBRARY_PATH
 
 TS=$(date +"%F-%H-%M-%S")
 run_test_log=run_test_${TS}.log

@@ -17,6 +17,8 @@ int bufferSize = 1;
 int threads = 1;
 char *file = NULL;
 int opt = 0;
+int nx_dbg = 0;
+FILE *nx_gzip_log = NULL;
 
 void *run(void *arg)
 {

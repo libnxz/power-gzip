@@ -17,4 +17,3 @@ endif
 
 CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) #-DNXTIMER
 
-

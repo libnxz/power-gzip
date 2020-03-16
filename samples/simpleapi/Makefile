@@ -6,8 +6,8 @@ TESTS = gzip_simple_test
 
 all:	$(TESTS)
 
-gzip_vas.o:	../../gzip_vas.c
-	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../../gzip_vas.c
+gzip_vas.o:	../../lib/gzip_vas.c
+	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../../lib/gzip_vas.c
 
 gzip_simple.o:	gzip_simple.c
 	gcc $(CFLAGS) $(NXFLAGS) -I$(INC) -c gzip_simple.c

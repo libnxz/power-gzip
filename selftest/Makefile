@@ -1,4 +1,5 @@
-CC = gcc
+include ../config.mk
+
 CFLAGS = -O3
 INC = ./inc
 TESTS = gzfht_test gunz_test

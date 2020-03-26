@@ -66,8 +66,8 @@
 #define hwsync()    asm volatile("hwsync" ::: "memory")
 
 #ifndef NX_NO_CPU_PRI
-#define cpu_pri_default()  __ppc_set_ppr_med()
-#define cpu_pri_low()      __ppc_set_ppr_very_low()
+#define cpu_pri_default()  __asm__ volatile ("or 2,2,2")
+#define cpu_pri_low()      __asm__ volatile ("or 31,31,31")
 #else
 #define cpu_pri_default()  ((void)(0))
 #define cpu_pri_low()      ((void)(0))

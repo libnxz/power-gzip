@@ -54,6 +54,7 @@
 #include <signal.h>
 #include <dirent.h>
 #include <syslog.h>
+#include <limits.h>
 #include "zlib.h"
 #include "copy-paste.h"
 #include "nx-ftw.h"

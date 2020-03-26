@@ -23,12 +23,9 @@
 struct vas_gzip_setup_attr {
 	int32_t		version;
 	int16_t		vas_id;
-	int64_t		reserved1;
+	int16_t		reserved1;
 	int64_t		flags;
-	int64_t		reserved2;
-	int32_t		tc_mode;
-	int32_t		rsvd_txbuf;
-	int64_t		reserved3[6];
+	int64_t		reserved2[6];
 };
 
 #endif /* _UAPI_MISC_VAS_H */

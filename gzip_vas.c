@@ -99,8 +99,6 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 	memset(&txattr, 0, sizeof(txattr));
 	txattr.version = 1;
 	txattr.vas_id = pri;
-	txattr.tc_mode  = 0;
-	txattr.rsvd_txbuf = 0;
 	rc = ioctl(fd, VAS_GZIP_TX_WIN_OPEN, (unsigned long)&txattr);
 	if (rc < 0) {
 		fprintf(stderr, "ioctl() n %d, error %d\n", rc, errno);

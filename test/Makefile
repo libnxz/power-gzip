@@ -1,9 +1,8 @@
-CC = gcc
-FLG = -std=gnu11
-CFLAGS = -O3 $(FLG)
+include ../config.mk
 
-INC = -I../ -I../inc_nx
-LIB = -L../ -L/usr/lib/
+CFLAGS = $(FLG) $(SFLAGS)
+INC = -I../lib -I../inc_nx
+LIB = -L../lib -L/usr/lib/
 
 SRC_DEFLATE = ${wildcard test_deflate.c test_utils.c deflate/*.c}
 SRC_INFLATE = ${wildcard test_inflate.c test_utils.c inflate/*.c}

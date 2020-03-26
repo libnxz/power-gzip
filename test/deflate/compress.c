@@ -6,7 +6,7 @@ static int _test_nx_compress(Byte* compr, unsigned long *compr_len, Byte* src, u
 {
 	int rc;
 	rc = nx_compress(compr, compr_len, src, src_len);
-	dbg_printf("rc %d src_len %d compr_len %d\n", rc, src_len, *compr_len);
+	dbg_printf("rc %d src_len %ld compr_len %ld\n", rc, src_len, *compr_len);
 	return TEST_OK;
 }
 
@@ -16,7 +16,7 @@ static int _test_uncompress(Byte* uncompr, unsigned long *uncomprLen, Byte* comp
 	int rc;
 	memset(uncompr, 0, *uncomprLen);
 	rc = uncompress(uncompr, uncomprLen, compr, comprLen);
-	dbg_printf("rc %d compr_len %d uncompr_len %d\n", rc, comprLen, *uncomprLen);
+	dbg_printf("rc %d compr_len %ld uncompr_len %ld\n", rc, comprLen, *uncomprLen);
 	if (compare_data(uncompr, src, src_len)) {
 		return TEST_ERROR;
 	}
@@ -29,7 +29,7 @@ static int _test_nx_uncompress(Byte* uncompr, unsigned long *uncomprLen, Byte* c
 	int rc;
 	memset(uncompr, 0, *uncomprLen);
 	rc = nx_uncompress(uncompr, uncomprLen, compr, comprLen);
-	dbg_printf("rc %d compr_len %d uncompr_len %d\n", rc, comprLen, *uncomprLen);
+	dbg_printf("rc %d compr_len %ld uncompr_len %ld\n", rc, comprLen, *uncomprLen);
 	if (compare_data(uncompr, src, src_len)) {
 		return TEST_ERROR;
 	}
@@ -106,4 +106,3 @@ int run_case15()
 {
 	return run(2*1024*1024, 1, 0, __func__);
 }
-

@@ -35,7 +35,7 @@ static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned 
             err = deflate(&c_stream, Z_FINISH);
             if (err == Z_STREAM_END) break;
         }
-	printf("\n*** c_stream.total_out %d\n", c_stream.total_out);
+	printf("\n*** c_stream.total_out %ld\n", (unsigned long)c_stream.total_out);
 
 	err = deflateEnd(&c_stream);
 	if (err != 0) {
@@ -67,7 +67,7 @@ static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsi
                 err = inflate(&d_stream, Z_NO_FLUSH);
                 if (err == Z_STREAM_END) break;
         }
-	printf("*** d_stream.total_in %d d_stream.total_out %d src_len %d\n", d_stream.total_in, d_stream.total_out, src_len);
+	printf("*** d_stream.total_in %ld d_stream.total_out %ld src_len %d\n", (unsigned long)d_stream.total_in, (unsigned long)d_stream.total_out, src_len);
 	assert(d_stream.total_out == src_len);
 
         err = inflateEnd(&d_stream);
@@ -101,7 +101,7 @@ static int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, u
                 err = nx_inflate(&d_stream, flush);
                 if (err == Z_STREAM_END) break;
         }
-	printf("*** d_stream.total_in %d d_stream.total_out %d src_len %d\n", d_stream.total_in, d_stream.total_out, src_len);
+	printf("*** d_stream.total_in %ld d_stream.total_out %ld src_len %d\n", (unsigned long)d_stream.total_in, (unsigned long)d_stream.total_out, src_len);
 	assert(d_stream.total_out == src_len);
 
         err = nx_inflateEnd(&d_stream);

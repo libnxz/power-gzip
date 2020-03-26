@@ -60,16 +60,19 @@
 #include "nx_dbg.h"
 #include <sys/platform/ppc.h>
 
-#define barrier()
 #define hwsync()    asm volatile("hwsync" ::: "memory")
 
 #ifndef NX_NO_CPU_PRI
 #define cpu_pri_default()  __ppc_set_ppr_med()
 #define cpu_pri_low()      __ppc_set_ppr_very_low()
 #else
-#define cpu_pri_default()  do{;}while(0)
-#define cpu_pri_low()      do{;}while(0)
+#define cpu_pri_default()  ((void)0)
+#define cpu_pri_low()      ((void)0)
 #endif
+
+#define CSB_MAX_POLL 200000000UL
+#define USLEEP_TH    300000UL
+#define SPIN_TH      500UL
 
 void *nx_fault_storage_address;
 uint64_t dbgtimer=0;
@@ -95,8 +98,6 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 	memset(&txattr, 0, sizeof(txattr));
 	txattr.version = 1;
 	txattr.vas_id = pri;
-	txattr.tc_mode  = 0;
-	txattr.rsvd_txbuf = 0;
 	rc = ioctl(fd, VAS_GZIP_TX_WIN_OPEN, (unsigned long)&txattr);
 	if (rc < 0) {
 		fprintf(stderr, "ioctl() n %d, error %d\n", rc, errno);
@@ -104,7 +105,7 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 		goto out;
 	}
 
-	addr = mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0ULL);
+	addr = mmap(NULL, 65536, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0ULL);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "mmap() failed, errno %d\n", errno);
 		rc = -errno;
@@ -132,7 +133,6 @@ void *nx_function_begin(int function, int pri)
 		return NULL;
 	}
 
-
 	nxhandle = malloc(sizeof(*nxhandle));
 	if (!nxhandle) {
 		errno = ENOMEM;
@@ -156,7 +156,7 @@ int nx_function_end(void *handle)
 	int rc = 0;
 	struct nx_handle *nxhandle = handle;
 
-	rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+	rc = munmap(((char *)nxhandle->paste_addr - 0x400), 65536);
 	if (rc < 0) {
 		fprintf(stderr, "munmap() failed, errno %d\n", errno);
 		return rc;
@@ -178,9 +178,6 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	   higher throughput on the core.
 	*/
 	cpu_pri_low();
-
-#define CSB_MAX_POLL 200000000UL
-#define USLEEP_TH     300000UL
 
 	t = __ppc_get_timebase();
 
@@ -238,14 +235,11 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 	i = 0;
 	retries = 5000;
 	while (i++ < retries) {
-		/* uint64_t t; */
 
-		/* t = __ppc_get_timebase(); */
 		hwsync();
 		vas_copy( &cmdp->crb, 0);
 		ret = vas_paste(nxhandle->paste_addr, 0);
 		hwsync();
-		/* dbgtimer +=  __ppc_get_timebase() - t; */
 
 		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
 
@@ -271,7 +265,6 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 		} else {
 			if (i < 10) {
 				/* spin for few ticks */
-#define SPIN_TH 500UL
 				uint64_t fail_spin;
 				fail_spin = __ppc_get_timebase();
 				while ( (__ppc_get_timebase() - fail_spin) < SPIN_TH ) {;}

@@ -17,7 +17,7 @@ typedef unsigned long long u64;
 /* CCW 842 CI/FC masks
  * NX P8 workbook, section 4.3.1, figure 4-6
  * "CI/FC Boundary by NX CT type"
- */ 
+ */
 #define CCW_CI_842              (0x00003ff8)
 #define CCW_FC_842              (0x00000007)
 
@@ -137,7 +137,7 @@ struct data_descriptor_entry {
 /* CCW 842 CI/FC masks
  *  * NX P8 workbook, section 4.3.1, figure 4-6
  *   * "CI/FC Boundary by NX CT type"
- *    */ 
+ *    */
 #define CCW_CI_842              (0x00003ff8)
 #define CCW_FC_842              (0x00000007)
 #endif

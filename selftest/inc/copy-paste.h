@@ -23,9 +23,9 @@
 #define PPC_INST_PASTE                  0x7c20070d
 
 #define PPC_COPY(a, b)          stringify_in_c(.long PPC_INST_COPY | \
-                                        ___PPC_RA(a) | ___PPC_RB(b))
+					___PPC_RA(a) | ___PPC_RB(b))
 #define PPC_PASTE(a, b)         stringify_in_c(.long PPC_INST_PASTE | \
-                                        ___PPC_RA(a) | ___PPC_RB(b))
+					___PPC_RA(a) | ___PPC_RB(b))
 #define CR0_SHIFT	28
 #define CR0_MASK	0xF
 /*

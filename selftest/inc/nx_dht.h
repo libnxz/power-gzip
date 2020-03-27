@@ -45,7 +45,7 @@
 #define DHT_NUM_BUILTIN  35    /* number of built-in entries */
 /* use the last dht if accumulated source data sizes is less than this
    value to amortize dht_lookup overheads over many */
-#define DHT_NUM_SRC_BYTES    (512*1024) 
+#define DHT_NUM_SRC_BYTES    (512*1024)
 
 /* #define DHT_ATOMICS            /* define if multithreaded; nx_zlib should not need this */
 
@@ -59,8 +59,8 @@ typedef struct dht_entry_t {
 	   of threads reading */
 	int ref_count;
 	/* for the clock algorithm; since the last clock sweep
-	   0 is not accessed 
-	   1 is accessed once 
+	   0 is not accessed
+	   1 is accessed once
 	   2 is accessed two or more time */
 	volatile int64_t accessed;
 	/* for alignment */
@@ -68,12 +68,12 @@ typedef struct dht_entry_t {
 	/* last 32b contains the 12 bit length; use
 	   the getnn/putnn macros to access
 	   endian-safe */
-	uint32_t in_dhtlen; 
+	uint32_t in_dhtlen;
 	/* actual dht here */
 	char in_dht_char[DHT_MAXSZ];
 	/* most freq symbols and their code lengths; use them to
 	   lookup the dht cache; */
-	int litlen[DHT_TOPSYM_MAX];  
+	int litlen[DHT_TOPSYM_MAX];
 	int dist[DHT_TOPSYM_MAX];
 } dht_entry_t;
 
@@ -97,10 +97,10 @@ typedef struct dht_tab_t {
 
 /* call in deflateInit; returns a handle for dht_lookup.
    ifile and ofile are unused in this implementation */
-void *dht_begin(char *ifile, char *ofile);             
+void *dht_begin(char *ifile, char *ofile);
 
 /* call in deflateEnd  */
-void dht_end(void *handle);                            
+void dht_end(void *handle);
 
 /* call in deflate */
 int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
@@ -115,11 +115,11 @@ int dhtgen(uint32_t  *lhist,        /* supply the P9 LZ counts here */
 	   int num_lhist,
 	   uint32_t *dhist,
 	   int num_dhist,
-	   char *dht,               /* dht returned here; caller is responsible for alloc/free of min 320 bytes */    
+	   char *dht,               /* dht returned here; caller is responsible for alloc/free of min 320 bytes */
 	   int  *dht_num_bytes,     /* number of valid bytes in *dht */
-	   int  *dht_num_valid_bits,/* valid bits in the LAST byte; note the value of 0 is encoded as 8 bits */    
+	   int  *dht_num_valid_bits,/* valid bits in the LAST byte; note the value of 0 is encoded as 8 bits */
 	   int  cpb_header          /* set nonzero if prepending the 16 byte P9 compliant cpbin header with the bit length of dht */
-	); 
+	);
 
 void fill_zero_lzcounts(uint32_t *llhist, uint32_t *dhist, uint32_t val);
 void fill_zero_len_dist(uint32_t *llhist, uint32_t *dhist, uint32_t val);

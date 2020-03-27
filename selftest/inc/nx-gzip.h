@@ -17,7 +17,6 @@
 
 #define VAS_FTW_SETUP		_IOW('v', 1, struct vas_gzip_setup_attr)
 #define VAS_842_TX_WIN_OPEN	_IOW('v', 2, struct vas_gzip_setup_attr)
-// #define VAS_GZIP_TX_WIN_OPEN	_IOW('v', 3, struct vas_gzip_setup_attr)
 #define VAS_GZIP_TX_WIN_OPEN	_IOW('v', 0x20, struct vas_gzip_setup_attr)
 
 struct vas_gzip_setup_attr {

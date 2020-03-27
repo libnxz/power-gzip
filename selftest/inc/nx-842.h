@@ -1,4 +1,3 @@
-
 /* Restrictions on Data Descriptor List (DDL) and Entry (DDE) buffers
  *
  * From NX P8 workbook, sec 4.9.1 "842 details"
@@ -91,4 +90,3 @@
 #endif
 
 #define nx842_get_pa(x)		(unsigned long)(x)
-

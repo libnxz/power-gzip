@@ -54,4 +54,3 @@ extern void *nx_function_begin(int function, int pri);
 extern int nx_function(void *handle, nxbuf_t *in, nxbuf_t *out, void *arg);
 
 extern int nx_function_end(void *handle);
-

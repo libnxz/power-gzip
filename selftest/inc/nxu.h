@@ -67,8 +67,8 @@
 #define nx_get_freq()  (-1)
 #endif
 
-/* 
-   Definitions of acronyms. See 
+/*
+   Definitions of acronyms. See
    P9 NX Gzip Accelerator User's Manual for details.
 
    adler/crc: 32 bit checksums appended to stream tail
@@ -98,7 +98,7 @@ typedef union {
     uint64_t dword[2];
 } nx_qw_t __attribute__ ((aligned (16)));
 
-/* 
+/*
    Note: NX registers with fewer than 32 bits are declared by
    convention as uint32_t variables in unions. If *_offset and *_mask
    are defined for a variable, then use get_ put_ macros to
@@ -124,27 +124,27 @@ typedef struct {
 typedef struct {
     /* Coprocessor Status Block, Section 6.6  */
     union {
-	uint32_t csb_v; 
+	uint32_t csb_v;
 	/* Valid bit. v must be set to 0 by the program
 	   before submitting the coprocessor command.
 	   Software can poll for the v bit */
-      
+
 	uint32_t csb_f;
 	/* 16B CSB size. Written to 0 by DMA when it writes the CPB */
-      
+
 	uint32_t csb_cs;
 	/* cs completion sequence; unused */
-      
+
 	uint32_t csb_cc;
 	/* cc completion code; cc != 0 exception occured */
-      
+
 	uint32_t csb_ce;
 	/* ce completion extension */
-	
+
     };
     uint32_t tpbc;
     /* target processed byte count TPBC */
-    
+
     uint64_t fsaddr;
     /* Section 6.12.1 CSB NonZero error summary.  FSA Failing storage
        address.  Address where error occurred. When available, written
@@ -153,60 +153,60 @@ typedef struct {
 
 typedef struct {
     /* Coprocessor Completion Block, Section 6.7 */
-    
+
     uint32_t reserved[3];
     union {
-	/* When crb.c==0 (no ccb defined) it is reserved; 
+	/* When crb.c==0 (no ccb defined) it is reserved;
 	   When crb.c==1 (ccb defined) it is cm */
-	
+
 	uint32_t ccb_cm;
 	/* Signal interrupt of crb.c==1 and cm==1 */
-	
+
 	uint32_t word;
-	/* generic access to the 32bit word */		
+	/* generic access to the 32bit word */
     };
 } nx_ccb_t __attribute__ ((aligned (16)));
 
 typedef struct {
-    /* 
+    /*
        CRB operand of the paste coprocessor instruction is stamped
-       in quadword 4 with the information shown here as its written 
-       in to the receive FIFO of the coprocessor 
+       in quadword 4 with the information shown here as its written
+       in to the receive FIFO of the coprocessor
     */
-    
+
     union {
 	uint32_t vas_buf_num;
-	/* verification only vas buffer number which correlates to 
+	/* verification only vas buffer number which correlates to
 	   the low order bits of the atag in the paste command */
-	
+
 	uint32_t send_wc_id;
-	/* Pointer to Send Window Context that provides for NX address 
+	/* Pointer to Send Window Context that provides for NX address
 	   translation information, such as MSR and LPCR bits, job completion
 	   interrupt RA, PSWID, and job utilization counter. */
-	
+
     };
     union {
 	uint32_t recv_wc_id;
-	/* Pointer to Receive Window Context. NX uses this to return 
+	/* Pointer to Receive Window Context. NX uses this to return
 	   credits to a Receive FIFO as entries are dequeued */
-	
+
     };
     uint32_t reserved2;
     union {
 	uint32_t vas_invalid;
-	/* Invalid bit. If this bit is 1 the CRB is discarded by 
-	   NX upon fetching from the receive FIFO. If this bit is 0 
-	   the CRB is processed normally. The bit is stamped to 0 
-	   by VAS and may be written to 1 by hypervisor while 
+	/* Invalid bit. If this bit is 1 the CRB is discarded by
+	   NX upon fetching from the receive FIFO. If this bit is 0
+	   the CRB is processed normally. The bit is stamped to 0
+	   by VAS and may be written to 1 by hypervisor while
 	   the CRB is in the receive FIFO (in memory). */
-	
+
     };
 } vas_stamped_crb_t;
 
 typedef struct {
-    /* 
+    /*
        A CRB that has a translation fault is stamped by NX in quadword 4
-       and pasted to the Fault Send Window in VAS 
+       and pasted to the Fault Send Window in VAS
     */
     uint64_t fsa;
     union {
@@ -222,15 +222,15 @@ typedef union {
 } stamped_crb_t;
 
 typedef struct {
-    /* 
-       Coprocessor Parameter Block In/Out are used to pass metadata 
-       to/from accelerator.  Tables 6.5 and 6.6 of the user manual 
+    /*
+       Coprocessor Parameter Block In/Out are used to pass metadata
+       to/from accelerator.  Tables 6.5 and 6.6 of the user manual
     */
-    
+
     /* CPBInput */
-    
+
     struct {
-	union { 
+	union {
 	    nx_qw_t qw0;
 	    struct {
 		uint32_t in_adler;            /* bits 0:31    */
@@ -254,7 +254,7 @@ typedef struct {
     };
 
     /* CPBOutput */
-    
+
     volatile struct {
 	union {
 	    nx_qw_t qw24;
@@ -268,7 +268,7 @@ typedef struct {
 		union {
 		    uint32_t out_sfbt;        /* bits 108:111 qw[24] */
 		    uint32_t out_rembytecnt;  /* bits 112:127 qw[24] */
-		    uint32_t out_dhtlen;      /* bits 116:127 qw[24] */					
+		    uint32_t out_dhtlen;      /* bits 116:127 qw[24] */
 		};
 	    };
 	};
@@ -276,7 +276,7 @@ typedef struct {
 	    nx_qw_t  qw25[79];                /* qw[25:103] */
 	    uint32_t out_spbc_comp_wrap;      /* qw[25] compress no lzcounts or wrap */
 	    uint32_t out_spbc_wrap;           /* qw[25] wrap */
-	    uint32_t out_spbc_comp;           /* qw[25] compress no lzcounts */	  	  
+	    uint32_t out_spbc_comp;           /* qw[25] compress no lzcounts */
 	    uint32_t out_lzcount[LLSZ+DSZ];   /* 286 LL and 30 D symbol counts */
 	    struct {
 		nx_qw_t  out_dht[DHTSZ];      /* qw[25:42] */
@@ -284,7 +284,7 @@ typedef struct {
 	    };
 	};
 	uint32_t out_spbc_comp_with_count;    /* qw[104] compress with lzcounts */
-    }; 
+    };
 } nx_gzip_cpb_t  __attribute__ ((aligned (128)));
 
 typedef struct {
@@ -299,11 +299,11 @@ typedef struct {
 	    union {
 		uint32_t crb_c;
 		/* c==0 no ccb defined */
-		
+
 		uint32_t crb_at;
 		/* at==0 address type is ignored;
- 		   all addrs effective assumed */
-		
+		   all addrs effective assumed */
+
 	    };
 	};
     };
@@ -325,15 +325,15 @@ typedef struct {
 } nx_gzip_crb_cpb_t __attribute__ ((aligned (2048)));
 
 
-/* 
+/*
    NX hardware convention has the msb bit on the left numbered 0.
-   The defines below has *_offset defined as the right most bit 
-   position of a field.  x of size_mask(x) is the field width in bits 
+   The defines below has *_offset defined as the right most bit
+   position of a field.  x of size_mask(x) is the field width in bits
 */
 
 #define size_mask(x)          ((1U<<(x))-1)
 
-/* 
+/*
    Offsets and Widths within the containing 32 bits of the various NX
    gzip hardware registers.  Use the getnn/putnn macros to access
    these regs
@@ -356,7 +356,7 @@ typedef struct {
 #define csb_ce_offset         31
 
 /* CCB */
-    
+
 #define ccb_cm_mask           size_mask(3)
 #define ccb_cm_offset         31
 
@@ -414,16 +414,16 @@ typedef struct {
 #define crb_at_offset         30
 #define csb_address_mask      ~(15UL) /* mask off bottom 4b */
 
-/* 
+/*
    Access macros for the registers.  Do not access registers directly
    because of the endian conversion.  P9 processor may run either as
    Little or Big endian. However the NX coprocessor regs are always
-   big endian.  
+   big endian.
    Use the 32 and 64b macros to access respective
-   register sizes.  
-   Use nn forms for the register fields shorter than 32 bits. 
+   register sizes.
+   Use nn forms for the register fields shorter than 32 bits.
 */
-    
+
 #define getnn( ST, REG )      (( be32toh(ST.REG) >> (31-REG##_offset)) & REG##_mask)
 #define getpnn( ST, REG )     (( be32toh((ST)->REG) >> (31-REG##_offset)) & REG##_mask)
 #define get32( ST, REG )      ( be32toh(ST.REG) )
@@ -450,14 +450,14 @@ typedef struct {
 #define put64( ST, REG, X )   do { ST.REG = htobe64(X);} while(0)
 #define putp64( ST, REG, X )  do { (ST)->REG = htobe64(X);} while(0)
 
-/* 
+/*
    Completion extension ce(0) ce(1) ce(2). Bits ce(3-7)
-   unused. Section 6.6 Figure 6.7 
+   unused. Section 6.6 Figure 6.7
 */
 
 #define get_csb_ce( ST ) ((uint32_t)getnn( ST, csb_ce ))
 #define get_csb_ce_ms3b( ST ) (get_csb_ce( ST ) >> 5)
-#define put_csb_ce_ms3b( ST, X ) do { putnn( ST, csb_ce, ((uint32_t)(X) << 5) ); } while(0) 
+#define put_csb_ce_ms3b( ST, X ) do { putnn( ST, csb_ce, ((uint32_t)(X) << 5) ); } while(0)
 
 #define CSB_CE_PARTIAL         0x4
 #define CSB_CE_TERMINATE       0x2
@@ -492,10 +492,10 @@ typedef struct {
 #define SFBT_DHT    0x6
 #define SFBT_HDR    0x7
 
-/* 
-   NX gzip function codes. Table 6.2. 
-   Bits 0:4 are the FC. Bit 5 is used by the DMA controller to 
-   select one of the two Byte Count Limits 
+/*
+   NX gzip function codes. Table 6.2.
+   Bits 0:4 are the FC. Bit 5 is used by the DMA controller to
+   select one of the two Byte Count Limits
 */
 
 #define GZIP_FC_LIMIT_MASK                               0x01
@@ -518,7 +518,7 @@ typedef struct {
 
 /* CSB.CC Error codes */
 
-#define ERR_NX_OK             0  
+#define ERR_NX_OK             0
 #define ERR_NX_ALIGNMENT      1
 #define ERR_NX_OPOVERLAP      2
 #define ERR_NX_DATA_LENGTH    3
@@ -587,7 +587,7 @@ int nxu_run_sim_job(nx_gzip_crb_cpb_t *c, void *ctx);
 #define clr_final_bit(x) do { x &= ~(unsigned char)1; } while(0)
 
 #define append_empty_fh_blk(p,b) do { *(p) = (2 | (1&(b))); *((p)+1) = 0; } while(0)
-/* append 10 bits 0000001b 00...... ; 
+/* append 10 bits 0000001b 00...... ;
    assumes appending starts on a byte boundary; b is the final bit */
 
 
@@ -607,11 +607,11 @@ typedef struct {
 	    union {
 		uint32_t crb_c;
 		/* c==0 no ccb defined */
-		
+
 		uint32_t crb_at;
-		/* at==0 address type is ignored; 
+		/* at==0 address type is ignored;
 		   all addrs effective assumed */
-		
+
 	    };
 	};
     };
@@ -619,7 +619,7 @@ typedef struct {
     nx_dde_t target_dde;           /* byte[32:47] */
     nx_ccb_t ccb;                  /* byte[48:63] */
     union {
-	nx_qw_t reserved64[3];     /* byte[64:96] */ 
+	nx_qw_t reserved64[3];     /* byte[64:96] */
     };
     nx_csb_t csb;
 } nx_eft_crb_t __attribute__ ((aligned (128)));

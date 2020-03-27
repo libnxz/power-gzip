@@ -312,7 +312,7 @@ int compress_file(int argc, char **argv, void *handle)
 	uint32_t pagelen = 65536;
 	int fault_tries=50;
 
-	cmdp = (void *)(uintptr_t)aligned_alloc(sizeof(nx_gzip_crb_t), sizeof(nx_gzip_crb_cpb_t));
+	cmdp = (void *)(uintptr_t)aligned_alloc(sizeof(nx_gzip_crb_cpb_t), sizeof(nx_gzip_crb_cpb_t));
 
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <fname>\n", argv[0]);

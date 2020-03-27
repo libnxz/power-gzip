@@ -405,7 +405,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	if (c != expect) goto err1;
 
 	int flg = GETINPC(inpf); /* FLG */
-	if (flg & 0b11100000 || flg & 0b100 || flg == EOF) goto err2;
+	if (flg & 0xE0 || flg & 0x4 || flg == EOF) goto err2;
 
 	fprintf(stderr, "gzHeader FLG %x\n", flg);
 
@@ -421,7 +421,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	fprintf(stderr, "gzHeader MTIME, XFL, OS ignored\n");
 
 	/* FNAME */
-	if (flg & 0b1000) {
+	if (flg & 0x8) {
 		int k=0;
 		do {
 			if ((EOF == (c = GETINPC(inpf))) || k >= FNAME_MAX)
@@ -432,7 +432,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	}
 
 	/* FHCRC */
-	if (flg & 0b10) {
+	if (flg & 0x2) {
 		if (EOF == (c = GETINPC(inpf)))
 			goto err3;
 		if (EOF == (c = GETINPC(inpf)))
@@ -827,7 +827,7 @@ ok_cc3:
 	switch (sfbt) {
 		int dhtlen;
 
-	case 0b0000: /* Deflate final EOB received */
+	case 0x0: /* Deflate final EOB received */
 
 		/* Calculating the checksum start position. */
 
@@ -839,8 +839,8 @@ ok_cc3:
 		   indicates where NX has suspended and how to resume
 		   the input stream */
 
-	case 0b1000: /* Within a literal block; use rembytecount */
-	case 0b1001: /* Within a literal block; use rembytecount; bfinal=1 */
+	case 0x8: /* Within a literal block; use rembytecount */
+	case 0x9: /* Within a literal block; use rembytecount; bfinal=1 */
 
 		/* Supply the partially processed source byte again */
 		source_sz = source_sz - ((subc + 7) / 8);
@@ -855,8 +855,8 @@ ok_cc3:
 		putnn(cmdp->cpb, in_rembytecnt, getnn(cmdp->cpb, out_rembytecnt));
 		break;
 
-	case 0b1010: /* Within a FH block; */
-	case 0b1011: /* Within a FH block; bfinal=1 */
+	case 0xA: /* Within a FH block; */
+	case 0xB: /* Within a FH block; bfinal=1 */
 
 		source_sz = source_sz - ((subc + 7) / 8);
 
@@ -867,8 +867,8 @@ ok_cc3:
 		putnn(cmdp->cpb, in_sfbt, sfbt);
 		break;
 
-	case 0b1100: /* Within a DH block; */
-	case 0b1101: /* Within a DH block; bfinal=1 */
+	case 0xC: /* Within a DH block; */
+	case 0xD: /* Within a DH block; bfinal=1 */
 
 		source_sz = source_sz - ((subc + 7) / 8);
 
@@ -895,10 +895,10 @@ ok_cc3:
 		}
 		break;
 
-	case 0b1110: /* Within a block header; bfinal=0; */
-		     /* Also given if source data exactly ends (SUBC=0) with EOB code */
-		     /* with BFINAL=0. Means the next byte will contain a block header. */
-	case 0b1111: /* within a block header with BFINAL=1. */
+	case 0xE: /* Within a block header; bfinal=0; */
+		/* Also given if source data exactly ends (SUBC=0) with EOB code */
+		/* with BFINAL=0. Means the next byte will contain a block header. */
+	case 0xF: /* within a block header with BFINAL=1. */
 
 		source_sz = source_sz - ((subc + 7) / 8);
 
@@ -958,12 +958,12 @@ finish_state:
 		else {
 			/* Compare checksums and exit */
 			int i;
-			char tail[8];
+			unsigned char tail[8];
 			uint32_t cksum, isize;
 			for (i=0; i<8; i++) tail[i] = fifo_in[(cur_in + i) % fifo_in_len];
 			fprintf(stderr, "computed checksum %08x isize %08x\n", cmdp->cpb.out_crc, (uint32_t)(total_out % (1ULL<<32)));
-			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16 | tail[3]<<24);
-			isize = (tail[4] | tail[5]<<8 | tail[6]<<16 | tail[7]<<24);
+			cksum = ((uint32_t)tail[0] | (uint32_t)tail[1]<<8 | (uint32_t)tail[2]<<16 | (uint32_t)tail[3]<<24);
+			isize = ((uint32_t)tail[4] | (uint32_t)tail[5]<<8 | (uint32_t)tail[6]<<16 | (uint32_t)tail[7]<<24);
 			fprintf(stderr, "stored   checksum %08x isize %08x\n", cksum, isize);
 
 			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(total_out % (1ULL<<32))) {

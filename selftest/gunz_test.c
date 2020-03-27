@@ -340,7 +340,8 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	char gzfname[FNAME_MAX];
 
 	/* Queuing, file ops, byte counting */
-	char *fifo_in, *fifo_out;
+	char *fifo_in;
+	char *fifo_out;
 	int used_in, cur_in, used_out, cur_out, read_sz, n;
 	int first_free, last_free, first_used, last_used;
 	int first_offset, last_offset;
@@ -413,8 +414,9 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	   sample code */
 	for (i=0; i<6; i++) {
 		char tmp[10];
-		if (EOF == (tmp[i] = GETINPC(inpf)))
-			goto err3;
+		c = GETINPC(inpf);
+		if (c == EOF) goto err3;
+		tmp[i] = c;
 		fprintf(stderr, "%02x ", tmp[i]);
 		if (i == 5) fprintf(stderr, "\n");
 	}
@@ -424,7 +426,8 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	if (flg & 0x8) {
 		int k=0;
 		do {
-			if ((EOF == (c = GETINPC(inpf))) || k >= FNAME_MAX)
+			c = GETINPC(inpf);
+			if ((c == EOF) || k >= FNAME_MAX)
 				goto err3;
 			gzfname[k++] = c;
 		} while (c);
@@ -433,10 +436,10 @@ int decompress_file(int argc, char **argv, void *devhandle)
 
 	/* FHCRC */
 	if (flg & 0x2) {
-		if (EOF == (c = GETINPC(inpf)))
-			goto err3;
-		if (EOF == (c = GETINPC(inpf)))
-			goto err3;
+		c = GETINPC(inpf);
+		if (c == EOF) goto err3;
+		c = GETINPC(inpf);
+		if (c == EOF) goto err3;
 		fprintf(stderr, "gzHeader FHCRC: ignored\n");
 	}
 

@@ -100,6 +100,8 @@ extern void *nx_function_begin(int function, int pri);
 extern int nx_function_end(void *handle);
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
+#define FNAME_MAX 1024
+#define FEXT ".nx.gz"
 
 /*
    LZ counts returned in the user supplied nx_gzip_crb_cpb_t structure
@@ -298,7 +300,7 @@ static void set_bfinal(void *buf, int bfinal)
 int compress_file(int argc, char **argv, void *handle)
 {
 	char *inbuf, *outbuf, *srcbuf, *dstbuf;
-	char outname[1024];
+	char outname[FNAME_MAX];
 	uint32_t srclen, dstlen;
 	uint32_t flushlen, chunk;
 	size_t inlen, outlen, dsttotlen, srctotlen;
@@ -374,7 +376,6 @@ int compress_file(int argc, char **argv, void *handle)
 
 		/* Page faults are handled by the user code */
 		if (cc == ERR_NX_TRANSLATION) {
-			volatile char touch = *(char *)cmdp->crb.csb.fsaddr;
 			NXPRT( fprintf(stderr, "page fault: cc= %d, try= %d, fsa= %08llx\n", cc, fault_tries, (long long unsigned) cmdp->crb.csb.fsaddr) );
 
 			fault_tries --;
@@ -435,8 +436,9 @@ int compress_file(int argc, char **argv, void *handle)
 	dsttotlen = dsttotlen + 8;
 	outlen    = outlen - 8;
 
+	assert( FNAME_MAX > ( strlen(argv[1]) + strlen(FEXT) ) );
 	strcpy(outname, argv[1]);
-	strcat(outname, ".nx.gz");
+	strcat(outname, FEXT);
 	if (write_output_file(outname, outbuf, dsttotlen)) {
 		fprintf(stderr, "write error: %s\n", outname);
 		exit(-1);

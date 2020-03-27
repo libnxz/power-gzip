@@ -39,7 +39,7 @@
  *
  * Author: Bulent Abali <abali@us.ibm.com>
  *
- * https://github.com/abalib/power-gzip for zlib api and other utils
+ * https://github.com/libnxz/power-gzip for zlib api and other utils
  */
 
 /*

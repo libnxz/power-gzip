@@ -40,4 +40,4 @@ $ sha1sum gzip_vas.c.nx.gz.nx.gunzip gzip_vas.c
 Note that the code here are intended for testing the nx-gzip hardware function.
 They are not intended for demonstrating performance or compression ratio.
 For more information and source code consider using:
-https://github.com/abalib/power-gzip
+https://github.com/libnxz/power-gzip

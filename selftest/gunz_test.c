@@ -93,9 +93,24 @@ FILE *nx_gzip_log = NULL;
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
 
-#define mb()     asm volatile("sync" ::: "memory")
-#define rmb()    asm volatile("lwsync" ::: "memory")
-#define wmb()    rmb()
+#define GETINPC(X) fgetc(X)
+#define FNAME_MAX 1024
+
+/* fifo queue management */
+#define fifo_used_bytes(used) (used)
+#define fifo_free_bytes(used, len) ((len)-(used))
+/* amount of free bytes in the first and last parts */
+#define fifo_free_first_bytes(cur, used, len)  ((((cur)+(used))<=(len))? (len)-((cur)+(used)): 0)
+#define fifo_free_last_bytes(cur, used, len)   ((((cur)+(used))<=(len))? (cur): (len)-(used))
+/* amount of used bytes in the first and last parts */
+#define fifo_used_first_bytes(cur, used, len)  ((((cur)+(used))<=(len))? (used) : (len)-(cur))
+#define fifo_used_last_bytes(cur, used, len)   ((((cur)+(used))<=(len))? 0: ((used)+(cur))-(len))
+/* first and last free parts start here */
+#define fifo_free_first_offset(cur, used)      ((cur)+(used))
+#define fifo_free_last_offset(cur, used, len)  fifo_used_last_bytes(cur, used, len)
+/* first and last used parts start here */
+#define fifo_used_first_offset(cur)            (cur)
+#define fifo_used_last_offset(cur)             (0)
 
 const int fifo_in_len = 1<<24;
 const int fifo_out_len = 1<<24;
@@ -316,29 +331,13 @@ static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 	return cc;
 }
 
-/* fifo queue management */
-#define fifo_used_bytes(used) (used)
-#define fifo_free_bytes(used, len) ((len)-(used))
-/* amount of free bytes in the first and last parts */
-#define fifo_free_first_bytes(cur, used, len)  ((((cur)+(used))<=(len))? (len)-((cur)+(used)): 0)
-#define fifo_free_last_bytes(cur, used, len)   ((((cur)+(used))<=(len))? (cur): (len)-(used))
-/* amount of used bytes in the first and last parts */
-#define fifo_used_first_bytes(cur, used, len)  ((((cur)+(used))<=(len))? (used) : (len)-(cur))
-#define fifo_used_last_bytes(cur, used, len)   ((((cur)+(used))<=(len))? 0: ((used)+(cur))-(len))
-/* first and last free parts start here */
-#define fifo_free_first_offset(cur, used)      ((cur)+(used))
-#define fifo_free_last_offset(cur, used, len)  fifo_used_last_bytes(cur, used, len)
-/* first and last used parts start here */
-#define fifo_used_first_offset(cur)            (cur)
-#define fifo_used_last_offset(cur)             (0)
-
 int decompress_file(int argc, char **argv, void *devhandle)
 {
 	FILE *inpf;
 	FILE *outf;
 
 	int c, expect, i, cc, rc = 0;
-	char gzfname[1024];
+	char gzfname[FNAME_MAX];
 
 	/* Queuing, file ops, byte counting */
 	char *fifo_in, *fifo_out;
@@ -384,7 +383,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 		}
 
 		/* Make a new file name to write to; ignoring .gz stored name */
-		wp = ( NULL != (wp = strrchr(argv[1], '/')) ) ? ++wp : argv[1];
+		wp = ( NULL != (wp = strrchr(argv[1], '/')) ) ? (wp+1) : argv[1];
 		strcpy(w, wp);
 		strcat(w, ".nx.gunzip");
 
@@ -394,8 +393,6 @@ int decompress_file(int argc, char **argv, void *devhandle)
 			return -1;
 		}
 	}
-
-#define GETINPC(X) fgetc(X)
 
 	/* Decode the gzip header */
 	c = GETINPC(inpf); expect = 0x1f; /* ID1 */
@@ -408,7 +405,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	if (c != expect) goto err1;
 
 	int flg = GETINPC(inpf); /* FLG */
-	if (flg & 0b11100000 || flg & 0b100) goto err2;
+	if (flg & 0b11100000 || flg & 0b100 || flg == EOF) goto err2;
 
 	fprintf(stderr, "gzHeader FLG %x\n", flg);
 
@@ -427,7 +424,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	if (flg & 0b1000) {
 		int k=0;
 		do {
-			if (EOF == (c = GETINPC(inpf)))
+			if ((EOF == (c = GETINPC(inpf))) || k >= FNAME_MAX)
 				goto err3;
 			gzfname[k++] = c;
 		} while (c);
@@ -436,7 +433,10 @@ int decompress_file(int argc, char **argv, void *devhandle)
 
 	/* FHCRC */
 	if (flg & 0b10) {
-		c = GETINPC(inpf); c = GETINPC(inpf);
+		if (EOF == (c = GETINPC(inpf)))
+			goto err3;
+		if (EOF == (c = GETINPC(inpf)))
+			goto err3;
 		fprintf(stderr, "gzHeader FHCRC: ignored\n");
 	}
 
@@ -907,6 +907,10 @@ ok_cc3:
 		cmdp->cpb.in_sfbt = 0;
 		putnn(cmdp->cpb, in_subc, subc % 8);
 		putnn(cmdp->cpb, in_sfbt, sfbt);
+
+		/* Engine did not process any data */
+		if (is_eof && (source_sz == 0))
+			is_final = 1;
 	}
 
 offsets_state:
@@ -987,7 +991,7 @@ err3:
 	return -1;
 
 err4:
-	fprintf(stderr, "error: checksum\n");
+	fprintf(stderr, "error: checksum missing or mismatch\n");
 
 err5:
 ok1:

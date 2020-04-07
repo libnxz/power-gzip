@@ -58,6 +58,7 @@ LIBNXZ_0.61.0 {
     nx_touch_pages_dde;
     nx_append_dde;
     nx_print_dde;
+    nx_wait_ticks;
     gzip_header_blank;
     fill_zero_lzcounts;
     fill_zero_len_dist;

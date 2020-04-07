@@ -1397,14 +1397,13 @@ static inline int nx_compress_block_append_flush_block(nx_streamp s)
    limit is the max input data to compress: set limit=0 for unlimited  */
 static int nx_compress_block(nx_streamp s, int fc, int limit)
 {
-	uint32_t bytes_in, bytes_out;
+	uint32_t bytes_in, bytes_out, resume_len;
 	nx_gzip_crb_cpb_t *nxcmdp;
-	int cc, pgfault_retries;
+	int cc, timeout_pgfaults, rc = LIBNX_OK;
 	nx_dde_t *ddl_in, *ddl_out;
 	long pgsz;
-	uint32_t resume_len;
+	uint64_t ticks_total = 0;
 	char *resume_buf;
-	int rc = LIBNX_OK;
 
 	prt_info("%s:%d fc %d, limit %d\n", __FUNCTION__, __LINE__, fc, limit);
 
@@ -1415,6 +1414,7 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	ddl_in = s->ddl_in;
 	ddl_out = s->ddl_out;
 	pgsz = s->page_sz;
+	timeout_pgfaults = nx_config.timeout_pgfaults;
 
 	put32(nxcmdp->crb, gzip_fc, 0);
 	putnn(nxcmdp->crb, gzip_fc, fc);
@@ -1444,8 +1444,6 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 
 	/* Tell NX size of the history (resume) buffer; needs to be 16 byte integral */
 	putnn(nxcmdp->cpb, in_histlen, resume_len/sizeof(nx_qw_t));
-
-	pgfault_retries = nx_config.pgfault_retries;
 
 	/* setup ddes */
 	bytes_in = nx_compress_nxstrm_to_ddl_in(s, resume_buf, resume_len);
@@ -1480,20 +1478,20 @@ restart:
 
 	switch (cc) {
 	case ERR_NX_TRANSLATION:
-		prt_warn("ERR_NX_TRANSLATION: pgfault_retries %d bytes_in %d nxcmdp->crb.csb.fsaddr %p\n",
-			pgfault_retries, bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
+		prt_warn("ERR_NX_TRANSLATION: bytes_in %d nxcmdp->crb.csb.fsaddr %p\n",
+			bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
 
 #ifdef NX_LOG_SOURCE_TARGET
 		nx_print_dde(ddl_in, "source");
 		nx_print_dde(ddl_out, "target");
 #endif
 
-		if (pgfault_retries == nx_config.pgfault_retries) {
+		if (ticks_total == 0) {
 			/* try once with exact number of pages */
-			--pgfault_retries;
+			ticks_total = nx_wait_ticks(500, ticks_total, 0);
 			goto restart;
 		}
-		else if (pgfault_retries > 0) {
+		else if (ticks_total > 0) {
 			/* Try fewer input pages assuming memory has
 			   pressure; these should reduce touched pages
 			   to a maximum 3 pages plus the resume page */
@@ -1512,15 +1510,20 @@ restart:
 			else if (bytes_out > DEF_MAX_EXPANSION_LEN)
 				bytes_out = DEF_MAX_EXPANSION_LEN;
 
-			--pgfault_retries;
-			prt_warn("ERR_NX_TRANSLATION: more retry, %d\n", pgfault_retries);
-			goto restart;
-		}
-		else {
-			/* When page faults are too many oom_killer should kill this process. */
-			rc = LIBNX_ERR_PAGEFLT;
-			prt_err("cannot make progress; too many page fault retries\n");
-			goto err_exit;
+			ticks_total = nx_wait_ticks(500, ticks_total, 0);
+			if (ticks_total > (timeout_pgfaults
+			    * __ppc_get_timebase_freq())) {
+				/* When page faults are too many oom_killer
+				 * should kill this process. */
+				rc = LIBNX_ERR_PAGEFLT;
+				prt_err("Cannot make progress; ");
+				prt_err("too many page faults!\n");
+				goto err_exit;
+			}
+			else {
+				prt_warn("ERR_NX_TRANSLATION: Retry again\n");
+				goto restart;
+			}
 		}
 
 	case ERR_NX_DATA_LENGTH:

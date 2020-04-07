@@ -71,7 +71,7 @@ int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
 int nx_gzip_chip_num = -1;
 
-int nx_gzip_trace = 0x0;		/* no trace by default */
+int nx_gzip_trace = 0x4;		/* enable minimal sw trace */
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
 int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 
@@ -500,6 +500,7 @@ nx_devp_t nx_open(int nx_id)
 		nx_devp = &nx_devices[ nx_dev_count ];
 		nx_devp->vas_handle = vas_handle;
 		++ nx_dev_count;
+		sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
 	}
 	else {
 		/* vas is already open; threads will reuse it */
@@ -831,13 +832,14 @@ void nx_hw_init(void)
 	}
 
 	/* add a signal action */
+/* JVM handles all signals. nx-zlib will not handle sig 11.
 	act.sa_handler = 0;
 	act.sa_sigaction = sigsegv_handler;
 	act.sa_flags = SA_SIGINFO;
 	act.sa_restorer = 0;
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
-
+*/
 	nx_init_done = 1;
 }
 
@@ -853,10 +855,10 @@ void nx_hw_done(void)
 {
 	int flags = (nx_gzip_inflate_flags | nx_gzip_deflate_flags);
 
+	nx_close_all();
+	
 	if (!!nx_gzip_log) fflush(nx_gzip_log);
 	fflush(stderr);
-
-	nx_close_all();
 
 	if (nx_gzip_log != stderr) {
 		nx_gzip_log = NULL;

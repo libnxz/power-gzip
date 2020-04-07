@@ -213,7 +213,6 @@ static int inline append_sync_flush(char *buf, uint32_t tebc, int final)
 {
 	uint64_t flush;
 	int32_t shift = (tebc & 0x7);
-	prt_info("%s tebc %d final %d\n", __FUNCTION__, tebc, final);
 	if (tebc > 0) {
 		/* last byte is partially full */
 		buf = buf - 1;
@@ -318,7 +317,7 @@ static int append_spanning_flush(nx_streamp s, int flush, uint32_t tebc, int fin
 		ptr += nb;
 		nb  += append_partial_flush(ptr, &next_tebc, final);
 		/* save partial last byte bit count for later */
-		s->tebc = next_tebc;
+		s->tebc = next_tebc; 
 	}
 	else return 0;
 
@@ -892,7 +891,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	return rc;
 }
 
-/*
+/* 
  * if fifo_out has data waiting, copy used_out bytes to the next_out first.
  */
 static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
@@ -1736,9 +1735,10 @@ int nx_deflate(z_streamp strm, int flush)
 		if (s->flush == Z_FINISH) {
 			goto s1;
 		}
-		else if (s->flush == Z_NO_FLUSH)
+		else if (s->flush == Z_NO_FLUSH) {
+			prt_info("%s:%d, return Z_BUF_ERROR\n", __FUNCTION__, __LINE__);
 			return Z_BUF_ERROR;
-		else if (s->flush == Z_PARTIAL_FLUSH || s->flush == Z_SYNC_FLUSH || s->flush == Z_FULL_FLUSH)
+		} else if (s->flush == Z_PARTIAL_FLUSH || s->flush == Z_SYNC_FLUSH || s->flush == Z_FULL_FLUSH)
 			return Z_OK;
 	}
 
@@ -1986,6 +1986,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	uint32_t adler;
 	int cc;
 
+	sw_trace("%s\n", __FUNCTION__);
 	if (dictionary == NULL || strm == NULL)
 		return Z_STREAM_ERROR;
 

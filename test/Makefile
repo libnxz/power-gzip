@@ -18,7 +18,7 @@ TEST_OBJS = $(sort $(obj_test_deflate) $(obj_test_inflate) $(obj_test_stress) \
     $(obj_test_crc32) $(obj_test_adler32) $(obj_test_multithread_stress))
 EXE = test_inflate test_deflate test_stress test_crc32 test_adler32 test_multithread_stress
 
-all: $(EXE)
+all:
 
 check: $(EXE)
 	./run_test.sh

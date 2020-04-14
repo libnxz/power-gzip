@@ -9,6 +9,9 @@ $(subdirs):
 		$(MAKE) -C $@ || exit 1;	 	\
 	fi
 
+bench: $(subdirs)
+	$(MAKE) -C samples $@
+
 check:  $(subdirs)
 	$(MAKE) -C test $@
 
@@ -18,4 +21,3 @@ clean:
 			$(MAKE) -C $$dir $@ || exit 1;	\
 		fi					\
 	done
-

@@ -10,7 +10,9 @@ DHT_O = gzip_nxdht.o gzip_vas.o nx_dht.o nx_dht_builtin.o nx_dhtgen.o
 FHT_O = gzip_nxfht.o gzip_vas.o
 GUN_O = gunzip_nx.o gzip_vas.o
 
-all:	$(TESTS) zpipe gzm nx_gzip
+all:
+
+bench: $(TESTS) zpipe gzm nx_gzip
 
 gzip_vas.o:	../lib/gzip_vas.c
 	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../lib/gzip_vas.c

@@ -827,7 +827,7 @@ static int print_nx_env(FILE *fp)
 	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY");
 	char *csb_poll_max = getenv("NX_GZIP_CSB_POLL_MAX");
 	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES");
-	char *pgfault_retries = getenv("NX_GZIP_PGFAULT_RETRIES");
+	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
 
 	fprintf(fp, "env variables ==============\n");
 	if (cfg_file_s)
@@ -856,8 +856,9 @@ static int print_nx_env(FILE *fp)
 		fprintf(fp, "NX_GZIP_CSB_POLL_MAX: \'%s\'\n", csb_poll_max);
 	if (paste_retries)
 		fprintf(fp, "NX_GZIP_PASTE_RETRIES: \'%s\'\n", paste_retries);
-	if (pgfault_retries)
-		fprintf(fp, "NX_GZIP_PGFAULT_RETRIES: \'%s\'\n", pgfault_retries);
+	if (timeout_pgfaults)
+		fprintf(fp, "NX_GZIP_TIMEOUT_PGFAULTS: \'%s\'\n",
+		        timeout_pgfaults);
 
 	return 0;
 }
@@ -879,7 +880,7 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "mlock_csb: %d\n", nx_config.mlock_nx_crb_csb);
 	fprintf(fp, "dis_savedevp: %d\n", disable_saved_nx_devp);
 	fprintf(fp, "csb_poll_max: %d\n", nx_config.csb_poll_max);
-	fprintf(fp, "pgfault_retries: %d\n", nx_config.pgfault_retries);
+	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
 	fprintf(fp, "paste_retries: %d\n", nx_config.paste_retries);
 
 	return 0;
@@ -916,7 +917,7 @@ void nx_hw_init(void)
 	char *csb_poll_max = getenv("NX_GZIP_CSB_POLL_MAX"); /* maximum poll number before wait_for_csb() timeout */
 	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES"); /* number of retries if vas_paste() failed */
 	/* number of retries if nx_submit_job() returns ERR_NX_TRANSLATION */
-	char *pgfault_retries = getenv("NX_GZIP_PGFAULT_RETRIES");
+	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
 
 	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
@@ -939,7 +940,7 @@ void nx_hw_init(void)
 	nx_config.mlock_nx_crb_csb = 0;
 	nx_config.csb_poll_max = 2000000; /* est. 120 seconds */
 	nx_config.paste_retries = 5000;
-	nx_config.pgfault_retries = INT_MAX;
+	nx_config.timeout_pgfaults = 300; /* seconds */
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;
 
@@ -975,8 +976,9 @@ void nx_hw_init(void)
 			csb_poll_max = nx_get_cfg("csb_poll_max", &cfg_tab);
 		if (!paste_retries)
 			paste_retries = nx_get_cfg("paste_retries", &cfg_tab);
-		if (!pgfault_retries)
-			pgfault_retries = nx_get_cfg("pgfault_retries", &cfg_tab);
+		if (!timeout_pgfaults)
+			timeout_pgfaults = nx_get_cfg("timeout_pgfaults",
+							&cfg_tab);
 	}
 
 	/* log file should be initialized first*/
@@ -1085,10 +1087,8 @@ void nx_hw_init(void)
 			nx_config.paste_retries = 1;
 	}
 
-	if (pgfault_retries) {
-		nx_config.pgfault_retries = str_to_num(pgfault_retries);
-		if (nx_config.pgfault_retries < 1)
-			nx_config.pgfault_retries = 1;
+	if (timeout_pgfaults) {
+		nx_config.timeout_pgfaults = str_to_num(timeout_pgfaults);
 	}
 
 	/* add a signal action */
@@ -1163,10 +1163,10 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
 {
 	nx_gzip_crb_cpb_t cmd;
-	int cc;
-	int pgfault_retries;
+	int cc, timeout_pgfaults;
+	uint64_t ticks_total = 0;
 
-	pgfault_retries = nx_config.pgfault_retries;
+	timeout_pgfaults = nx_config.timeout_pgfaults;
 
 	ASSERT(!!dst && !!src && len > 0);
 
@@ -1198,8 +1198,9 @@ static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, u
 		if (!!crc) *crc     = get32( cmd.cpb, out_crc );
 		if (!!adler) *adler = get32( cmd.cpb, out_adler );
 	}
-	else if ((cc == ERR_NX_TRANSLATION) && (pgfault_retries > 0)) {
-		--pgfault_retries;
+	else if ((cc == ERR_NX_TRANSLATION) && (ticks_total > (timeout_pgfaults
+			    * __ppc_get_timebase_freq()))) {
+		ticks_total = nx_wait_ticks(500, ticks_total, 0);
 		goto restart_copy;
 	}
 

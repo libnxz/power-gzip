@@ -175,7 +175,8 @@ int nx_function_end(void *handle)
    the function may usleep() for about 1/4 of the accumulated time to
    reduce cpu utilization
 */
-static uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int do_sleep)
+uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks,
+			int do_sleep)
 {
 	uint64_t ts, te, mhz, sleep_overhead, sleep_threshold;
 

@@ -885,9 +885,11 @@ static int nx_inflate_(nx_streamp s, int flush)
 	nx_dde_t *ddl_in = s->ddl_in;
 	nx_dde_t *ddl_out = s->ddl_out;
 
-	int pgfault_retries, target_space_retries, partial_bits=0;
-	int cc, rc;
+	uint64_t ticks_total = 0;
+	int cc, rc, timeout_pgfaults, partial_bits=0;
 	int nx_history_len; /* includes dictionary and history going in to nx-gzip */
+
+	timeout_pgfaults = nx_config.timeout_pgfaults;
 
 	print_dbg_info(s, __LINE__);
 
@@ -1130,12 +1132,6 @@ copy_fifo_out_to_next_out:
 	/* add the history back */
 	source_sz = source_sz + nx_history_len;
 
-	/* Some NX condition codes require submitting the NX job
-	  again. Kernel doesn't fault-in NX page faults. Expects user
-	  code to touch pages */
-	pgfault_retries = nx_config.pgfault_retries;
-	target_space_retries = 0;
-
 restart_nx:
 
 	putp32(ddl_in, ddebc, source_sz);
@@ -1160,22 +1156,19 @@ restart_nx:
 		   faulting address to fsaddr */
 		print_dbg_info(s, __LINE__);
 
-		/* Touch 1 byte, read-only  */
-		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
-		/* get64 does the endian conversion */
-
-		prt_warn("ERR_NX_TRANSLATION: pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
-			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz);
+		prt_warn("ERR_NX_TRANSLATION: crb.csb.fsaddr %p source_sz %d ",
+			 (void *)cmdp->crb.csb.fsaddr, source_sz);
+		prt_warn("target_sz %d\n", target_sz);
 #ifdef NX_LOG_SOURCE_TARGET
 		nx_print_dde(ddl_in, "source");
 		nx_print_dde(ddl_out, "target");
 #endif
-		if (pgfault_retries == nx_config.pgfault_retries) {
+		if (ticks_total == 0) {
 			/* try once with exact number of pages */
-			--pgfault_retries;
+			ticks_total = nx_wait_ticks(500, ticks_total, 0);
 			goto restart_nx;
 		}
-		else if (pgfault_retries > 0) {
+		else {
 			/* if still faulting try fewer input pages *
 			   assuming memory outage; */
 			ASSERT( source_sz > nx_history_len );
@@ -1200,16 +1193,20 @@ restart_nx:
 			else if (target_sz > INF_MAX_EXPANSION_BYTES)
 				target_sz = INF_MAX_EXPANSION_BYTES;
 
-			--pgfault_retries;
-			prt_warn("ERR_NX_TRANSLATION: more retry, %d\n", pgfault_retries);
-			goto restart_nx;
-		}
-		else {
-			/* TODO what to do when page faults are too many?
-			   Kernel MM would have killed the process. */
-			prt_err("cannot make progress; too many page fault retries cc= %d\n", cc);
-			rc = Z_ERRNO;
-			goto err5;
+			ticks_total = nx_wait_ticks(500, ticks_total, 0);
+			if (ticks_total > (timeout_pgfaults
+			    * __ppc_get_timebase_freq())) {
+			   /* TODO what to do when page faults are too many?
+			    * Kernel MM would have killed the process. */
+				prt_err("Cannot make progress; too many page");
+				prt_err(" faults cc= %d\n", cc);
+				rc = Z_ERRNO;
+				goto err5;
+			}
+			else {
+				prt_warn("ERR_NX_TRANSLATION: more retry\n");
+				goto restart_nx;
+			}
 		}
 
 	case ERR_NX_DATA_LENGTH:
@@ -1262,7 +1259,6 @@ restart_nx:
 		   bytes */
 
 		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, nx_history_len);
-		target_space_retries++;
 		goto restart_nx;
 
 	case ERR_NX_OK:

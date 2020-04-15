@@ -113,7 +113,7 @@ struct nx_config_t {
 	int 	 deflate_fifo_in_len;
 	int 	 deflate_fifo_out_len;
 	int      window_max;
-	int      pgfault_retries;
+	int      timeout_pgfaults;
 	int      verbose;
 	int      mlock_nx_crb_csb;
 	int      csb_poll_max;
@@ -465,6 +465,7 @@ static inline double nxtime_to_us(uint64_t nxtime)
 extern void *nx_fault_storage_address;
 extern void *nx_function_begin(int function, int pri);
 extern int nx_function_end(void *vas_handle);
+extern uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int do_sleep);
 
 /* zlib crc32.c and adler32.c */
 extern unsigned long nx_crc32_combine(unsigned long crc1, unsigned long crc2, uint64_t len2);

@@ -4,6 +4,17 @@ plotfn=nx-log.log
 TS=$(date +"%F-%H-%M-%S")
 run_series_report=run_series_report_${TS}.csv
 
+if [[ $# < 1 ]]; then
+    echo "$0 needs a file as argument."
+    exit 1
+fi
+
+if [[ $2 == "unsafe" ]]; then
+    unsafe=true
+else
+    unsafe=false
+fi
+
 for th in 1 4 16 32 64 80
 do
     for a in `seq 0 2 20`  # size
@@ -27,3 +38,9 @@ done
 for i in 1 4 16 32 64 80; do
     grep "Total uncompress" $plotfn | grep "threads $i," | awk '{print "uncompress,"$11 $7 $5 }' >> ${run_series_report}
 done
+
+# Stress test for a system checkstop on kernel.
+if $unsafe; then
+    head -c 1048576 $1 > junk2; # 1 Mb
+    NX_GZIP_PASTE_RETRIES=200 ./compdecomp_th junk2 400 24
+fi

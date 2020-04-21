@@ -12,6 +12,9 @@ $(subdirs):
 check:  $(subdirs)
 	$(MAKE) -C test $@
 
+unsafe-check:  $(subdirs)
+	$(MAKE) -C test $@
+
 clean:
 	@for dir in $(subdirs); do 			\
 		if [ -d $$dir ]; then			\

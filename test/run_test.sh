@@ -21,7 +21,7 @@ if [ $? -ne 0 ]; then
     exit 1;
 fi
 echo "running test_stress..."
-NX_GZIP_CSB_POLL_MAX=200 ./test_stress  >> $run_test_log 2>&1
+./test_stress  >> $run_test_log 2>&1
 echo "running test_crc32..."
 ./test_crc32   >> $run_test_log 2>&1
 if [ $? -ne 0 ]; then

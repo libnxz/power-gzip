@@ -1,16 +1,22 @@
-include ../config.mk
-
+CC = gcc
 CFLAGS = -O3
 INC = ./inc
+SRC = gzfht_test.c gunz_test.c
+OBJ = $(SRC:.c=.o)
 TESTS = gzfht_test gunz_test
+EXTRA_SOURCES = gzip_vas.c
 
 all:	$(TESTS)
 
-gzfht_test:	gzfht_test.c
-	$(CC) $(CFLAGS)  -DNX_NO_CPU_PRI -I$(INC) -o gzfht_test gzfht_test.c gzip_vas.c
+$(OBJ): %.o: %.c
+	$(CC) $(CFLAGS) -I$(INC) -c $<
 
-gunz_test:	gunz_test.c
-	$(CC) $(CFLAGS)  -DNX_NO_CPU_PRI -I$(INC) -o gunz_test gunz_test.c gzip_vas.c
+$(TESTS): $(OBJ)
+	$(CC) $(CFLAGS) -I$(INC) -o $@ $@.o $(EXTRA_SOURCES)
+
+run_tests: $(TESTS)
+	./gzfht_test gzip_vas.c
+	./gunz_test gzip_vas.c.nx.gz
 
 clean:
-	rm -f $(TESTS) *.o *~
+	rm -f $(TESTS) *.o *~ *.gz *.gunzip

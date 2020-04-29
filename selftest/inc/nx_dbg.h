@@ -1,5 +1,5 @@
 /*
- * Copyright (C) IBM Corporation, 2011-2017
+ * Copyright (C) IBM Corporation, 2011-2020
  *
  * Licenses for GPLv2 and Apache v2.0:
  *
@@ -40,7 +40,7 @@
 #include <time.h>
 #include <pthread.h>
 
-extern FILE *nx_gzip_log;
+extern FILE * nx_gzip_log;
 extern int nx_gzip_trace;
 extern unsigned int nx_gzip_inflate_impl;
 extern unsigned int nx_gzip_deflate_impl;
@@ -57,9 +57,9 @@ pthread_mutex_t mutex_log;
 #define nx_gzip_per_stream_stat()     (nx_gzip_trace & 0x10)
 
 #define prt(fmt, ...) do { \
-	pthread_mutex_lock (&mutex_log);				\
+	pthread_mutex_lock(&mutex_log);					\
 	flock(nx_gzip_log->_fileno, LOCK_EX);				\
-	time_t t; struct tm* m; time(&t); m=localtime(&t);		\
+	time_t t; struct tm *m; time(&t); m = localtime(&t);		\
 	fprintf(nx_gzip_log, "[%04d/%02d/%02d %02d:%02d:%02d] "		\
 		"pid %d: " fmt,	\
 		(int)m->tm_year + 1900, (int)m->tm_mon+1, (int)m->tm_mday, \
@@ -67,8 +67,8 @@ pthread_mutex_t mutex_log;
 		(int)getpid(), ## __VA_ARGS__);				\
 	fflush(nx_gzip_log);						\
 	flock(nx_gzip_log->_fileno, LOCK_UN);				\
-	pthread_mutex_unlock (&mutex_log);				\
-} while(0)
+	pthread_mutex_unlock(&mutex_log);				\
+} while (0)
 
 /* Use in case of an error */
 #define prt_err(fmt, ...) do { if (nx_dbg >= 0) {			\

@@ -89,9 +89,9 @@
 
 #define NXQWSZ  (sizeof(nx_qw_t))
 
-extern FILE *nx_gzip_log;
-extern FILE *nx_gzip_critical_log;
+#ifdef NX_LOG_SOURCE_TARGET
 void nx_print_dde(nx_dde_t *ddep, const char *msg);
+#endif
 
 /* common config variables for all streams */
 struct nx_config_t {

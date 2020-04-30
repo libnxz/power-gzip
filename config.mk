@@ -5,7 +5,7 @@ LD = $(shell which ld)
 ## Common flags
 FLG    = -std=gnu11
 SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
-ZLIB   = -DZLIB_API
+ZLIB_API = YES
 
 ## Compiler related flags
 GCC_VER = $(shell $(CC) -dumpversion)
@@ -15,5 +15,5 @@ ifeq "$(shell expr $(GCC_VER_MAIN) \>= 6)" "1"
     SFLAGS += -mcpu=power9
 endif
 
-CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) #-DNXTIMER
+CFLAGS = $(FLG) $(SFLAGS) #-DNXTIMER
 

@@ -54,7 +54,6 @@
 #include "nx-gzip.h"
 #include "crb.h"
 #include "nx.h"
-#include "nx-842.h"
 #include "nx-helpers.h"
 #include "copy-paste.h"
 #include "nxu.h"

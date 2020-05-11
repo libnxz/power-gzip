@@ -1,5 +1,5 @@
 /*
- * Copyright (C) IBM Corporation, 2011-2017
+ * Copyright (C) IBM Corporation, 2011-2020
  *
  * Licenses for GPLv2 and Apache v2.0:
  *
@@ -30,27 +30,36 @@
  * limitations under the License.
  *
  */
+#ifndef _NX_H
+#define _NX_H
+
+#include <stdbool.h>
 
 #define	NX_FUNC_COMP_842	1
 #define NX_FUNC_COMP_GZIP	2
 
-typedef int bool;
+#ifndef __aligned
+#define __aligned(x)	__attribute__((aligned(x)))
+#endif
 
 struct nx842_func_args {
 	bool use_crc;
-	bool decompress;		/* true: decompress; false compress */
+	bool decompress;		/* true decompress; false compress */
 	bool move_data;
 	int timeout;			/* seconds */
 };
 
-typedef struct {
+struct nxbuf_t {
 	int len;
 	char *buf;
-} nxbuf_t;
+};
 
 /* @function should be EFT (aka 842), GZIP etc */
-extern void *nx_function_begin(int function, int pri);
+void *nx_function_begin(int function, int pri);
 
-extern int nx_function(void *handle, nxbuf_t *in, nxbuf_t *out, void *arg);
+int nx_function(void *handle, struct nxbuf_t *in, struct nxbuf_t *out,
+		void *arg);
 
-extern int nx_function_end(void *handle);
+int nx_function_end(void *handle);
+
+#endif	/* _NX_H */

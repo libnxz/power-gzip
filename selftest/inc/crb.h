@@ -1,18 +1,7 @@
 #ifndef __CRB_H
 #define __CRB_H
 #include <linux/types.h>
-
-#if 0
-typedef u64 __be64;
-//typedef unsigned short __be16;
-typedef unsigned int __be32;
-#endif
-
-typedef unsigned char u8;
-typedef unsigned int u32;
-typedef unsigned long long u64;
-
-/* From nx-842.h */
+#include "nx.h"
 
 /* CCW 842 CI/FC masks
  * NX P8 workbook, section 4.3.1, figure 4-6
@@ -20,19 +9,6 @@ typedef unsigned long long u64;
  */
 #define CCW_CI_842              (0x00003ff8)
 #define CCW_FC_842              (0x00000007)
-
-/* end - nx-842.h */
-
-
-#ifndef __aligned
-#define __aligned(x)            __attribute__((aligned(x)))
-#endif
-
-#ifndef __packed
-#define __packed        __attribute__((packed))
-#endif
-
-
 
 /* Chapter 6.5.8 Coprocessor-Completion Block (CCB) */
 
@@ -50,15 +26,10 @@ typedef unsigned long long u64;
 #define CCB_SIZE		(0x10)
 #define CCB_ALIGN		CCB_SIZE
 
-#if 0
-#define	CCW_FC_842_COMP_NOCRC	0
-#define	CCW_FC_842_COMP_CRC	1
-#endif
-
 struct coprocessor_completion_block {
 	__be64 value;
 	__be64 address;
-} __packed __aligned(CCB_ALIGN);
+} __aligned(CCB_ALIGN);
 
 
 /* Chapter 6.5.7 Coprocessor-Status Block (CSB) */
@@ -101,13 +72,13 @@ struct coprocessor_completion_block {
 #define CSB_ALIGN		CSB_SIZE
 
 struct coprocessor_status_block {
-	u8 flags;
-	u8 cs;
-	u8 cc;
-	u8 ce;
+	__u8 flags;
+	__u8 cs;
+	__u8 cc;
+	__u8 ce;
 	__be32 count;
 	__be64 address;
-} __packed __aligned(CSB_ALIGN);
+} __aligned(CSB_ALIGN);
 
 
 /* Chapter 6.5.10 Data-Descriptor List (DDL)
@@ -121,26 +92,17 @@ struct coprocessor_status_block {
 
 struct data_descriptor_entry {
 	__be16 flags;
-	u8 count;
-	u8 index;
+	__u8 count;
+	__u8 index;
 	__be32 length;
 	__be64 address;
-} __packed __aligned(DDE_ALIGN);
+} __aligned(DDE_ALIGN);
 
 
 /* Chapter 6.5.2 Coprocessor-Request Block (CRB) */
 
 #define CRB_SIZE		(0x80)
 #define CRB_ALIGN		(0x100) /* Errata: requires 256 alignment */
-
-#if 0
-/* CCW 842 CI/FC masks
- *  * NX P8 workbook, section 4.3.1, figure 4-6
- *   * "CI/FC Boundary by NX CT type"
- *    */
-#define CCW_CI_842              (0x00003ff8)
-#define CCW_FC_842              (0x00000007)
-#endif
 
 
 /* Coprocessor Status Block field
@@ -164,16 +126,16 @@ struct coprocessor_request_block {
 
 	struct coprocessor_completion_block ccb;
 
-	u8 reserved[48];
+	__u8 reserved[48];
 
 	struct coprocessor_status_block csb;
-} __packed __aligned(CRB_ALIGN);
+} __aligned(CRB_ALIGN);
 
 #define crb_csb_addr(c)         __be64_to_cpu(c->csb_addr)
 #define crb_nx_fault_addr(c)    __be64_to_cpu(c->stamp.nx.fault_storage_addr)
 #define crb_nx_flags(c)         c->stamp.nx.flags
 #define crb_nx_fault_status(c)  c->stamp.nx.fault_status
-#define crb_nx_pswid(c)		c->stamp.nx.pswid;
+#define crb_nx_pswid(c)		c->stamp.nx.pswid
 
 
 /* RFC02167 Initiate Coprocessor Instructions document

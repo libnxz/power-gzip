@@ -1,5 +1,5 @@
 /*
- * Copyright (C) IBM Corporation, 2011-2017
+ * Copyright (C) IBM Corporation, 2011-2020
  *
  * Licenses for GPLv2 and Apache v2.0:
  *
@@ -48,15 +48,13 @@ extern unsigned int nx_gzip_inflate_flags;
 extern unsigned int nx_gzip_deflate_flags;
 
 extern int nx_dbg;
-pthread_mutex_t mutex_log;
+extern pthread_mutex_t mutex_log;
 
 #define nx_gzip_trace_enabled()       (nx_gzip_trace & 0x1)
 #define nx_gzip_hw_trace_enabled()    (nx_gzip_trace & 0x2)
 #define nx_gzip_sw_trace_enabled()    (nx_gzip_trace & 0x4)
-#define nx_gzip_gather_stats()   (nx_gzip_trace & 0x8)
+#define nx_gzip_gather_statistics()   (nx_gzip_trace & 0x8)
 #define nx_gzip_per_stream_stat()     (nx_gzip_trace & 0x10)
-// old, will remove
-#define nx_gzip_gather_statistics()   (0)
 
 #define prt_timestamp(F) do {	\
 	time_t t; struct tm* m; time(&t); m=localtime(&t);	\
@@ -66,17 +64,18 @@ pthread_mutex_t mutex_log;
 } while(0)
 
 #define prt(fmt, ...) do { \
-	if (nx_gzip_log) { \
-		pthread_mutex_lock (&mutex_log);				\
-		flock(nx_gzip_log->_fileno, LOCK_EX);				\
-		prt_timestamp(nx_gzip_log);					\
-		fprintf(nx_gzip_log, "pid %d: " fmt,				\
-			(int)getpid(), ## __VA_ARGS__);				\
-		fflush(nx_gzip_log);						\
-		flock(nx_gzip_log->_fileno, LOCK_UN);				\
-		pthread_mutex_unlock (&mutex_log);				\
-	} \
-} while(0)
+	pthread_mutex_lock(&mutex_log);					\
+	flock(nx_gzip_log->_fileno, LOCK_EX);				\
+	time_t t; struct tm *m; time(&t); m = localtime(&t);		\
+	fprintf(nx_gzip_log, "[%04d/%02d/%02d %02d:%02d:%02d] "		\
+		"pid %d: " fmt,	\
+		(int)m->tm_year + 1900, (int)m->tm_mon+1, (int)m->tm_mday, \
+		(int)m->tm_hour, (int)m->tm_min, (int)m->tm_sec,	\
+		(int)getpid(), ## __VA_ARGS__);				\
+	fflush(nx_gzip_log);						\
+	flock(nx_gzip_log->_fileno, LOCK_UN);				\
+	pthread_mutex_unlock(&mutex_log);				\
+} while (0)
 
 /* print anyway */
 #define prt_critical(fmt, ...) do { if (nx_dbg >= 0) {			\
@@ -85,7 +84,7 @@ pthread_mutex_t mutex_log;
 
 /* Use in case of an error */
 #define prt_err(fmt, ...) do { if (nx_dbg >= 0) {			\
-	prt("%s:%u: Err: "fmt,						\
+	prt("%s:%u: Error: "fmt,						\
 		__FILE__, __LINE__, ## __VA_ARGS__);			\
 }} while (0)
 
@@ -106,11 +105,7 @@ pthread_mutex_t mutex_log;
 }} while (0)
 
 /* Trace statistics */
-#define prt_stats(fmt, ...) do { if (nx_gzip_gather_stats()) {		\
-	prt(fmt, ## __VA_ARGS__);					\
-}} while (0)
-/* old, will remove */
-#define prt_stat(fmt, ...) do { if (nx_gzip_gather_statistics()) {	\
+#define prt_stat(fmt, ...) do {	if (nx_gzip_gather_statistics()) {	\
 	prt("### "fmt, ## __VA_ARGS__);					\
 }} while (0)
 

@@ -52,7 +52,6 @@
 #include "zlib.h"
 #include "nx_dbg.h"
 #include "copy-paste.h"
-#include "nx-ftw.h"
 #include "nxu.h"
 #include "nx_zlib.h"
 #include "nx.h"

@@ -57,7 +57,6 @@
 #include <limits.h>
 #include "zlib.h"
 #include "copy-paste.h"
-#include "nx-ftw.h"
 #include "nxu.h"
 #include "nx.h"
 #include "nx-gzip.h"

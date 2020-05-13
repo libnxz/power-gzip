@@ -83,6 +83,7 @@ int nx_gzip_trace = 0x0;
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
 int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 
+pthread_mutex_t mutex_log;
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
 pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */
 struct zlib_stats zlib_stats;	/* global statistics */

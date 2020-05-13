@@ -48,4 +48,8 @@ if $unsafe; then
     echo "Testing for kernel disabling IRQ..."
     NX_GZIP_TIMEOUT_PGFAULTS=3 ./bad_irq_check junk2 400 96
     echo "Success!"
+    # Stress test to check if the system handles many page faults.
+    echo "Checking many random page faults..."
+    ./rand_pfault_check junk2 100 480
+    echo "Success!"
 fi

@@ -58,6 +58,11 @@ bad_irq_check: bad_irq_check.c compdecomp_th.c ../lib/libnxz.a
 	-I../inc_nx -I../lib $(LDFLAGS) -L/usr/lib/ -o bad_irq_check \
 	bad_irq_check.c compdecomp_th.c $(LDLIB)
 
+rand_pfault_check: rand_pfault_check.c compdecomp_th.c ../lib/libnxz.a
+	$(CC) $(CFLAGS) -Wl,-wrap,nx_touch_pages -Wl,-wrap,nx_touch_pages_dde \
+	-I../inc_nx -I../lib $(LDFLAGS) -L/usr/lib/ -o rand_pfault_check \
+	rand_pfault_check.c compdecomp_th.c $(LDLIB)
+
 nx_gzip: nx_gzip.c
 	$(CC) $(CFLAGS) -o $@ $^ -lz
 

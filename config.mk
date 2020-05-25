@@ -17,3 +17,5 @@ endif
 
 CFLAGS = $(FLG) $(SFLAGS) #-DNXTIMER
 
+PACKAGENAME = libnxz
+STATICLIB_NO_API = $(PACKAGENAME)-no-api.a

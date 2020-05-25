@@ -17,8 +17,10 @@ obj_test_pid_reuse = ${patsubst %.c, %.o, test_pid_reuse.c}
 
 TEST_OBJS = $(sort $(obj_test_deflate) $(obj_test_inflate) $(obj_test_stress) \
     $(obj_test_crc32) $(obj_test_adler32) $(obj_test_multithread_stress))
-EXE = test_inflate test_deflate test_stress test_crc32 test_adler32 \
-    test_multithread_stress test_pid_reuse
+EXE_NO_API = test_inflate test_deflate test_stress
+EXE_API = test_crc32 test_adler32 test_multithread_stress \
+	  test_pid_reuse
+EXE = $(EXE_NO_API) $(EXE_API)
 UNSAFE = test_stress
 
 all:
@@ -36,5 +38,9 @@ clean:
 	/bin/rm -f *.o deflate/*.o inflate/*.o $(EXE) $(UNSAFE) *.log
 
 .SECONDEXPANSION:
-test_%: $$(obj_$$@)
-	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^  -lnxz -lpthread
+$(EXE_NO_API): $$(obj_$$@) ../lib/$(STATICLIB_NO_API)
+	$(CC) $(CFLAGS) $(INC) -o $@ $^ -lz -lpthread
+
+.SECONDEXPANSION:
+$(EXE_API): $$(obj_$$@)
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o $@ $^ -lnxz -lpthread

@@ -19,7 +19,6 @@ endif
 
 VERSION ?= $(shell git describe --tags | cut -d - -f 1,2 | tr - . | cut -c 2-)
 SOVERSION = $(shell echo $(VERSION) | cut -d . -f 1)
-PACKAGENAME = libnxz
 STATICLIB = $(PACKAGENAME).a
 SHAREDSONAMELIB = $(PACKAGENAME).so.$(SOVERSION)
 SHAREDLIB = $(PACKAGENAME).so.$(VERSION)
@@ -27,7 +26,7 @@ LIBLINK = $(PACKAGENAME).so
 
 INC = ../inc_nx
 
-all: $(OBJS) $(STATICLIB) $(SHAREDLIB)
+all: $(OBJS) $(STATICLIB) $(STATICLIB_NO_API) $(SHAREDLIB)
 
 $(OBJS): $(SRCS)
 	$(CC) $(CFLAGS) -I$(INC) -c $^
@@ -39,6 +38,10 @@ $(ZLIB_API_OBJ): $(ZLIB_API_OBJS)
 	$(LD) -relocatable -o $@ $^
 
 $(STATICLIB): $(OBJS) $(ZLIB_API_OBJ)
+	rm -f $@
+	$(AR) rcs -o $@ $^
+
+$(STATICLIB_NO_API): $(OBJS)
 	rm -f $@
 	$(AR) rcs -o $@ $^
 

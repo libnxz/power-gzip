@@ -39,8 +39,17 @@ for i in 1 4 16 32 64 80; do
     grep "Total uncompress" $plotfn | grep "threads $i," | awk '{print "uncompress,"$11 $7 $5 }' >> ${run_series_report}
 done
 
-# Stress test for a system checkstop on kernel.
+# The following tests may crash the system on a failure.
 if $unsafe; then
     head -c 1048576 $1 > junk2; # 1 Mb
+    # Stress test for a system checkstop on kernel.
     NX_GZIP_PASTE_RETRIES=200 ./compdecomp_th junk2 400 24
+    # Stress test for disabling IRQ on kernel.
+    echo "Testing for kernel disabling IRQ..."
+    NX_GZIP_TIMEOUT_PGFAULTS=3 ./bad_irq_check junk2 400 96
+    echo "Success!"
+    # Stress test to check if the system handles many page faults.
+    echo "Checking many random page faults..."
+    ./rand_pfault_check junk2 100 480
+    echo "Success!"
 fi

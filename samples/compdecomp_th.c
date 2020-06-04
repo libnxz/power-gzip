@@ -12,7 +12,7 @@
  *   2018-04-02 Initial version
  *
  *
- * Copyright (C) IBM Corporation, 2011-2017
+ * Copyright (C) IBM Corporation, 2011-2020
  *
  * Licenses for GPLv2 and Apache v2.0:
  *
@@ -46,9 +46,7 @@
  */
 
 /* how to compile run:
-   cd power-gzip
    make
-   verify that libnxz.a was created
    cd samples
    make compdecomp_th
    sudo ./compdecomp_th <filename> <thread_count>
@@ -74,12 +72,6 @@
 #include <signal.h>
 #include <pthread.h>
 #include "zlib.h"
-
-
-#ifdef SIMPLE_CHECKSUM
-/* extern unsigned long crc32(unsigned long crc, const unsigned char *buf, uint64_t len); 
-   extern unsigned long adler32(unsigned long adler, const char *buf, unsigned int len); */
-#endif
 
 /* Caller must free the allocated buffer 
    return nonzero on error */
@@ -176,8 +168,6 @@ void *comp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: compress error\n", tid);
 		return (void *) -1;
 	}	
-	//if (tid == 0) /* print from one thread only to prevent crowding of output */
-	//fprintf(stderr, "tid %d: compressed %ld to %ld bytes\n", tid, (long)inlen, (long)compdata_len);
 
 	/* wait all threads to finish their first runs; want this for pretty printing */	
 	pthread_barrier_wait(&barr);
@@ -190,9 +180,7 @@ void *comp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: uncompress error\n", tid);
 		return (void *) -1;		
 	}
-	//if (tid == 0)
-	//fprintf(stderr, "tid %d: uncompressed %ld to %ld bytes\n", tid, (long)compdata_len, (long)decompdata_len);		
-	
+
 	/* wait all threads to finish their first runs; */		
 	pthread_barrier_wait(&barr);
 	
@@ -200,9 +188,6 @@ void *comp_file_multith(void *argsv)
 	   larger of the input and output; for compress it is input
 	   size divided by time for decompress it is output size
 	   divided by time */
-
-	//if (tid == 0)
-	// fprintf(stderr, "tid %d: begin compressing %ld bytes %ld times\n", tid, (long)inlen, iterations);
 
 	gettimeofday(&ts, NULL);
 
@@ -269,8 +254,6 @@ void *decomp_file_multith(void *argsv)
 		fprintf(stderr, "tid %d: compress error\n", tid);
 		return (void *) -1;
 	}	
-	//if (tid == 0)
-	// fprintf(stderr, "tid %d: compressed %ld to %ld bytes\n", tid, (long)inlen, (long)compdata_len);		
 
 	/* wait all threads to finish their first runs; want this for pretty printing */
 	pthread_barrier_wait(&barr);
@@ -283,8 +266,6 @@ void *decomp_file_multith(void *argsv)
 		fprintf(stderr, "uncompress error\n");
 		return (void *) -1;		
 	}
-	//if (tid == 0)
-	//fprintf(stderr, "tid %d: uncompressed %ld to %ld bytes\n", tid, (long)compdata_len, (long)decompdata_len);		
 
 	/* wait all threads to finish their first runs; */	
 	pthread_barrier_wait(&barr);
@@ -293,9 +274,6 @@ void *decomp_file_multith(void *argsv)
 	   larger of the input and output; for compress it is input
 	   size divided by time for decompress it is output size
 	   divided by time */
-	//if (tid == 0)	
-	//fprintf(stderr, "tid %d: begin uncompressing %ld bytes %ld times\n", tid, (long)compdata_len, iterations);
-
 	gettimeofday(&ts, NULL);
 
 	for (i = 0; i < iterations; i++) {
@@ -312,7 +290,6 @@ void *decomp_file_multith(void *argsv)
 
 		cksum = 1;		
 		cksum = crc32(cksum, decompbuf, decompdata_len);
-		/* fprintf(stderr, "target checksum %016lx\n", cksum); */
 		assert( cksum == argsp->checksum );
 #endif
 		
@@ -406,14 +383,12 @@ int main(int argc, char **argv)
 	}
 
 	/* report results */
-	/* fprintf(stderr, "Compress individual threads throughput GB/s:\n"); */
 	sum = 0;
 	double maxbw = 0;
 	double minbw = 1.0e20;
 	for (i=0; i < num_threads; i++) {
 		double gbps = (double)th_args[i].inlen * (double)th_args[i].iterations /
 			(double)th_args[i].elapsed_time / 1.0e9;
-		/* fprintf(stderr, "%6.4g ", gbps); */
 		sum += gbps;
 		if (gbps < minbw) minbw = gbps;
 		if (gbps > maxbw) maxbw = gbps;
@@ -449,14 +424,12 @@ int main(int argc, char **argv)
 	}
 
 	/* report results */
-	/* fprintf(stderr, "Uncompress individual threads throughput GB/s:\n"); */
 	sum = 0;
 	maxbw = 0;
 	minbw = 1.0e20;	
 	for (i=0; i < num_threads; i++) {
 		double gbps = (double)th_args[i].inlen * (double)th_args[i].iterations /
 			(double)th_args[i].elapsed_time / 1.0e9;
-		/* fprintf(stderr, "%6.4g ", gbps); */
 		sum += gbps;
 		if (gbps < minbw) minbw = gbps;
 		if (gbps > maxbw) maxbw = gbps;

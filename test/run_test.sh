@@ -40,6 +40,12 @@ if [ $? -ne 0 ]; then
     echo "test_multithread_stress failed."
     exit 1;
 fi
+echo "running test_pid_reuse..."
+./test_pid_reuse 2 >> $run_test_log 2>&1
+if [ $? -ne 0 ]; then
+    echo "test_pid_reuse failed."
+    exit 1;
+fi
 echo "------------------------------"
 
 grep -E 'run_case|failed' $run_test_log | tee -a $run_test_report

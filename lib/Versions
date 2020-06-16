@@ -6,6 +6,7 @@ LIBNXZ_0.61.0 {
     nx_deflateSetHeader;
     nx_inflateGetHeader;
     nx_inflateResetKeep;
+    nx_deflateResetKeep;
     nx_uncompress2;
     nx_inflateInit_;
     nx_inflateInit2_;

@@ -89,7 +89,6 @@ pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */
 struct zlib_stats zlib_stats;	/* global statistics */
 
 struct sigaction act;
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 /* **************************************************************** */
 
 /*
@@ -1091,15 +1090,6 @@ void nx_hw_init(void)
 		nx_config.timeout_pgfaults = str_to_num(timeout_pgfaults);
 	}
 
-	/* add a signal action */
-/* JVM handles all signals. nx-zlib will not handle sig 11.
-	act.sa_handler = 0;
-	act.sa_sigaction = sigsegv_handler;
-	act.sa_flags = SA_SIGINFO;
-	act.sa_restorer = 0;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGSEGV, &act, NULL);
-*/
 	if (nx_dbg >= 1 && nx_gzip_log) {
 		fprintf(nx_gzip_log, "nx-zlib log file: %s\n", logfile);
 		fprintf(nx_gzip_log, "nx-zlib config file: %s\n", cfg_file_s);
@@ -1143,16 +1133,6 @@ static void _nx_hwdone(void)
 
 	nx_hw_done();
 	return;
-}
-
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
-{
-	prt_err("%d: Got signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);
-
-	fprintf(stderr, "%d: signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);
-	fflush(stderr);
-	/* nx_fault_storage_address = info->si_addr; */
-	exit(-1);
 }
 
 /*

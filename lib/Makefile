@@ -33,3 +33,13 @@ $(SHAREDLIB): $(OBJS)
 clean:
 	rm -f *.o *.gcda *.gcno *.so* *.a *~
 
+install: $(STATICLIB) $(SHAREDLIB)
+	install -d $(LIBDIR)
+	install -m 755 $(SHAREDLIB) $(LIBDIR)
+	install -m 755 $(SHAREDSONAMELIB) $(LIBDIR)
+	install -m 644 $(STATICLIB) $(LIBDIR)
+
+uninstall:
+	rm $(LIBDIR)/$(SHAREDLIB)
+	rm $(LIBDIR)/$(SHAREDSONAMELIB)
+	rm $(LIBDIR)/$(STATICLIB)

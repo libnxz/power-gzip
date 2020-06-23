@@ -1,3 +1,4 @@
+include config.mk
 
 subdirs = lib test samples
 
@@ -24,3 +25,12 @@ clean:
 			$(MAKE) -C $$dir $@ || exit 1;	\
 		fi					\
 	done
+
+install:
+	$(MAKE) -C lib $@
+	install -d $(PREFIX)/include/
+	install -m 644 libnxz.h $(PREFIX)/include/
+
+uninstall:
+	$(MAKE) -C lib $@
+	rm $(PREFIX)/include/libnxz.h

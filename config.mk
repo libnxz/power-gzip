@@ -1,3 +1,10 @@
+ifndef PREFIX
+    PREFIX := /usr/local
+endif
+ifndef LIBDIR
+    LIBDIR := $(PREFIX)/lib
+endif
+
 CC = $(shell which gcc)
 AR = $(shell which ar)
 LD = $(shell which ld)

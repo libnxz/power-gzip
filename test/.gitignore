@@ -1,0 +1,8 @@
+test_inflate
+test_deflate
+test_stress
+test_crc32
+test_adler32
+test_multithread_stress
+*.txt
+*.log

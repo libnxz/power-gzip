@@ -68,9 +68,6 @@
 #include "nx_dbg.h"
 #include <zlib.h>
 
-int nx_dbg = 0;
-FILE *nx_gzip_log = NULL;
-
 typedef struct nxlite_handle_t {
 	void *device_handle;
 	void *dht_handle;

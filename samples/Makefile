@@ -1,38 +1,18 @@
-OPTCC = /opt/at11.0/bin/gcc
-ifneq ("$(wildcard $(OPTCC))","")
-        CC = $(OPTCC)
-else
-        CC = gcc
-endif
+include ../config.mk
 
-CFLAGS = -O3
 SRC =
 INC = ../inc_nx
+LDFLAGS = -L../lib
+LDLIB = ../lib/libnxz.a -lpthread
 TESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th
 NXFLAGS = #-DNXDBG  #-DNXDBG -DNXTIMER -DNX_MMAP
-DHT_O = gzip_nxdht.o gzip_vas.o nx_dht.o nx_dht_builtin.o nx_dhtgen.o
-FHT_O = gzip_nxfht.o gzip_vas.o
-GUN_O = gunzip_nx.o gzip_vas.o
 
-all:	$(TESTS) zpipe gzm
+all:
 
-gzip_vas.o:	../gzip_vas.c
-	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../gzip_vas.c
+bench: $(TESTS) zpipe gzm nx_gzip
 
 gzip_nxfht.o:	gzip_nxfht.c
 	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c gzip_nxfht.c
-
-nx_dht.o:	../nx_dht.c
-	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../nx_dht.c
-
-nx_dht_builtin.o:	../nx_dht_builtin.c
-	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../nx_dht_builtin.c
-
-nx_dhtgen.o:	../nx_dhtgen.c
-	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../nx_dhtgen.c
-
-nx_dht_decomp.o:	../nx_dht_decomp.c
-	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c ../nx_dht_decomp.c
 
 #define SAVE_LZCOUNTS only when printing dhts in the cache
 gzip_nxdht.o:	gzip_nxdht.c
@@ -41,38 +21,51 @@ gzip_nxdht.o:	gzip_nxdht.c
 gunzip_nx.o:	gunzip_nx.c
 	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c gunzip_nx.c
 
-gzip_nxfht_test:	$(FHT_O)
-	$(CC) $(CFLAGS) -o gzip_nxfht_test $(FHT_O)
+gzip_nxfht_test: gzip_nxfht.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIB)
 
-gzip_nxdht_test:	$(DHT_O)
-	$(CC) $(CFLAGS) -lm -o gzip_nxdht_test $(DHT_O)
+gzip_nxdht_test: gzip_nxdht.o
+	$(CC) $(CFLAGS) -lm -o $@ $^ $(LDLIB)
 
-gunzip_nx_test:		$(GUN_O)
-	$(CC) $(CFLAGS) -o gunzip_nx_test $(GUN_O)
+gunzip_nx_test: gunzip_nx.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIB)
 
-zpipe:	../libnxz.a zpipe.c
-	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe zpipe.c ../libnxz.a -lpthread
+zpipe:	zpipe.c ../lib/libnxz.a
+	$(CC) $(CFLAGS) -I../inc_nx -I../lib $(LDFLAGS) -L/usr/lib/ -o zpipe zpipe.c $(LDLIB)
 
 zpipe_dict:  zpipe_dict.c
 	$(CC) $(CFLAGS) -o zpipe_dict_zlib zpipe_dict.c -lz
-	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o zpipe_dict_nx zpipe_dict.c ../libnxz.a -lpthread
+	$(CC) $(CFLAGS) -I../inc_nx -I../lib $(LDFLAGS) -L/usr/lib/ -o zpipe_dict_nx zpipe_dict.c $(LDLIB)
 
 crc_perf_test:  crc_perf_test.c
-	$(CC) $(CFLAGS) -o crc_perf_test_zlib crc_perf_test.c -lz
-	$(CC) $(CFLAGS) -o crc_perf_test_vmx  crc_perf_test.c ../libnxz.a -lpthread
+	$(CC) $(CFLAGS) -o crc_perf_test_zlib $(LDFLAGS) crc_perf_test.c -lz
+	$(CC) $(CFLAGS) -o crc_perf_test_vmx $(LDFLAGS) crc_perf_test.c $(LDLIB)
 
 makedata:  makedata.c
 	$(CC) $(CFLAGS) -o makedata makedata.c
 
-gzm:	../libnxz.a gzm.c
-	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o gzm gzm.c ../libnxz.a -lpthread
+gzm:	gzm.c ../lib/libnxz.a
+	$(CC) $(CFLAGS) -I../inc_nx -I../lib $(LDFLAGS) -L/usr/lib/ -o gzm gzm.c $(LDLIB)
 
-compdecomp:	compdecomp.c ../libnxz.a
-	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp compdecomp.c ../libnxz.a -lpthread
+compdecomp:	compdecomp.c ../lib/libnxz.a
+	$(CC) $(CFLAGS) -I../inc_nx -I../lib $(LDFLAGS) -L/usr/lib/ -o compdecomp compdecomp.c $(LDLIB)
 
-compdecomp_th: compdecomp_th.c  ../libnxz.a
-	$(CC) $(CFLAGS) -I../inc_nx -I../ -L../ -L/usr/lib/ -o compdecomp_th compdecomp_th.c ../libnxz.a -lpthread
+compdecomp_th: compdecomp_th.c  ../lib/libnxz.a
+	$(CC) $(CFLAGS) -I../inc_nx -I../lib $(LDFLAGS) -L/usr/lib/ -o compdecomp_th compdecomp_th.c $(LDLIB)
+
+bad_irq_check: bad_irq_check.c compdecomp_th.c ../lib/libnxz.a
+	$(CC) $(CFLAGS) -Wl,-wrap,nx_touch_pages -Wl,-wrap,nx_touch_pages_dde \
+	-I../inc_nx -I../lib $(LDFLAGS) -L/usr/lib/ -o bad_irq_check \
+	bad_irq_check.c compdecomp_th.c $(LDLIB)
+
+rand_pfault_check: rand_pfault_check.c compdecomp_th.c ../lib/libnxz.a
+	$(CC) $(CFLAGS) -Wl,-wrap,nx_touch_pages -Wl,-wrap,nx_touch_pages_dde \
+	-I../inc_nx -I../lib $(LDFLAGS) -L/usr/lib/ -o rand_pfault_check \
+	rand_pfault_check.c compdecomp_th.c $(LDLIB)
+
+nx_gzip: nx_gzip.c
+	$(CC) $(CFLAGS) -o $@ $^ -lz
 
 clean:
 	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th makedata \
-	zpipe_dict_nx zpipe_dict_zlib crc_perf_test_zlib crc_perf_test_vmx gzm
+	zpipe_dict_nx zpipe_dict_zlib crc_perf_test_zlib crc_perf_test_vmx gzm nx_gzip

@@ -89,7 +89,9 @@
 
 #define NXQWSZ  (sizeof(nx_qw_t))
 
-extern FILE *nx_gzip_log;
+#ifdef NX_LOG_SOURCE_TARGET
+void nx_print_dde(nx_dde_t *ddep, const char *msg);
+#endif
 
 /* common config variables for all streams */
 struct nx_config_t {
@@ -110,10 +112,12 @@ struct nx_config_t {
 	int 	 inflate_fifo_out_len;
 	int 	 deflate_fifo_in_len;
 	int 	 deflate_fifo_out_len;
-	int      retry_max;
 	int      window_max;
-	int      pgfault_retries;         
+	int      timeout_pgfaults;
 	int      verbose;
+	int      mlock_nx_crb_csb;
+	int      csb_poll_max;
+	int      paste_retries;
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;
@@ -127,7 +131,7 @@ struct nx_dev_t {
 	int socket_id;  /* one NX-gzip per cpu socket */
 	int nx_id;      /* unique */
 	int open_cnt;
-	
+
 	/* https://github.com/sukadev/linux/blob/vas-kern-v8.1/tools/testing/selftests/powerpc/user-nx842/compress.c#L514 */
 	struct {
 		int16_t version;
@@ -155,11 +159,11 @@ typedef struct nx_stream_s {
         int             strategy;       /* force compression algorithm */
 
         /* stream data management */
-        char            *next_in;       /* next input byte */
+        unsigned char   *next_in;       /* next input byte */
         uint32_t        avail_in;       /* # of bytes available at next_in */
         unsigned long   total_in;       /* total nb of inp read so far */
 
-        char            *next_out;      /* next obyte should be put there */
+        unsigned char   *next_out;      /* next obyte should be put there */
         uint32_t        avail_out;      /* remaining free space at next_out*/
         unsigned long   total_out;      /* total nb of bytes output so far */
 
@@ -179,6 +183,9 @@ typedef struct nx_stream_s {
 					 * the true values only after
 					 * the stream is finished or fully
 					 * flushed to the output */
+	uint64_t        checksum_set;   /* nx wrap function code helper */
+
+	int             header_len;
 
 	char            trailer[9];     /* temp storage for tail bytes */
 	int             trailer_len;
@@ -235,11 +242,6 @@ typedef struct nx_stream_s {
         int32_t         used_out;
         int32_t         cur_out;
 
-	/* locate the BFINAL bit */ 	
-	/* char            *last_block_head;    /* the byte offset */
-	/* int             last_block_head_bit; /* the bfinal bit pos */
-	/* partial byte bits counts that couldn't be output */
-	
         /* return status */
         int             nx_cc;          /* nx return codes */
         uint32_t        nx_ce;          /* completion extension Fig.6-7 */       
@@ -327,10 +329,10 @@ typedef struct nx_stream_s *nx_streamp;
 #define nx_inflate_get_byte(s,b) \
 	do { if ((s)->avail_in == 0) goto inf_return; b = (s)->ckbuf.buf[(s)->ckidx++] = *((s)->next_in); \
 		update_stream_in(s,1); update_stream_in(s->zstrm, 1);\
-		if ((s)->ckidx == sizeof(ckbuf_t)) {			\
+		if ((s)->gzflags & 0x02) {			\
 			/* when the buffer is near full do a partial checksum */ \
-			(s)->cksum = nx_crc32((s)->cksum, (s)->ckbuf.buf, (s)->ckidx); \
-			(s)->ckidx = 0;	}				\
+			(s)->cksum = crc32((s)->cksum, (const unsigned char *)(s)->ckbuf.buf, (s)->ckidx); \
+			(s)->ckidx = 0; }\
 	} while(0)
 
 #define print_dbg_info(s, line) \
@@ -339,12 +341,12 @@ do { prt_info(\
 used_in %ld cur_in %ld \
 avail_out %ld total_out %ld \
 used_out %ld cur_out %ld \
-len_in %ld len_out %ld\n", __FUNCTION__, line, \
+len_in %ld len_out %ld flush %d\n", __FUNCTION__, line, \
 (long)(s)->avail_in, (long)(s)->total_in,	\
 (long)(s)->used_in, (long)(s)->cur_in,		\
 (long)(s)->avail_out, (long)(s)->total_out,	\
 (long)(s)->used_out, (long)(s)->cur_out,	\
-(long)(s)->len_in, (long)(s)->len_out);		\
+(long)(s)->len_in, (long)(s)->len_out, (s)->flush);	\
 } while (0)
 
 
@@ -362,12 +364,12 @@ typedef enum {
 	inf_state_gzip_extra,
 	inf_state_gzip_name,
 	inf_state_gzip_comment,
-	inf_state_gzip_hcrc,
+	inf_state_gzip_hcrc, /* 12 */
 	inf_state_zlib_id1,
 	inf_state_zlib_flg,
 	inf_state_zlib_dict,
 	inf_state_zlib_dictid,		
-	inf_state_inflate,
+	inf_state_inflate, /* 17 */
 	inf_state_data_error,
 	inf_state_mem_error,
 	inf_state_buf_error,
@@ -463,6 +465,7 @@ static inline double nxtime_to_us(uint64_t nxtime)
 extern void *nx_fault_storage_address;
 extern void *nx_function_begin(int function, int pri);
 extern int nx_function_end(void *vas_handle);
+extern uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int do_sleep);
 
 /* zlib crc32.c and adler32.c */
 extern unsigned long nx_crc32_combine(unsigned long crc1, unsigned long crc2, uint64_t len2);
@@ -511,5 +514,6 @@ extern int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLon
 extern void *dht_begin(char *ifile, char *ofile);
 extern void dht_end(void *handle);
 extern int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
+extern void *dht_copy(void *handle);
 
 #endif /* _NX_ZLIB_H */

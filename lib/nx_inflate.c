@@ -51,7 +51,6 @@
 #include <endian.h>
 #include "zlib.h"
 #include "copy-paste.h"
-#include "nx-ftw.h"
 #include "nxu.h"
 #include "nx.h"
 #include "nx-gzip.h"
@@ -89,6 +88,7 @@ int nx_inflateResetKeep(z_streamp strm)
 	s = (nx_streamp) strm->state;
 	strm->total_in = strm->total_out = s->total_in = 0;
 	strm->msg = Z_NULL;
+	s->gzhead = NULL;
 	return Z_OK;
 }
 
@@ -171,7 +171,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	nx_streamp s;
 	nx_devp_t h;
 
-	nx_hw_init();
+	prt_info("%s:%d strm %p\n", __FUNCTION__, __LINE__, strm);
 
 	if (version == Z_NULL || version[0] != ZLIB_VERSION[0] ||
 	    stream_size != (int)(sizeof(z_stream)))
@@ -190,7 +190,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 		return Z_STREAM_ERROR;
 	}
 
-	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, 0);
+	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, nx_config.mlock_nx_crb_csb);
 	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
 
@@ -198,8 +198,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	s->nxcmdp  = &s->nxcmd0;
 	s->page_sz = nx_config.page_sz;
 	s->nxdevp  = h;
-	// s->gzhead  = NULL;
-	s->gzhead  = nx_alloc_buffer(sizeof(gz_header), nx_config.page_sz, 0);
+	s->gzhead  = NULL;
+	//s->gzhead  = nx_alloc_buffer(sizeof(gz_header), nx_config.page_sz, 0);
 	s->ddl_in  = s->dde_in;
 	s->ddl_out = s->dde_out;
 
@@ -220,9 +220,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	return ret;
 
 reset_err:
-alloc_err:
-	if (s->gzhead)
-		nx_free_buffer(s->gzhead, 0, 0);
+	//if (s->gzhead)
+	//	nx_free_buffer(s->gzhead, 0, 0);
 	if (s)
 		nx_free_buffer(s, 0, 0);
 	strm->state = Z_NULL;
@@ -237,6 +236,8 @@ int nx_inflateInit_(z_streamp strm, const char *version, int stream_size)
 int nx_inflateEnd(z_streamp strm)
 {
 	nx_streamp s;
+
+	prt_info("%s:%d strm %p\n", __FUNCTION__, __LINE__, strm);
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
@@ -255,9 +256,9 @@ int nx_inflateEnd(z_streamp strm)
 	nx_free_buffer(s->dict, s->dict_alloc_len, 0);
 	nx_close(s->nxdevp);
 
-	if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
+	// if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
 
-	nx_free_buffer(s, sizeof(*s), 0);
+	nx_free_buffer(s, sizeof(*s), nx_config.mlock_nx_crb_csb);
 
 	return Z_OK;
 }
@@ -267,7 +268,7 @@ int nx_inflate(z_streamp strm, int flush)
 	int rc = Z_OK;
 	nx_streamp s;
 	unsigned int avail_in_slot, avail_out_slot;
-	uint64_t t1, t2;
+	uint64_t t1=0, t2=0;
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 	s = (nx_streamp) strm->state;
@@ -317,12 +318,12 @@ int nx_inflate(z_streamp strm, int flush)
 inf_forever:
 	/* inflate state machine */
 
-	prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
-
 	switch (s->inf_state) {
 		unsigned int c, copy;
 
 	case inf_state_header:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		if (s->wrap == (HEADER_ZLIB | HEADER_GZIP)) {
 			/* auto detect zlib/gzip */
@@ -346,8 +347,10 @@ inf_forever:
 		else if (s->wrap == HEADER_ZLIB) {
 			/* look for a zlib header */
 			s->inf_state = inf_state_zlib_id1;
-			if (s->gzhead != NULL)
+			if (s->gzhead != NULL) {
+				/* this should be an error */
 				s->gzhead->done = -1;
+			}
 		}
 		else if (s->wrap == HEADER_GZIP) {
 			/* look for a gzip header */
@@ -366,6 +369,8 @@ inf_forever:
 
 	case inf_state_gzip_id1:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		nx_inflate_get_byte(s, c);
 		if (c != 0x1f) {
 			strm->msg = (char *)"incorrect gzip header";
@@ -377,6 +382,8 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_gzip_id2:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		if (c != 0x8b) {
@@ -390,6 +397,8 @@ inf_forever:
 
 	case inf_state_gzip_cm:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		nx_inflate_get_byte(s, c);
 		if (c != 0x08) {
 			strm->msg = (char *)"unknown compression method";
@@ -402,10 +411,13 @@ inf_forever:
 
 	case inf_state_gzip_flg:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		nx_inflate_get_byte(s, c);
 		s->gzflags = c;
+		prt_info("%d: s->gzflags=0x%x\n",__LINE__,s->gzflags);
 
-		if (s->gzflags & 0xe0 != 0) { /* reserved bits are set */
+		if ((s->gzflags & 0xe0) != 0) { /* reserved bits are set */
 			strm->msg = (char *)"unknown header flags set";
 			s->inf_state = inf_state_data_error;
 			break;
@@ -423,22 +435,29 @@ inf_forever:
 
 	case inf_state_gzip_mtime:
 
-		if (s->gzhead != NULL){
-			while( s->inf_held < 4) { /* need 4 bytes for MTIME */
-				nx_inflate_get_byte(s, c);
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
+		while (s->inf_held < 4) { /* need 4 bytes for MTIME */
+			nx_inflate_get_byte(s, c);
+			if (s->gzhead != NULL) {
 				s->gzhead->time = c << (8 * s->inf_held) | s->gzhead->time;
-				++ s->inf_held;
 			}
-			s->inf_held = 0;
-			assert( ((s->gzhead->time & (1<<31)) == 0) );
-			/* assertion is a reminder for endian check; either
-			   fires right away or in the year 2038 if we're still
-			   alive */
+			++ s->inf_held;
 		}
+		s->inf_held = 0;
+		if (s->gzhead != NULL) {
+			assert( ((s->gzhead->time & (1<<31)) == 0) );
+		}
+		/* assertion is a reminder for endian check; either
+		   fires right away or in the year 2038 if we're still
+		   alive */
+
 		s->inf_state = inf_state_gzip_xfl;
 		/* fall thru */
 
 	case inf_state_gzip_xfl:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		if (s->gzhead != NULL)
@@ -448,6 +467,8 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_gzip_os:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		if (s->gzhead != NULL)
@@ -460,8 +481,10 @@ inf_forever:
 
 	case inf_state_gzip_xlen:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		if (s->gzflags & 0x04) { /* fextra was set */
-			while( s->inf_held < 2 ) {
+			while (s->inf_held < 2) {
 				nx_inflate_get_byte(s, c);
 				s->length = s->length | (c << (s->inf_held * 8));
 				++ s->inf_held;
@@ -476,7 +499,10 @@ inf_forever:
 		s->inf_held = 0;
 		s->inf_state = inf_state_gzip_extra;
 		/* fall thru */
+
 	case inf_state_gzip_extra:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		if (s->gzflags & 0x04) { /* fextra was set */
 			copy = s->length;
@@ -489,6 +515,8 @@ inf_forever:
 					       len + copy > s->gzhead->extra_max ?
 					       s->gzhead->extra_max - len : copy);
 				}
+				if (s->gzflags & 0x02) /* fhcrc was set */
+					s->cksum = crc32(s->cksum, s->next_in, copy);
 				update_stream_in(s, copy);
 				s->length -= copy;
 			}
@@ -501,6 +529,8 @@ inf_forever:
 
 	case inf_state_gzip_name:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		if (s->gzflags & 0x08) { /* fname was set */
 			if (s->avail_in == 0) goto inf_return;
 			copy = 0;
@@ -511,6 +541,8 @@ inf_forever:
 				    s->length < s->gzhead->name_max )
 					s->gzhead->name[s->length++] = (char) c;
 			} while (!!c && copy < s->avail_in);
+			if (s->gzflags & 0x02) /* fhcrc was set */
+				s->cksum = crc32(s->cksum, s->next_in, copy);
 			update_stream_in(s, copy);
 			if (!!c) goto inf_return; /* need more name */
 		}
@@ -523,6 +555,8 @@ inf_forever:
 
 	case inf_state_gzip_comment:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		if (s->gzflags & 0x10) { /* fcomment was set */
 			if (s->avail_in == 0) goto inf_return;
 			copy = 0;
@@ -533,6 +567,8 @@ inf_forever:
 				    s->length < s->gzhead->comm_max )
 					s->gzhead->comment[s->length++] = (char) c;
 			} while (!!c && copy < s->avail_in);
+			if (s->gzflags & 0x02) /* fhcrc was set */
+				s->cksum = crc32(s->cksum, s->next_in, copy);
 			update_stream_in(s, copy);
 			if (!!c) goto inf_return; /* need more comment */
 		}
@@ -546,11 +582,14 @@ inf_forever:
 
 	case inf_state_gzip_hcrc:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		if (s->gzflags & 0x02) { /* fhcrc was set */
+			uint32_t checksum = s->cksum; /*check sum for data before hcrc16 field.*/
 
 			while( s->inf_held < 2 ) {
 				nx_inflate_get_byte(s, c);
-				s->hcrc16 = s->hcrc16 << 8 | c;
+				s->hcrc16 = s->hcrc16 | (c << (s->inf_held * 8));
 				++ s->inf_held;
 			}
 			s->hcrc16 = le16toh(s->hcrc16);
@@ -558,15 +597,16 @@ inf_forever:
 			s->gzhead->done = 1;
 
 			/* Compare stored and compute hcrc checksums here */
-
-			if (s->hcrc16 != s->cksum & 0xffff) {
+			if (s->hcrc16 != (checksum & 0xffff)) {
 				strm->msg = (char *)"header crc mismatch";
 				s->inf_state = inf_state_data_error;
 				break;
 			}
 		}
-		else if (s->gzhead != NULL)
+		else if (s->gzhead != NULL){
 			s->gzhead->hcrc = 0;
+			s->gzhead->done = 1;
+		}
 
 		s->inf_held = 0;
 		s->adler = s->crc32 = INIT_CRC;
@@ -575,6 +615,8 @@ inf_forever:
 		break;
 
 	case inf_state_zlib_id1:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		if ((c & 0x0f) != 0x08) {
@@ -593,6 +635,8 @@ inf_forever:
 		/* fall thru */
 
 	case inf_state_zlib_flg:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		nx_inflate_get_byte(s, c);
 		if ( ((s->zlib_cmf * 256 + c) % 31) != 0 ) {
@@ -615,6 +659,8 @@ inf_forever:
 
 	case inf_state_zlib_dictid:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		while (s->inf_held < 4) {
 			nx_inflate_get_byte(s, c);
 			s->dict_id = (s->dict_id << 8) | (c & 0xff);
@@ -628,6 +674,8 @@ inf_forever:
 
 	case inf_state_zlib_dict:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		if (s->dict_len == 0) {
 			return Z_NEED_DICT;
 		}
@@ -636,25 +684,35 @@ inf_forever:
 
 	case inf_state_inflate:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		rc = nx_inflate_(s, flush);
 		goto inf_return;
 
 	case inf_state_data_error:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		rc = Z_DATA_ERROR;
 		goto inf_return;
 
 	case inf_state_mem_error:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		rc = Z_MEM_ERROR;
 		break;
 
 	case inf_state_buf_error:
 
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
+
 		rc = Z_BUF_ERROR;
 		break;
 
 	default:
+
+		prt_info("%d: inf_state %d\n", __LINE__, s->inf_state);
 
 		rc = Z_STREAM_ERROR;
 		break;
@@ -677,7 +735,6 @@ inf_return:
 	return rc;
 }
 
-
 static inline void nx_inflate_update_checksum(nx_streamp s)
 {
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
@@ -697,7 +754,6 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 	char *tail;
 	uint32_t cksum, isize;
-	int i;
 
 	if (copy > 0) {
 		/* to handle the case of crc and isize spanning fifo_in
@@ -828,9 +884,11 @@ static int nx_inflate_(nx_streamp s, int flush)
 	nx_dde_t *ddl_in = s->ddl_in;
 	nx_dde_t *ddl_out = s->ddl_out;
 
-	int pgfault_retries, target_space_retries, partial_bits;
-	int cc, rc;
+	uint64_t ticks_total = 0;
+	int cc, rc, timeout_pgfaults, partial_bits=0;
 	int nx_history_len; /* includes dictionary and history going in to nx-gzip */
+
+	timeout_pgfaults = nx_config.timeout_pgfaults;
 
 	print_dbg_info(s, __LINE__);
 
@@ -889,8 +947,6 @@ copy_fifo_out_to_next_out:
 	if (s->used_out == 0 && s->avail_in == 0 && s->used_in == 0) return Z_OK;
 	/* we should flush all data to next_out here, s->used_out should be 0 */
 
-small_next_in:
-
 	/* used_in is the data amount waiting in fifo_in; avail_in is
 	   the data amount waiting in the user buffer next_in */
 	if (s->avail_in < nx_config.soft_copy_threshold && s->avail_out > 0) {
@@ -915,8 +971,6 @@ small_next_in:
 		}
 	}
 	print_dbg_info(s, __LINE__);
-
-decomp_state:
 
 	/* NX decompresses input data */
 
@@ -1077,20 +1131,14 @@ decomp_state:
 	/* add the history back */
 	source_sz = source_sz + nx_history_len;
 
-	/* Some NX condition codes require submitting the NX job
-	  again. Kernel doesn't fault-in NX page faults. Expects user
-	  code to touch pages */
-	pgfault_retries = nx_config.retry_max;
-	target_space_retries = 0;
-
 restart_nx:
 
 	putp32(ddl_in, ddebc, source_sz);
 
 	/* fault in pages */
-	nx_touch_pages( (void *)cmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_in, source_sz, nx_config.page_sz, 0);
 	nx_touch_pages_dde(ddl_out, target_sz, nx_config.page_sz, 1);
+	nx_touch_pages( (void *)cmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
 
 	/*
 	 * send job to NX
@@ -1107,19 +1155,19 @@ restart_nx:
 		   faulting address to fsaddr */
 		print_dbg_info(s, __LINE__);
 
-		/* Touch 1 byte, read-only  */
-		/* nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, nx_config.page_sz, 0);*/
-		/* get64 does the endian conversion */
-
-		prt_info("pgfault_retries %d crb.csb.fsaddr %p source_sz %d target_sz %d\n",
-			pgfault_retries, (void *)cmdp->crb.csb.fsaddr, source_sz, target_sz);
-
-		if (pgfault_retries == nx_config.retry_max) {
+		prt_warn("ERR_NX_TRANSLATION: crb.csb.fsaddr %p source_sz %d ",
+			 (void *)cmdp->crb.csb.fsaddr, source_sz);
+		prt_warn("target_sz %d\n", target_sz);
+#ifdef NX_LOG_SOURCE_TARGET
+		nx_print_dde(ddl_in, "source");
+		nx_print_dde(ddl_out, "target");
+#endif
+		if (ticks_total == 0) {
 			/* try once with exact number of pages */
-			--pgfault_retries;
+			ticks_total = nx_wait_ticks(500, ticks_total, 0);
 			goto restart_nx;
 		}
-		else if (pgfault_retries > 0) {
+		else {
 			/* if still faulting try fewer input pages *
 			   assuming memory outage; */
 			ASSERT( source_sz > nx_history_len );
@@ -1144,15 +1192,20 @@ restart_nx:
 			else if (target_sz > INF_MAX_EXPANSION_BYTES)
 				target_sz = INF_MAX_EXPANSION_BYTES;
 
-			--pgfault_retries;
-			goto restart_nx;
-		}
-		else {
-			/* TODO what to do when page faults are too many?
-			   Kernel MM would have killed the process. */
-			prt_err("cannot make progress; too many page fault retries cc= %d\n", cc);
-			rc = Z_ERRNO;
-			goto err5;
+			ticks_total = nx_wait_ticks(500, ticks_total, 0);
+			if (ticks_total > (timeout_pgfaults
+			    * __ppc_get_timebase_freq())) {
+			   /* TODO what to do when page faults are too many?
+			    * Kernel MM would have killed the process. */
+				prt_err("Cannot make progress; too many page");
+				prt_err(" faults cc= %d\n", cc);
+				rc = Z_ERRNO;
+				goto err5;
+			}
+			else {
+				prt_warn("ERR_NX_TRANSLATION: more retry\n");
+				goto restart_nx;
+			}
 		}
 
 	case ERR_NX_DATA_LENGTH:
@@ -1205,7 +1258,6 @@ restart_nx:
 		   bytes */
 
 		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, nx_history_len);
-		target_space_retries++;
 		goto restart_nx;
 
 	case ERR_NX_OK:
@@ -1493,7 +1545,8 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 	uint32_t adler;
 	int cc;
 
-	sw_trace("%s\n", __FUNCTION__);
+	return Z_STREAM_ERROR; /* TODO untested */
+
 	if (dictionary == NULL || strm == NULL)
 		return Z_STREAM_ERROR;
 
@@ -1604,6 +1657,98 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 	*/
 }
 
+int nx_inflateCopy(z_streamp dest, z_streamp source)
+{
+	nx_streamp s, d;
+
+	prt_info("%s:%d dst %p src %p\n", __FUNCTION__, __LINE__,dest, source);
+
+	if (dest == NULL || source == NULL)
+		return Z_STREAM_ERROR;
+
+	if (source->state == NULL)
+		return Z_STREAM_ERROR;
+
+	s = (nx_streamp) source->state;
+
+	/* z_stream copy */
+	memcpy((void *)dest, (const void *)source, sizeof(z_stream));
+
+	/* allocate nx specific struct for dest */
+	if (NULL == (d = nx_alloc_buffer(sizeof(*d), nx_config.page_sz, nx_config.mlock_nx_crb_csb)))
+		goto mem_error;
+
+	d->dict = d->fifo_in = d->fifo_out = NULL;
+
+	/* source nx state copied to dest nx state */
+	memcpy(d, s, sizeof(*s));
+
+	/* dest points to its child nx_stream struct */
+	dest->state = (void *)d;
+
+	/* nx overflow underflow buffers */
+	if (s->fifo_out != NULL) {
+		if (NULL == (d->fifo_out = nx_alloc_buffer(s->len_out, nx_config.page_sz, 0)))
+			goto mem_error;
+		memcpy(d->fifo_out, s->fifo_out, s->len_out);
+	}
+
+	if (s->fifo_in != NULL) {
+		if (NULL == (d->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0)))
+			goto mem_error;
+		memcpy(d->fifo_in, s->fifo_in, s->len_in);
+	}
+
+	if (s->dict != NULL) {
+		if (NULL == (d->dict = nx_alloc_buffer(s->dict_alloc_len, nx_config.page_sz, 0)))
+			goto mem_error;
+		memcpy(d->dict, s->dict, s->dict_alloc_len);
+	}
+
+	d->zstrm = dest;  /* pointer to parent */
+
+	return Z_OK;
+
+mem_error:
+
+	prt_info("%s:%d memory error\n", __FUNCTION__, __LINE__);
+
+	if (d->dict != NULL)
+		nx_free_buffer(d->dict, d->dict_alloc_len, 0);
+	if (d->fifo_in != NULL)
+		nx_free_buffer(d->fifo_in, d->len_in, 0);
+	if (d->fifo_out != NULL)
+		nx_free_buffer(d->fifo_out, d->len_out, 0);
+	if (d != NULL)
+		nx_free_buffer(d, sizeof(*d), nx_config.mlock_nx_crb_csb);
+
+	return Z_MEM_ERROR;
+}
+
+int nx_inflateGetHeader(z_streamp strm, gz_headerp head)
+{
+	nx_streamp s;
+
+	prt_info("%s:%d strm %p gzhead %p\n", __FUNCTION__, __LINE__, strm, head);
+
+	if (strm == NULL)
+		return Z_STREAM_ERROR;
+
+	if (strm->state == NULL)
+		return Z_STREAM_ERROR;
+
+	s = (nx_streamp) strm->state;
+
+	if (s->wrap != HEADER_GZIP)
+		return Z_STREAM_ERROR;
+
+	s->gzhead = head;
+	head->done = 0;
+
+	return Z_OK;
+}
+
+
 #ifdef ZLIB_API
 int inflateInit_(z_streamp strm, const char *version, int stream_size)
 {
@@ -1629,4 +1774,15 @@ int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLengt
 {
 	return nx_inflateSetDictionary(strm, dictionary, dictLength);
 }
+
+int inflateCopy(z_streamp dest, z_streamp source)
+{
+	return nx_inflateCopy(dest, source);
+}
+
+int inflateGetHeader(z_streamp strm, gz_headerp head)
+{
+	return nx_inflateGetHeader(strm, head);
+}
+
 #endif

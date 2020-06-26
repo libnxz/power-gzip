@@ -61,13 +61,6 @@
 #include "nx.h"
 #include "nx_dbg.h"
 
-int nx_dbg = 0;
-FILE *nx_gzip_log = NULL;
-
-/* #define NXDBG */
-/* #define NXTIMER */
-/* #define NX_MMAP */
-
 #define ASSERT(X) assert(X)
 
 #ifdef NXTIMER
@@ -78,7 +71,7 @@ struct _nx_time_dbg {
 	uint64_t faultc, targetlenc, datalenc;
 } td;
 extern uint64_t dbgtimer;
-#endif	
+#endif
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))

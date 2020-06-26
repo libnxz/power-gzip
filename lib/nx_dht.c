@@ -129,6 +129,45 @@ void *dht_begin(char *ifile, char *ofile)
 	return dht_begin5(ifile, ofile);
 }
 
+void *dht_copy(void *handle)
+{
+	dht_tab_t *new_tab;
+	dht_tab_t *old_tab = handle;
+
+	if (!old_tab)
+		return NULL;
+
+	if (NULL == (new_tab = malloc(sizeof(dht_tab_t))))
+		return NULL;
+
+	memcpy((char *)new_tab, (const char *)old_tab, sizeof(dht_tab_t));
+
+	if (old_tab->last_used_entry != NULL) {
+		uint64_t offset;
+		/* last_used_entry points to a dht_tab->cache or
+		   dht_tab->builtin entry; issue 123 first identify
+		   which table it's pointing to; then compute offset
+		   relative to that table */
+		if (((char *)old_tab->last_used_entry >= (char *)&old_tab->builtin[0]) &&
+		    ((char *)old_tab->last_used_entry <= (char *)&old_tab->builtin[DHT_NUM_BUILTIN-1])) {
+			/* points to a builtin entry; find byte offset relative to the table base */
+			offset = (char *)(old_tab->last_used_entry) - (char *)&old_tab->builtin[0];
+			new_tab->last_used_entry = (dht_entry_t *)((char *)&new_tab->builtin[0] + offset);
+		}
+		else if (((char *)old_tab->last_used_entry >= (char *)&old_tab->cache[0]) &&
+			 ((char *)old_tab->last_used_entry <= (char *)&old_tab->cache[DHT_NUM_MAX-1])) {
+			offset = (char *)(old_tab->last_used_entry) - (char *)&old_tab->cache[0];
+			new_tab->last_used_entry = (dht_entry_t *)((char *)&new_tab->cache[0] + offset);
+		}
+		else {
+			/* dht table out of bounds */
+			assert(0);
+		}
+	}
+
+	return (void *)new_tab;
+}
+
 static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 {
 	int i;
@@ -428,7 +467,10 @@ static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym
 
 				dht_atomic_store( &dht_tab->last_used_entry, &(dht_cache[sidx]) );
 
-				read_unlock( &dht_cache[sidx].ref_count );
+				if (!read_unlock( &dht_cache[sidx].ref_count )){
+					DHTPRT( fprintf(stderr, "dht_cache unlock failed\n") );
+					return -1;
+				}
 
 				return 0;
 			}
@@ -452,7 +494,8 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 	if (read_lock( &dht_entry->ref_count)) {
 
 		if (dht_atomic_load( &dht_entry->valid) == 0) {
-			read_unlock( &dht_entry->ref_count );			
+			if (!read_unlock( &dht_entry->ref_count ))
+				DHTPRT( fprintf(stderr, "dht_entry unlock failed\n") );
 			return -1;
 		}
 
@@ -501,7 +544,8 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 		if (source_bytes == 0 || (dht_atomic_load( &dht_tab->nbytes_accumulated ) >= DHT_NUM_SRC_BYTES)) {
 			dht_atomic_store( &dht_tab->last_used_entry, NULL );
 			dht_atomic_store( &dht_tab->nbytes_accumulated, source_bytes);
-			read_unlock( &dht_entry->ref_count );			
+			if (!read_unlock( &dht_entry->ref_count ))
+				DHTPRT( fprintf(stderr, "dht_entry unlock failed\n") );
 			DHTPRT( fprintf(stderr, "dht_use_last: quit reusing, search caches or dhtgen\n") );
 			return -1;
 		}
@@ -514,7 +558,10 @@ static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 		/* for lru */
 		dht_atomic_store( &dht_entry->accessed, 1);
 
-		read_unlock( &dht_entry->ref_count );
+		if (!read_unlock( &dht_entry->ref_count )){
+			DHTPRT( fprintf(stderr, "dht_entry unlock failed\n") );
+			return -1;
+		}
 
 		return 0;
 	}
@@ -559,7 +606,6 @@ search_cache:
 	if (!dht_search_builtin(cmdp, dht_tab, top))
 		return 0; /* found */
 
-search_lru:
 	/* Did not find the DHT. Throw away LRU cache entry*/
 	while (1) {
 		/* advance the clock hand */
@@ -601,7 +647,6 @@ force_dhtgen:
 	if (request == dht_gen_req) /* without updating cache */
 		return 0;
 
-copy_to_cache:
 	/* make a copy in the cache at the least used position */
 	memcpy(dht_cache[clock].in_dht_char, cmdp->cpb.in_dht_char, dht_num_bytes);
 	dht_cache[clock].in_dhtlen = dhtlen;

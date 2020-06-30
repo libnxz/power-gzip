@@ -1,40 +1,36 @@
-OPTCC = /opt/at11.0/bin/gcc
-ifneq ("$(wildcard $(OPTCC))","")
-	CC = $(OPTCC)
-else
-	CC = gcc
-endif
-FLG = -std=gnu11
-SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
-ZLIB = -DZLIB_API
-CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) -mcpu=power9 #-DNXTIMER
+include config.mk
 
-SRCS = nx_inflate.c nx_deflate.c nx_zlib.c nx_crc.c nx_dht.c nx_dhtgen.c nx_dht_builtin.c \
-       nx_adler32.c gzip_vas.c nx_compress.c nx_uncompr.c crc32_ppc.c crc32_ppc_asm.S
-OBJS = nx_inflate.o nx_deflate.o nx_zlib.o nx_crc.o nx_dht.o nx_dhtgen.o nx_dht_builtin.o \
-       nx_adler32.o gzip_vas.o nx_compress.o nx_uncompr.o crc32_ppc.o crc32_ppc_asm.o
+subdirs = lib test samples
 
-STATICLIB = libnxz.a
-SHAREDLIB = libnxz.so
+all: $(subdirs)
 
-INC = ./inc_nx
+.PHONY: $(subdirs)
+$(subdirs):
+	@if [ -d $@ ]; then				\
+		$(MAKE) -C $@ || exit 1;	 	\
+	fi
 
-all: $(OBJS) $(STATICLIB) $(SHAREDLIB)
+bench: $(subdirs)
+	$(MAKE) -C samples $@
 
-$(OBJS): $(SRCS)
-	$(CC) $(CFLAGS) -I$(INC) -c $^
+check:  $(subdirs)
+	$(MAKE) -C test $@
 
-$(STATICLIB): $(OBJS)
-	rm -f $@
-	ar rcs -o $@ $(OBJS)
-
-$(SHAREDLIB): $(OBJS)
-	rm -f $@
-	$(CC) -shared  -Wl,-soname,libnxz.so,--version-script,zlib.map -o $@ $(OBJS)	
+unsafe-check:  $(subdirs)
+	$(MAKE) -C test $@
 
 clean:
-	/bin/rm -f *.o *.gcda *.gcno *.so *.a *~
-	$(MAKE) -C test $@
+	@for dir in $(subdirs); do 			\
+		if [ -d $$dir ]; then			\
+			$(MAKE) -C $$dir $@ || exit 1;	\
+		fi					\
+	done
 
-check:
-	$(MAKE) -C test $@
+install:
+	$(MAKE) -C lib $@
+	install -d $(PREFIX)/include/
+	install -m 644 libnxz.h $(PREFIX)/include/
+
+uninstall:
+	$(MAKE) -C lib $@
+	rm $(PREFIX)/include/libnxz.h

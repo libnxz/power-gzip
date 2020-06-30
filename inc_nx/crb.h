@@ -2,12 +2,6 @@
 #define __CRB_H
 #include <linux/types.h>
 
-#if 0
-typedef u64 __be64;
-//typedef unsigned short __be16;
-typedef unsigned int __be32;
-#endif
-
 typedef unsigned char u8;
 typedef unsigned int u32;
 typedef unsigned long long u64;
@@ -17,12 +11,11 @@ typedef unsigned long long u64;
 /* CCW 842 CI/FC masks
  * NX P8 workbook, section 4.3.1, figure 4-6
  * "CI/FC Boundary by NX CT type"
- */ 
+ */
 #define CCW_CI_842              (0x00003ff8)
 #define CCW_FC_842              (0x00000007)
 
 /* end - nx-842.h */
-
 
 #ifndef __aligned
 #define __aligned(x)            __attribute__((aligned(x)))
@@ -31,8 +24,6 @@ typedef unsigned long long u64;
 #ifndef __packed
 #define __packed        __attribute__((packed))
 #endif
-
-
 
 /* Chapter 6.5.8 Coprocessor-Completion Block (CCB) */
 
@@ -49,11 +40,6 @@ typedef unsigned long long u64;
 
 #define CCB_SIZE		(0x10)
 #define CCB_ALIGN		CCB_SIZE
-
-#if 0
-#define	CCW_FC_842_COMP_NOCRC	0
-#define	CCW_FC_842_COMP_CRC	1
-#endif
 
 struct coprocessor_completion_block {
 	__be64 value;
@@ -133,16 +119,6 @@ struct data_descriptor_entry {
 #define CRB_SIZE		(0x80)
 #define CRB_ALIGN		(0x100) /* Errata: requires 256 alignment */
 
-#if 0
-/* CCW 842 CI/FC masks
- *  * NX P8 workbook, section 4.3.1, figure 4-6
- *   * "CI/FC Boundary by NX CT type"
- *    */ 
-#define CCW_CI_842              (0x00003ff8)
-#define CCW_FC_842              (0x00000007)
-#endif
-
-
 /* Coprocessor Status Block field
  *   ADDRESS	address of CSB
  *   C		CCB is valid
@@ -173,7 +149,7 @@ struct coprocessor_request_block {
 #define crb_nx_fault_addr(c)    __be64_to_cpu(c->stamp.nx.fault_storage_addr)
 #define crb_nx_flags(c)         c->stamp.nx.flags
 #define crb_nx_fault_status(c)  c->stamp.nx.fault_status
-#define crb_nx_pswid(c)		c->stamp.nx.pswid;
+#define crb_nx_pswid(c)		c->stamp.nx.pswid
 
 
 /* RFC02167 Initiate Coprocessor Instructions document

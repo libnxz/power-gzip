@@ -50,29 +50,32 @@
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
+#include <zlib.h>
 #include "nx-gzip.h"
 #include "crb.h"
 #include "nx.h"
-#include "nx-842.h"
 #include "nx-helpers.h"
 #include "copy-paste.h"
 #include "nxu.h"
 #include "nx_dbg.h"
 #include <sys/platform/ppc.h>
+#include "nx_zlib.h"
 
 #define barrier()
 #define hwsync()    asm volatile("hwsync" ::: "memory")
 
 #ifndef NX_NO_CPU_PRI
-#define cpu_pri_default()  __ppc_set_ppr_med()
-#define cpu_pri_low()      __ppc_set_ppr_very_low()
+#define cpu_pri_default()  __asm__ volatile ("or 2,2,2")
+#define cpu_pri_low()      __asm__ volatile ("or 31,31,31")
 #else
-#define cpu_pri_default()  do{;}while(0)
-#define cpu_pri_low()      do{;}while(0)
+#define cpu_pri_default()  ((void)(0))
+#define cpu_pri_low()      ((void)(0))
 #endif
 
 void *nx_fault_storage_address;
 uint64_t dbgtimer=0;
+
+const uint64_t timeout_seconds = 60;
 
 struct nx_handle {
 	int fd;
@@ -95,8 +98,6 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 	memset(&txattr, 0, sizeof(txattr));
 	txattr.version = 1;
 	txattr.vas_id = pri;
-	txattr.tc_mode  = 0;
-	txattr.rsvd_txbuf = 0;
 	rc = ioctl(fd, VAS_GZIP_TX_WIN_OPEN, (unsigned long)&txattr);
 	if (rc < 0) {
 		fprintf(stderr, "ioctl() n %d, error %d\n", rc, errno);
@@ -110,7 +111,7 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 		rc = -errno;
 		goto out;
 	}
-	/* printf("Window paste addr @%p\n", addr); */
+	/* TODO: document the 0x400 offset */
 	handle->fd = fd;
 	handle->paste_addr = (void *)((char *)addr + 0x400);
 
@@ -154,120 +155,114 @@ void *nx_function_begin(int function, int pri)
 
 int nx_function_end(void *handle)
 {
-        int rc = 0;
-        struct nx_handle *nxhandle = handle;
-        /* check erro here? if unmap successfully, page fault usually found? */
-        // rc = munmap(nxhandle->paste_addr, 4096);
+	int rc = 0;
+	struct nx_handle *nxhandle = handle;
 
-        rc = munmap(nxhandle->paste_addr - 0x400, 4096);
-        if (rc < 0) {
-                fprintf(stderr, "munmap() failed, errno %d\n", errno);
-                return rc;
-        }
-        close(nxhandle->fd);
-        free(nxhandle);
-        return rc;
+	rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+	if (rc < 0) {
+		fprintf(stderr, "munmap() failed, errno %d\n", errno);
+		return rc;
+	}
+	close(nxhandle->fd); /* see issue 164 comment */
+	free(nxhandle);
+	return rc;
+}
+
+/* wait for ticks amount; accumulated_ticks is the accumulated wait so
+   far. Return value is >= accumulated_ticks + ticks. If do_sleep==1 and
+   accumulated_ticks is non-zero and greater than some threshold then
+   the function may usleep() for about 1/4 of the accumulated time to
+   reduce cpu utilization
+*/
+uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks,
+			int do_sleep)
+{
+	uint64_t ts, te, mhz, sleep_overhead, sleep_threshold;
+
+	mhz = __ppc_get_timebase_freq() / 1000000; /* 500 MHz */
+	ts = te =  __ppc_get_timebase();  /* start */
+
+	sleep_overhead = 30000;  /* usleep(0) overhead */
+	sleep_threshold = 4 * sleep_overhead;
+
+	if (!!do_sleep && (accumulated_ticks > sleep_threshold)) {
+		uint64_t us;
+		us = (accumulated_ticks / mhz) / 4;
+		us = ( us > 1000 ) ? 1000 : us; /* 1 ms */
+		usleep( (useconds_t) us );
+	}
+
+	/* Save power and let other threads use the core. top may show
+	   100%, only because OS doesn't know the thread runs slowly */
+	cpu_pri_low();
+
+	/* busy wait */
+	while ((te - ts) <= ticks) {
+		te = __ppc_get_timebase();
+	}
+
+	cpu_pri_default();
+
+	return (te - ts) + accumulated_ticks;
 }
 
 static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 {
-	volatile long poll = 0;
-	uint64_t t;
+	uint64_t t = 0;
+	const int may_sleep = 1;
+	uint64_t onesecond = __ppc_get_timebase_freq();
 
-	/* Save power and let other threads use the h/w. top may show
-	   100% but only because OS doesn't know we slowed the this
-	   h/w thread while polling. We're letting other threads have
-	   higher throughput on the core.
-	*/
-	cpu_pri_low();
-	
-#define CSB_MAX_POLL 200000000UL
-#define USLEEP_TH     300000UL
-
-	t = __ppc_get_timebase();
-	
-	while( getnn( cmdp->crb.csb, csb_v ) == 0 )
+	while (getnn( cmdp->crb.csb, csb_v ) == 0)
 	{
-		++poll;
-		hwsync();
+		/* check for job completion every 100 ticks */
+		t = nx_wait_ticks(100, t, may_sleep);
 
-		cpu_pri_low();
-		
-		/* usleep(0) takes around 29000 ticks ~60 us.
-		   300000 is spinning for about 600 us then
-		   start sleeping */
-		if ( (__ppc_get_timebase() - t) > USLEEP_TH) {
-			cpu_pri_default();		  
-			usleep(1);
-		}
-
-		if( poll > CSB_MAX_POLL )
+		if (t > (timeout_seconds * onesecond)) /* 1 min */
 			break;
 
-		/* CRB stamp should tell me the fault address */
-		/* if( get64( cmdp->crb.stamp.nx, fsa ) )	
-		   return -EAGAIN; */
-
-		/* fault address from signal handler */		
+		/* fault address from signal handler */
 		if( nx_fault_storage_address ) {
-			cpu_pri_default();
 			return -EAGAIN;
 		}
-		
-	}
 
-	cpu_pri_default();
-	
-	/* hw has updated csb and output buffer */
-	hwsync();
+		hwsync();
+	}
 
 	/* check CSB flags */
 	if( getnn( cmdp->crb.csb, csb_v ) == 0 ) {
-		fprintf( stderr, "CSB still not valid after %d polls, giving up", (int) poll );
-		prt_err("CSB still not valid after %d polls, giving up.\n", (int) poll);
+		fprintf( stderr, "CSB still not valid after %ld seconds, giving up", timeout_seconds);
+		prt_err("CSB still not valid after %ld seconds, giving up.\n", timeout_seconds);
 		return -ETIMEDOUT;
 	}
 
 	return 0;
 }
 
-#ifdef NX_JOB_CALLBACK			
-int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle, int (*callback)(const void *))
-#else
 int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
-#endif
 {
-	int i, ret, retries, once=0;
+	int ret=0, retries=0;
 	struct nx_handle *nxhandle = handle;
+	uint64_t ticks_total = 0;
 
 	assert(handle != NULL);
-	i = 0;
-	retries = 5000;
-	while (i++ < retries) {
-		/* uint64_t t; */
 
-		/* t = __ppc_get_timebase(); */
+	while (1) {
+
 		hwsync();
 		vas_copy( &cmdp->crb, 0);
 		ret = vas_paste(nxhandle->paste_addr, 0);
 		hwsync();
-		/* dbgtimer +=  __ppc_get_timebase() - t; */
-		
-		NXPRT( fprintf( stderr, "Paste attempt %d/%d returns 0x%x\n", i, retries, ret) );
 
 		if ((ret == 2) || (ret == 3)) {
+			/* paste succeeded; now wait for job to
+			   complete */
 
-#ifdef NX_JOB_CALLBACK			
-			if (!!callback && !once) {
-				/* do something useful while waiting
-				   for the accelerator */
-				(*callback)((void *)cmdp); ++once;
-			}
-#endif 
 			ret = nx_wait_for_csb( cmdp );
+
 			if (!ret) {
-				goto out;
-			} else if (ret == -EAGAIN) {
+				return ret;
+			}
+			else if (ret == -EAGAIN) {
 				volatile long x;
 				prt_err("Touching address %p, 0x%lx\n",
 					 nx_fault_storage_address,
@@ -279,31 +274,26 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			}
 			else {
 				prt_err("wait_for_csb() returns %d\n", ret);
-				break;
+				return ret;
 			}
-		} else {
-			if (i < 10) {
-				/* spin for few ticks */
-#define SPIN_TH 500UL
-				uint64_t fail_spin;											
-				fail_spin = __ppc_get_timebase();
-				while ( (__ppc_get_timebase() - fail_spin) < SPIN_TH ) {;}
+		}
+		else {
+			/* paste has failed; should happen when NX
+			   queue is full or the paste buffer in the
+			   cache was being used
+			*/
+			const int no_sleep = 0;
+
+			ticks_total = nx_wait_ticks(500, ticks_total, no_sleep);
+
+			if (ticks_total > (timeout_seconds * __ppc_get_timebase_freq()))
+				return -ETIMEDOUT;
+
+			++retries;
+			if (retries % 1000 == 0) {
+				prt_err("Paste attempt %d, failed pid= %d\n", retries, getpid());
 			}
-			else {
-				/* sleep */
-				static unsigned int pr=0;
-				if (pr++ % 100 == 0) {
-					prt_err("Paste attempt %d/%d, failed pid= %d\n", i, retries, getpid());
-				}
-				usleep(1);
-			}
-			continue;
 		}
 	}
-
-out:
-	cpu_pri_default();
-	
 	return ret;
 }
-

@@ -88,13 +88,8 @@ out:
  * may be room for performance improvement here.
  */
 uint32_t crc32_ppc(uint32_t crc, unsigned char *data, unsigned len) {
-  unsigned char *buf2;
-
   if (!data) {
-    buf2 = (unsigned char *)malloc(len);
-    bzero(buf2, len);
-    crc = crc32_vpmsum(crc, buf2, len);
-    free(buf2);
+    return 0;
   } else {
     crc = crc32_vpmsum(crc, data, (unsigned long)len);
   }

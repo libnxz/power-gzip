@@ -48,17 +48,20 @@
 #include <sys/fcntl.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <endian.h>
 #include <pthread.h>
 #include <signal.h>
 #include <dirent.h>
+#include <syslog.h>
+#include <limits.h>
 #include "zlib.h"
 #include "copy-paste.h"
-#include "nx-ftw.h"
 #include "nxu.h"
 #include "nx.h"
 #include "nx-gzip.h"
 #include "nx_dbg.h"
+#include "nx_utils.h"
 #include "nx_zlib.h"
 
 struct nx_config_t nx_config;
@@ -67,53 +70,26 @@ static int nx_dev_count = 0;
 static int nx_ref_count = 0;
 static int nx_init_done = 0;
 
+static int pid_is_saved = 0;
+static pid_t saved_pid = 0;
+static nx_devp_t saved_nx_devp = NULL;
+static int disable_saved_nx_devp = 1;
+
 int nx_dbg = 0;
 int nx_gzip_accelerator = NX_GZIP_TYPE;
 int nx_gzip_chip_num = -1;
 
-int nx_gzip_trace = 0x4;		/* enable minimal sw trace */
+int nx_gzip_trace = 0x0;
 FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
 int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 
+pthread_mutex_t mutex_log;
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
 pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */
 struct zlib_stats zlib_stats;	/* global statistics */
 
 struct sigaction act;
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 /* **************************************************************** */
-
-static int nx_wait_exclusive(int *excp)
-{
-	/* __sync_bool_compare_and_swap(ptr, oldval, newval) is a gcc
-	   built-in function atomically performing the equivalent of:
-	   if (*ptr == oldval) *ptr = newval; It returns true if the
-	   test yielded true and *ptr was updated. */
-	/* while (!__sync_bool_compare_and_swap(excp, 0, 1)) {;}  */
-
-	return 0;
-}
-
-/*
-   Return 0 for normal exit.  Return -1 for errors; when not in the
-   critical section
-*/
-static int nx_exit_exclusive(int *excp)
-{
-	return 0;
-
-/*	if (__sync_bool_compare_and_swap(excp, 1, 0))
-		return 0;
-	else {
-		assert(0);
-		} */
-}
-
-static void nx_init_exclusive(int *excp)
-{
-	*excp = 0;
-}
-
 
 /*
   Fault in pages prior to NX job submission.  wr=1 may be required to
@@ -160,6 +136,8 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 	char *buf;
 	nx_alloc_header_t h;
 
+	prt_info("%s: len %d alignment %ld\n", __FUNCTION__, len, alignment);
+
 	/* aligned_alloc library routine has a high overhead. We roll
 	   our own algorithm here: 1. Alloc more than the request
 	   amount by the alignment size plus a header. Header will
@@ -201,6 +179,8 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 			prt_err("mlock failed, errno= %d\n", errno);
 	}
 
+	prt_info("%s: alloc %p len %d\n", __FUNCTION__, buf, len);
+
 	return buf;
 }
 
@@ -208,8 +188,14 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 {
 	nx_alloc_header_t *h;
 
+	prt_info("%s: free %p len %d\n", __FUNCTION__, buf, len);
+
 	if (buf == NULL)
 		return;
+
+	if (unlock)
+		if (munlock(buf, len))
+			prt_err("munlock failed, errno= %d\n", errno);
 
 	/* retrieve the hidden address which is the actual address to
 	   be freed */
@@ -221,10 +207,6 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 	   memory corruption */
 	assert( NX_MEM_ALLOC_CORRUPTED == h->signature );
 	h->signature = 0;
-
-	if (unlock)
-		if (munlock(buf, len))
-			prt_err("munlock failed, errno= %d\n", errno);
 
 	free(buf);
 
@@ -417,19 +399,19 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
 	indirect_count = getpnn(ddep, dde_count);
 	buf_len = getp32(ddep, ddebc);
 
-	prt_trace("%s dde %p dde_count %d, ddebc 0x%x\n", msg, ddep, indirect_count, buf_len);
+	prt_err("%s dde %p dde_count %d, ddebc 0x%x\n", msg, ddep, indirect_count, buf_len);
 
 	if (indirect_count == 0) {
 		/* direct dde */
 		buf_len = getp32(ddep, ddebc);
 		buf_addr = getp64(ddep, ddead);
-		prt_trace("  direct dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
+		prt_err("  direct dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
 		return;
 	}
 
 	/* indirect dde */
 	if (indirect_count > MAX_DDE_COUNT) {
-		prt_trace("  error MAX_DDE_COUNT\n");
+		prt_err("  error MAX_DDE_COUNT\n");
 		return;
 	}
 
@@ -439,7 +421,7 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
 	for (i=0; i < indirect_count; i++) {
 		buf_len = get32(dde_list[i], ddebc);
 		buf_addr = get64(dde_list[i], ddead);
-		prt_trace(" indirect dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
+		prt_err(" indirect dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
 	}
 	return;
 }
@@ -474,6 +456,16 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 
 	cc = nxu_run_job(cmdp, ((nx_devp_t)handle)->vas_handle);
 
+	/* JVM catching signals work around; if handler didn't touch
+	   faulting address nxu_run_job will spin needlessly until
+	   times out */
+	if (cc) {
+		prt_err("%s:%d job did not complete in allotted time, cc %d\n", __FUNCTION__, __LINE__, cc);
+		cc = ERR_NX_TRANSLATION; /* this will force resubmit */
+		/* return cc; */
+		exit(-1); /* safely exit and let hadoop deal with dead job */
+	}
+
 	if( !cc )
 		cc = getnn( cmdp->crb.csb, csb_cc );	/* CC Table 6-8 */
 
@@ -484,49 +476,118 @@ nx_devp_t nx_open(int nx_id)
 {
 	nx_devp_t nx_devp;
 	void *vas_handle;
+	pid_t my_pid;
+	int ocount;
 
-	int ocount = __atomic_fetch_add(&nx_ref_count, 1, __ATOMIC_RELAXED);
-
-	if (ocount == 0) {
-		vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, -1);
-		if (!vas_handle) {
-			prt_err("nx_function_begin failed, errno %d\n", errno);
-			nx_devp = NULL;
-			ocount = __atomic_fetch_sub(&nx_ref_count, 1, __ATOMIC_RELAXED);
-			goto ret;
+	if (disable_saved_nx_devp == 0) {
+		/* sharing a nx handle in this process */
+		ocount = __atomic_fetch_add(&nx_ref_count, 1, __ATOMIC_RELAXED);
+		if (ocount > 0) {
+			/* vas is already open; threads will reuse it */
+			volatile void *vh;
+			/* TODO; hack poll while the other thread is doing nx_function_begin */
+			while( NULL == (vh = __atomic_load_n(&saved_nx_devp, __ATOMIC_RELAXED) ) ){;};
 		}
-		/* using only the default device for now; nx_dev_count
-		 * is either 0 to 1 */
-		nx_devp = &nx_devices[ nx_dev_count ];
-		nx_devp->vas_handle = vas_handle;
-		++ nx_dev_count;
-		sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());
 	}
-	else {
-		/* vas is already open; threads will reuse it */
-		volatile void *vh;
-		nx_devp = &nx_devices[0];
-		/* TODO; hack poll while the other thread is doing nx_function_begin */
-		while( NULL == (vh = __atomic_load_n(&nx_devp->vas_handle, __ATOMIC_RELAXED) ) ){;};
+
+	my_pid = getpid();
+
+	prt_info("%s pid %d saved nx_devp %p\n", __FUNCTION__, my_pid, saved_nx_devp);
+
+	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid && disable_saved_nx_devp == 0) {
+		/* appears we were not forked therefore return the
+		   saved device pointer */
+		assert(!!saved_nx_devp);
+		return saved_nx_devp;
 	}
+
+	nx_devp = malloc(sizeof(*nx_devp));
+
+	if (nx_devp == NULL) {
+		prt_err("malloc failed\n");
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	/* nx_id are zero based; -1 means open any */
+	if ((nx_id < -1) || (nx_id >= nx_dev_count))
+		nx_id = -1;
+
+	vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, nx_id);
+
+	if (!vas_handle) {
+		prt_err("nx_function_begin failed, errno %d\n", errno);
+		free(nx_devp);
+		return NULL;
+	}
+
+	nx_devp->vas_handle = vas_handle;
 	nx_devp->open_cnt++;
-ret:
+
+	if (disable_saved_nx_devp == 0) {
+		/* we will reuse this handle */
+		pid_is_saved = 1;
+		saved_pid = my_pid;
+		saved_nx_devp = nx_devp;
+	}
+
+	/* sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());*/
+
 	return nx_devp;
 }
 
-int nx_close(nx_devp_t nxdevp)
+int nx_close(nx_devp_t nx_devp)
 {
+	pid_t my_pid;
+	int ocount;
+
+	if (!nx_devp || !nx_devp->vas_handle) {
+		prt_err("nx_close got a NULL handle\n");
+		return -1;
+	}
+
+	if (disable_saved_nx_devp == 0) {
+		ocount = __atomic_fetch_sub(&nx_ref_count, 1, __ATOMIC_RELAXED);
+		/* the shared handle is in use */
+		if (ocount > 0)
+			return 0;
+	}
+
+	my_pid = getpid();
+
+	prt_info("%s pid %d saved nx_devp %p\n", __FUNCTION__, my_pid, saved_nx_devp);
+
+	nx_function_end(nx_devp->vas_handle);
+
+	nx_devp->open_cnt--; /* for future */
+
+	free(nx_devp);
+
+	if (disable_saved_nx_devp == 0) {
+		/* unsave the handle */
+		pid_is_saved = 0;
+		saved_pid = 0;
+		saved_nx_devp = NULL;
+	}
+
+	/* sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid()); */
+
 	return 0;
 }
 
 static void nx_close_all()
 {
-	int i;
+	pid_t my_pid = getpid();
 
-	/* no need to lock anything; we're exiting */
-	for (i=0; i < nx_dev_count; i++)
-		if (!!nx_devices[i].vas_handle)
-			nx_function_end(nx_devices[i].vas_handle);
+	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid) {
+		if (saved_nx_devp != NULL) {
+			nx_close(saved_nx_devp);
+			saved_nx_devp = NULL;
+		}
+		pid_is_saved = 0;
+		saved_pid = 0;
+	}
+
 	return;
 }
 
@@ -701,6 +762,129 @@ static void print_stats(void)
 	return;
 }
 
+FILE* open_logfile(char *filename)
+{
+	/* multi processes with differnt UID, GID need to write the log file */
+	FILE *logfile;
+	int ret;
+
+	if (!filename)
+		return NULL;
+	/* try to open in append mode */
+	if (logfile = fopen(filename, "a+")) {
+		/* ok, try to chmod so all users can access it.
+		 * the first process creating this file should success, others are expected to fail */
+		//fprintf(stderr, "try chmod: %s\n", filename);
+		chmod(filename, (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
+		return logfile;
+	}
+
+	/* the path may be incorrect, check file exist? */
+	ret = access(filename, F_OK);
+	if (ret != 0) {
+		/* file not exist, fall back to use /tmp/nx.log */
+		syslog(LOG_NOTICE, "nx-zlib: cannot open log file: %s, %s\n",
+			filename, strerror(errno));
+		if (logfile = fopen("/tmp/nx.log", "a+")) {
+			//fprintf(stderr, "%s not exists, use /tmp/nx.log\n", filename);
+			/* ok, try to chmod so all users can access it. */
+			//fprintf(stderr, "try chmod: /tmp/nx.log\n");
+			chmod("/tmp/nx.log", (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
+			return logfile;
+		}
+	} else {
+		//fprintf(stderr, "cannot access %s\n", filename);
+		syslog(LOG_NOTICE, "nx-zlib: cannot access log file: %s\n", filename);
+		/* file exists, we might have no access right, try to use /tmp/nx.log,
+		 * but this may fail if no right to access /tmp/log */
+		if (logfile = fopen("/tmp/nx.log", "a+")) {
+			//fprintf(stderr, "use /tmp/nx.log\n");
+			return logfile;
+		}
+		//fprintf(stderr, "cannot access /tmp/nx.log\n");
+	}
+
+	syslog(LOG_WARNING, "nx-zlib: cannot open %s or /tmp/nx.log, cannot log\n", filename);
+	return NULL;
+}
+
+static int print_nx_env(FILE *fp)
+{
+	if (!fp)
+		return -1;
+
+	char *cfg_file_s = getenv("NX_GZIP_CONFIG");
+	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB");
+	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP");
+	char *verbo_s    = getenv("NX_GZIP_VERBOSE");
+	char *chip_num_s = getenv("NX_GZIP_DEV_NUM");
+	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE");
+	char *inf_bufsz  = getenv("NX_GZIP_INF_BUF_SIZE");
+	char *logfile    = getenv("NX_GZIP_LOGFILE");
+	char *trace_s    = getenv("NX_GZIP_TRACE");
+	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");
+	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY");
+	char *csb_poll_max = getenv("NX_GZIP_CSB_POLL_MAX");
+	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES");
+	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
+
+	fprintf(fp, "env variables ==============\n");
+	if (cfg_file_s)
+		fprintf(fp, "NX_GZIP_CONFIG: \'%s\'\n", cfg_file_s);
+	if (mlock_csb)
+		fprintf(fp, "NX_GZIP_MLOCK_CSB: \'%s'\n", mlock_csb);
+	if (dis_savdev)
+		fprintf(fp, "NX_GZIP_DIS_SAVDEVP: \'%s\'\n", dis_savdev);
+	if (verbo_s)
+		fprintf(fp, "NX_GZIP_VERBOSE: \'%s\'\n", verbo_s);
+	if (chip_num_s)
+		fprintf(fp, "NX_GZIP_DEV_NUM: \'%s\'\n", chip_num_s);
+	if (def_bufsz)
+		fprintf(fp, "NX_GZIP_DEF_BUF_SIZE: \'%s\'\n", def_bufsz);
+	if (inf_bufsz)
+		fprintf(fp, "NX_GZIP_INF_BUF_SIZE: \'%s\'\n", inf_bufsz);
+	if (logfile)
+		fprintf(fp, "NX_GZIP_LOGFILE: \'%s\'\n", logfile);
+	if (trace_s)
+		fprintf(fp, "NX_GZIP_TRACE: \'%s\'\n", trace_s);
+	if (dht_config)
+		fprintf(fp, "NX_GZIP_DHT_CONFIG: \'%s\'\n", dht_config);
+	if (strategy_ovrd)
+		fprintf(fp, "NX_GZIP_STRATEGY: \'%s\'\n", strategy_ovrd);
+	if (csb_poll_max)
+		fprintf(fp, "NX_GZIP_CSB_POLL_MAX: \'%s\'\n", csb_poll_max);
+	if (paste_retries)
+		fprintf(fp, "NX_GZIP_PASTE_RETRIES: \'%s\'\n", paste_retries);
+	if (timeout_pgfaults)
+		fprintf(fp, "NX_GZIP_TIMEOUT_PGFAULTS: \'%s\'\n",
+		        timeout_pgfaults);
+
+	return 0;
+}
+
+static int print_nx_config(FILE *fp)
+{
+	if (!fp)
+		return -1;
+
+	fprintf(fp, "nx-zlib configuration ======\n");
+	fprintf(fp, "verbose: %d\n", nx_config.verbose);
+	fprintf(fp, "dev_num: %d\n", nx_gzip_chip_num);
+	fprintf(fp, "page_sz: %ld\n", nx_config.page_sz);
+	fprintf(fp, "inf_buf_size: %u\n", nx_config.strm_inf_bufsz);
+	fprintf(fp, "def_buf_size: %u\n", nx_config.strm_def_bufsz);
+	fprintf(fp, "trace: %d\n", nx_gzip_trace);
+	fprintf(fp, "dht_config: %d\n", nx_dht_config);
+	fprintf(fp, "strategy: %d\n", nx_strategy_override);
+	fprintf(fp, "mlock_csb: %d\n", nx_config.mlock_nx_crb_csb);
+	fprintf(fp, "dis_savedevp: %d\n", disable_saved_nx_devp);
+	fprintf(fp, "csb_poll_max: %d\n", nx_config.csb_poll_max);
+	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
+	fprintf(fp, "paste_retries: %d\n", nx_config.paste_retries);
+
+	return 0;
+};
+
 /*
  * Execute on library load
  */
@@ -711,10 +895,16 @@ void nx_hw_init(void)
 
 	/* only init one time for the program */
 	if (nx_init_done == 1) return;
+
+	/* configure file path */
+	char *cfg_file_s = getenv("NX_GZIP_CONFIG");
+	struct nx_cfg_tab cfg_tab;
+
 	pthread_mutex_init (&mutex_log, NULL);
 	pthread_mutex_init (&nx_devices_mutex, NULL);
 
-	char *accel_s    = getenv("NX_GZIP_DEV_TYPE"); /* look for string NXGZIP*/
+	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB"); /* 0 or 1 */
+	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP"); /* 0 or 1 */
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE"); /* KiB MiB GiB suffix */
@@ -722,8 +912,11 @@ void nx_hw_init(void)
 	char *logfile    = getenv("NX_GZIP_LOGFILE");
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");  /* default 0 is using literals only, odd is lit and lens */
-	char *strategy_ovrd  = getenv("NX_GZIP_DEFLATE");
-	strategy_ovrd = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
+	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
+	char *csb_poll_max = getenv("NX_GZIP_CSB_POLL_MAX"); /* maximum poll number before wait_for_csb() timeout */
+	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES"); /* number of retries if vas_paste() failed */
+	/* number of retries if nx_submit_job() returns ERR_NX_TRANSLATION */
+	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
 
 	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
@@ -740,19 +933,60 @@ void nx_hw_init(void)
 	nx_config.compress_threshold = (10*1024); /* collect as much input */
 	nx_config.inflate_fifo_in_len = ((1<<16)*2); /* default 128K, half used */
 	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
-	nx_config.deflate_fifo_in_len = 1<<17; /* ((1<<20)*2); /* default 8M, half used */
+	nx_config.deflate_fifo_in_len = 1<<17; /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
-	nx_config.retry_max = INT_MAX;
-	nx_config.pgfault_retries = INT_MAX;
 	nx_config.verbose = 0;
+	nx_config.mlock_nx_crb_csb = 0;
+	nx_config.csb_poll_max = 2000000; /* est. 120 seconds */
+	nx_config.paste_retries = 5000;
+	nx_config.timeout_pgfaults = 300; /* seconds */
 
 	nx_gzip_accelerator = NX_GZIP_TYPE;
 
+	if (!cfg_file_s)
+		cfg_file_s = "./nx-zlib.conf";
+	memset(&cfg_tab, 0, sizeof(cfg_tab));
+
+	rc = nx_read_cfg(cfg_file_s, &cfg_tab);
+	if (rc == 0) {
+		/* configures loaded from file,
+		 * but evironment settings override config file */
+		if (!verbo_s)
+			verbo_s = nx_get_cfg("verbose", &cfg_tab);
+		if (!chip_num_s)
+			chip_num_s = nx_get_cfg("dev_num", &cfg_tab);
+		if (!def_bufsz)
+			def_bufsz = nx_get_cfg("dev_buf_size", &cfg_tab);
+		if (!inf_bufsz)
+			inf_bufsz = nx_get_cfg("inf_buf_size", &cfg_tab);
+		if (!logfile)
+			logfile = nx_get_cfg("logfile", &cfg_tab);
+		if (!trace_s)
+			trace_s = nx_get_cfg("trace", &cfg_tab);
+		if (!dht_config)
+			dht_config = nx_get_cfg("dht_config", &cfg_tab);
+		if (!strategy_ovrd)
+			strategy_ovrd = nx_get_cfg("strategy", &cfg_tab);
+		if (!mlock_csb)
+			mlock_csb = nx_get_cfg("mlock_csb", &cfg_tab);
+		if (!dis_savdev)
+			dis_savdev = nx_get_cfg("dis_savedevp", &cfg_tab);
+		if (!csb_poll_max)
+			csb_poll_max = nx_get_cfg("csb_poll_max", &cfg_tab);
+		if (!paste_retries)
+			paste_retries = nx_get_cfg("paste_retries", &cfg_tab);
+		if (!timeout_pgfaults)
+			timeout_pgfaults = nx_get_cfg("timeout_pgfaults",
+							&cfg_tab);
+	}
+
 	/* log file should be initialized first*/
-	if (logfile != NULL)
-		nx_gzip_log = fopen(logfile, "a+");
-	else
-		nx_gzip_log = fopen("/tmp/nx.log", "a+");
+	if (!logfile)
+		logfile = "/tmp/nx.log";
+
+	nx_gzip_log = open_logfile(logfile);
+
+	/* log file pointer may be NULL, the worst case is we log nothing */
 
 	/* Initialize the stats structure*/
 	if (nx_gzip_gather_statistics()) {
@@ -764,6 +998,7 @@ void nx_hw_init(void)
 	}
 
 	nx_count = nx_enumerate_engines();
+	nx_dev_count = nx_count;
 	if (nx_count == 0) {
 		prt_err("NX-gzip accelerators found: %d\n", nx_count);
 		return;
@@ -779,6 +1014,14 @@ void nx_hw_init(void)
 		nx_config.verbose = str_to_num(verbo_s);
 		z = nx_config.verbose & NX_VERBOSE_LIBNX_MASK;
 		nx_lib_debug(z);
+	}
+
+	if (dis_savdev != NULL) {
+		disable_saved_nx_devp = str_to_num(dis_savdev);
+	}
+
+	if (mlock_csb != NULL) {
+		nx_config.mlock_nx_crb_csb = str_to_num(mlock_csb);
 	}
 
 	if (def_bufsz != NULL) {
@@ -831,16 +1074,33 @@ void nx_hw_init(void)
 		}
 	}
 
-	/* add a signal action */
-/* JVM handles all signals. nx-zlib will not handle sig 11.
-	act.sa_handler = 0;
-	act.sa_sigaction = sigsegv_handler;
-	act.sa_flags = SA_SIGINFO;
-	act.sa_restorer = 0;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGSEGV, &act, NULL);
-*/
+	if (csb_poll_max) {
+		nx_config.csb_poll_max = str_to_num(csb_poll_max);
+		if (nx_config.csb_poll_max < 1)
+			nx_config.csb_poll_max = 1;
+	}
+
+	if (paste_retries) {
+		nx_config.paste_retries = str_to_num(paste_retries);
+		if (nx_config.paste_retries < 1)
+			nx_config.paste_retries = 1;
+	}
+
+	if (timeout_pgfaults) {
+		nx_config.timeout_pgfaults = str_to_num(timeout_pgfaults);
+	}
+
+	if (nx_dbg >= 1 && nx_gzip_log) {
+		fprintf(nx_gzip_log, "nx-zlib log file: %s\n", logfile);
+		fprintf(nx_gzip_log, "nx-zlib config file: %s\n", cfg_file_s);
+		print_nx_env(nx_gzip_log);
+		nx_dump_cfg(&cfg_tab, nx_gzip_log);
+		print_nx_config(nx_gzip_log);
+	}
+
+	nx_close_cfg(&cfg_tab);
 	nx_init_done = 1;
+	prt_warn("libnxz loaded\n");
 }
 
 static void _nx_hwinit(void) __attribute__((constructor));
@@ -848,15 +1108,12 @@ static void _nx_hwinit(void) __attribute__((constructor));
 static void _nx_hwinit(void)
 {
 	nx_hw_init();
-	/* nx_open(-1); */
 }
 
 void nx_hw_done(void)
 {
-	int flags = (nx_gzip_inflate_flags | nx_gzip_deflate_flags);
-
 	nx_close_all();
-	
+
 	if (!!nx_gzip_log) fflush(nx_gzip_log);
 	fflush(stderr);
 
@@ -878,16 +1135,6 @@ static void _nx_hwdone(void)
 	return;
 }
 
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
-{
-	prt_err("%d: Got signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);
-
-	fprintf(stderr, "%d: signal %d si_code %d, si_addr %p\n", getpid(), sig, info->si_code, info->si_addr);
-	fflush(stderr);
-	/* nx_fault_storage_address = info->si_addr; */
-	exit(-1);
-}
-
 /*
    Use NX gzip wrap function to copy data.  crc and adler are output
    checksum values only because GZIP_FC_WRAP doesn't take any initial
@@ -896,10 +1143,10 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
 {
 	nx_gzip_crb_cpb_t cmd;
-	int cc;
-	int pgfault_retries;
+	int cc, timeout_pgfaults;
+	uint64_t ticks_total = 0;
 
-	pgfault_retries = nx_config.retry_max;
+	timeout_pgfaults = nx_config.timeout_pgfaults;
 
 	ASSERT(!!dst && !!src && len > 0);
 
@@ -931,8 +1178,9 @@ static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, u
 		if (!!crc) *crc     = get32( cmd.cpb, out_crc );
 		if (!!adler) *adler = get32( cmd.cpb, out_adler );
 	}
-	else if ((cc == ERR_NX_TRANSLATION) && (pgfault_retries > 0)) {
-		--pgfault_retries;
+	else if ((cc == ERR_NX_TRANSLATION) && (ticks_total > (timeout_pgfaults
+			    * __ppc_get_timebase_freq()))) {
+		ticks_total = nx_wait_ticks(500, ticks_total, 0);
 		goto restart_copy;
 	}
 
@@ -946,7 +1194,7 @@ static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, u
 int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
 {
 	int cc = ERR_NX_OK;
-	uint32_t in_crc, in_adler, out_crc, out_adler;
+	uint32_t in_crc=0, in_adler=0, out_crc, out_adler;
 
 	if (len < nx_config.soft_copy_threshold && !crc && !adler) {
 		memcpy(dst, src, len);

@@ -109,7 +109,7 @@ int  dhtgen (
 #define ASSERT(X)  assert(X)
 #define DBG(X)     do{ X ;} while(0)
 #else  /* _DHTGEN_DEBUG */
-#define ASSERT(X)  do{ ; } while(0)
+#define ASSERT(X)  ((void)(X))
 #define DBG(X)     do{ ; } while(0)
 #endif /* _DHTGEN_DEBUG */
 
@@ -355,17 +355,6 @@ static int cmp_count(const void *p1, const void *p2)
 }
 
 /* 
-   sort by symbol; *arg=1 ascending *arg= -1 descending sort 
-*/
-static int cmp_symbol(const void *p1, const void *p2, void *arg)
-{
-    if( *(int *)arg > 0) 
-	return (  ((leaf_node_t *)p1) -> symbol >  ((leaf_node_t *)p2) -> symbol );
-    else
-	return (  ((leaf_node_t *)p1) -> symbol < ((leaf_node_t *)p2) -> symbol );	
-}
-
-/* 
    extract the depth of each symbol
 */
 static void tree_walk( huff_tree_t *htree, u9 node, int depth )
@@ -430,8 +419,7 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 {
     leaf_node_t leafarr[NLEN]; /* [NLEN]; */
     tree_node_t nodearr[NLEN];
-    tree_node_t remaining_node;    
-    int tree_node_number =  0;  
+    tree_node_t remaining_node = {0};
     q_t leaf_q, node_q;
     int nz_nsym;
 
@@ -541,7 +529,7 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 	    Deflate case left child should be the lexicographically
 	    smaller symbol value; but do we really care? We only need
 	    code lengths */
-	new_node.sc.symbol = node_q.tail;  /* tree_node_number ++; */
+	new_node.sc.symbol = node_q.tail;
 	new_node.sc.count = node[0].sc.count + node[1].sc.count;
 	new_node.child[0] = node[0].sc.symbol;
 	new_node.child[1] = node[1].sc.symbol;
@@ -719,7 +707,7 @@ static void print_hclen(hclen_t *hclen_tab)
 static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 {
     int i,j, count, cur_idx;
-    int state=0, next_state;
+    int state=0, next_state=0;
     u9 cur_len, next_len, new_len;
     hclen_t hclen[19];
     int num_sym_len = num_lsym + num_dsym;

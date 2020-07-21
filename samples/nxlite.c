@@ -592,13 +592,13 @@ static int nxlite_compress(char *dest, uint64_t *destLen,
 			lzcounts, cmdp,
 			myhandle->device_handle);
 
-		if (cc != ERR_NX_OK && cc != ERR_NX_TPBC_GT_SPBC && cc != ERR_NX_TRANSLATION && cc != ERR_NX_TARGET_SPACE) {
+		if (cc != ERR_NX_OK && cc != ERR_NX_TPBC_GT_SPBC && cc != ERR_NX_AT_FAULT && cc != ERR_NX_TARGET_SPACE) {
 			fprintf(stderr, "nx error: cc= %d\n", cc);
 			return Z_STREAM_ERROR; //exit(-1);
 		}
 		
 		/* Page faults are handled by the user code */
-		if (cc == ERR_NX_TRANSLATION) {
+		if (cc == ERR_NX_AT_FAULT) {
 			volatile char touch = *(char *)cmdp->crb.csb.fsaddr;
 			NXPRT( fprintf(stderr, "page fault: cc= %d, try= %d, fsa= %08llx\n", cc, fault_tries, (long long unsigned) cmdp->crb.csb.fsaddr) );
 			fault_tries --;
@@ -1170,12 +1170,12 @@ restart_nx:
 
 	switch (cc) {
 
-	case ERR_NX_TRANSLATION:
+	case ERR_NX_AT_FAULT:
 
 		/* We touched the pages ahead of time. In the most common case we shouldn't
 		   be here. But may be some pages were paged out. Kernel should have 
 		   placed the faulting address to fsaddr */
-		NXPRT( fprintf(stderr, "ERR_NX_TRANSLATION %p\n", (void *)cmdp->crb.csb.fsaddr) );
+		NXPRT( fprintf(stderr, "ERR_NX_AT_FAULT %p\n", (void *)cmdp->crb.csb.fsaddr) );
 
 		/* Touch 1 byte, read-only  */
 		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, page_sz, 0);

@@ -352,13 +352,13 @@ int compress_file(int argc, char **argv, void *handle)
 
 		NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );	
 		
-		if (cc != ERR_NX_OK && cc != ERR_NX_TPBC_GT_SPBC && cc != ERR_NX_TRANSLATION) {
+		if (cc != ERR_NX_OK && cc != ERR_NX_TPBC_GT_SPBC && cc != ERR_NX_AT_FAULT) {
 			fprintf(stderr, "nx error: cc= %d\n", cc);
 			exit(-1);
 		}
 
 		/* Page faults are handled by the user code */
-		if (cc == ERR_NX_TRANSLATION) {
+		if (cc == ERR_NX_AT_FAULT) {
 			volatile char touch = *(char *)cmdp->crb.csb.fsaddr;
 			NXPRT( fprintf(stderr, "page fault: cc= %d, try= %d, fsa= %08llx\n", cc, fault_tries, (long long unsigned) cmdp->crb.csb.fsaddr) );
 			NX_CLK( (td.fault += 1) );			

@@ -1147,7 +1147,7 @@ restart_nx:
 
 	switch (cc) {
 
-	case ERR_NX_TRANSLATION:
+	case ERR_NX_AT_FAULT:
 
 		/* We touched the pages ahead of time. In the most
 		   common case we shouldn't be here. But may be some
@@ -1155,7 +1155,7 @@ restart_nx:
 		   faulting address to fsaddr */
 		print_dbg_info(s, __LINE__);
 
-		prt_warn("ERR_NX_TRANSLATION: crb.csb.fsaddr %p source_sz %d ",
+		prt_warn("ERR_NX_AT_FAULT: crb.csb.fsaddr %p source_sz %d ",
 			 (void *)cmdp->crb.csb.fsaddr, source_sz);
 		prt_warn("target_sz %d\n", target_sz);
 #ifdef NX_LOG_SOURCE_TARGET
@@ -1203,7 +1203,7 @@ restart_nx:
 				goto err5;
 			}
 			else {
-				prt_warn("ERR_NX_TRANSLATION: more retry\n");
+				prt_warn("ERR_NX_AT_FAULT: more retry\n");
 				goto restart_nx;
 			}
 		}

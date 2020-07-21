@@ -411,12 +411,12 @@ int p9deflate(p9_simple_handle_t *handle, void *src, void *dst, int srclen,
 	}
 
 	if (cc != ERR_NX_OK && cc != ERR_NX_TPBC_GT_SPBC
-	    && cc != ERR_NX_TRANSLATION) {
+	    && cc != ERR_NX_AT_FAULT) {
 		fprintf(stderr, "nx deflate error: cc= %d\n", cc);
 		return -1;
 	}
 
-	if (cc == ERR_NX_TRANSLATION) {
+	if (cc == ERR_NX_AT_FAULT) {
 		fprintf(stderr, "nx deflate error page fault: cc= %d\n", cc);
 		// TODO maybe handle page faults
 		return -1;

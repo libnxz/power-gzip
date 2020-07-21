@@ -461,7 +461,7 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 	   times out */
 	if (cc) {
 		prt_err("%s:%d job did not complete in allotted time, cc %d\n", __FUNCTION__, __LINE__, cc);
-		cc = ERR_NX_TRANSLATION; /* this will force resubmit */
+		cc = ERR_NX_AT_FAULT; /* this will force resubmit */
 		/* return cc; */
 		exit(-1); /* safely exit and let hadoop deal with dead job */
 	}
@@ -915,7 +915,7 @@ void nx_hw_init(void)
 	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
 	char *csb_poll_max = getenv("NX_GZIP_CSB_POLL_MAX"); /* maximum poll number before wait_for_csb() timeout */
 	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES"); /* number of retries if vas_paste() failed */
-	/* number of retries if nx_submit_job() returns ERR_NX_TRANSLATION */
+	/* number of retries if nx_submit_job() returns ERR_NX_AT_FAULT */
 	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
 
 	/* Init nx_config a default value firstly */
@@ -1178,7 +1178,7 @@ static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, u
 		if (!!crc) *crc     = get32( cmd.cpb, out_crc );
 		if (!!adler) *adler = get32( cmd.cpb, out_adler );
 	}
-	else if ((cc == ERR_NX_TRANSLATION) && (ticks_total > (timeout_pgfaults
+	else if ((cc == ERR_NX_AT_FAULT) && (ticks_total > (timeout_pgfaults
 			    * __ppc_get_timebase_freq()))) {
 		ticks_total = nx_wait_ticks(500, ticks_total, 0);
 		goto restart_copy;

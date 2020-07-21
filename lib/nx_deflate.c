@@ -1476,8 +1476,8 @@ restart:
 	}
 
 	switch (cc) {
-	case ERR_NX_TRANSLATION:
-		prt_warn("ERR_NX_TRANSLATION: bytes_in %d nxcmdp->crb.csb.fsaddr %p\n",
+	case ERR_NX_AT_FAULT:
+		prt_warn("ERR_NX_AT_FAULT: bytes_in %d nxcmdp->crb.csb.fsaddr %p\n",
 			bytes_in, (void *)nxcmdp->crb.csb.fsaddr);
 
 #ifdef NX_LOG_SOURCE_TARGET
@@ -1520,7 +1520,7 @@ restart:
 				goto err_exit;
 			}
 			else {
-				prt_warn("ERR_NX_TRANSLATION: Retry again\n");
+				prt_warn("ERR_NX_AT_FAULT: Retry again\n");
 				goto restart;
 			}
 		}

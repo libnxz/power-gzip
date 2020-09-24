@@ -36,6 +36,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 #ifndef _LIBNXZ_H
 #define _LIBNXZ_H

@@ -36,7 +36,9 @@ clean:
 install: $(STATICLIB) $(SHAREDLIB)
 	install -d $(LIBDIR)
 	install -m 755 $(SHAREDLIB) $(LIBDIR)
-	install -m 755 $(SHAREDSONAMELIB) $(LIBDIR)
+	{ cd $(LIBDIR); \
+	  ln -s $(SHAREDLIB) $(SHAREDSONAMELIB); \
+	  ln -s $(SHAREDLIB) $(LIBLINK); }
 	install -m 644 $(STATICLIB) $(LIBDIR)
 
 uninstall:

@@ -64,7 +64,7 @@ rand_pfault_check: rand_pfault_check.c compdecomp_th.c ../lib/libnxz.a
 	rand_pfault_check.c compdecomp_th.c $(LDLIB)
 
 nx_gzip: nx_gzip.c
-	$(CC) $(CFLAGS) -o $@ $^ -lz
+	$(CC) $(CFLAGS) -I$(INC) $(LDFLAGS) -o $@ $^ $(LDLIB)
 
 clean:
 	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th makedata \

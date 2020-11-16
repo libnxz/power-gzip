@@ -93,6 +93,9 @@
 void nx_print_dde(nx_dde_t *ddep, const char *msg);
 #endif
 
+#define zlib_version zlibVersion()
+extern const char *zlibVersion OF((void));
+
 /* common config variables for all streams */
 struct nx_config_t {
 	long     page_sz;

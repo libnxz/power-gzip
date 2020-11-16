@@ -1222,3 +1222,8 @@ int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, 
 	if (!!adler) *adler = in_adler;
 	return cc;
 }
+
+const char * zlibVersion()
+{
+    return ZLIB_VERSION;
+}

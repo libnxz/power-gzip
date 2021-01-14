@@ -65,6 +65,9 @@ For example, use `nx_compress` instead of `compress`.
 - doc/ - Provides documentation about the library.
 - inc_nx/ - Internal header files.
 - lib/ - Implements the library functions.
+- [oct/](oct/README.md) - Provide output comparison tests validating that data
+can be compressed and decompressed with other libraries maintaining their
+integrity.
 - samples/ - Provide example application that use the libnxz API.
 - [selftest/](selftest/README.md) - Small set of tests for the NX GZIP
 accelerator.  These tests are reused in Linux.

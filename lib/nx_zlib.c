@@ -426,10 +426,12 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
 	return;
 }
 
-/*
-   Src and dst buffers are supplied in scatter gather lists.
-   NX function code and other parameters supplied in cmdp
-*/
+/**
+ * Src and dst buffers are supplied in scatter gather lists.
+ * NX function code and other parameters supplied in cmdp.
+ *
+ * @param cmdp NX command and parameter
+ */
 int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *handle)
 {
 	int cc;

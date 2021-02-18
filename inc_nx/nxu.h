@@ -34,6 +34,10 @@
  *
  */
 
+/** @file nxu.h
+ *  \brief Hardware interface of the NX-GZIP compression accelerator
+ */
+
 #ifndef _NXU_H
 #define _NXU_H
 
@@ -67,10 +71,8 @@
 #define nx_get_freq()  (-1)
 #endif
 
-/*
- * Definitions of acronyms used here. See
- * P9 NX Gzip Accelerator User's Manual for details:
- * https://github.com/libnxz/power-gzip/blob/develop/doc/power_nx_gzip_um.pdf
+/**
+ * Definitions of acronyms used here:
  *
  * adler/crc: 32 bit checksums appended to stream tail
  * ce:       completion extension
@@ -230,14 +232,19 @@ typedef union {
 	nx_stamped_fault_crb_t nx;
 } stamped_crb_t;
 
+/** \struct nx_gzip_cpb_t
+ *  \brief Coprocessor Parameter Block.
+ *
+ * The CPB contains separate, non-overlapping input and output regions in the
+ *  system memory.  It is used to exchange additional control information
+ * between the accelerator and software.
+ */
 typedef struct {
-	/*
-	 * Coprocessor Parameter Block In/Out are used to pass metadata
-	 * to/from accelerator.  Tables 6.5 and 6.6 of the user manual.
+	/** \brief Input - Coprocessor Parameter Block
+	 *
+	 * \details Coprocessor Parameter Block Input is used to pass metadata
+	 * to the accelerator.
 	 */
-
-	/* CPBInput */
-
 	struct {
 		union {
 		nx_qw_t qw0;
@@ -245,11 +252,77 @@ typedef struct {
 				uint32_t in_adler;            /* bits 0:31  */
 				uint32_t in_crc;              /* bits 32:63 */
 				union {
-					uint32_t in_histlen;  /* bits 64:75 */
-					uint32_t in_subc;     /* bits 93:95 */
+					/** \brief Input - History Length
+					 * \details bits 64:75
+					 *
+					 * During resume functions, this is the
+					 * number of 16 byte quadwords of source
+					 * that are not processed but just used
+					 * to load history. Any value is
+					 * allowed. The maximum distance in the
+					 * deflate standard is 32768 bytes, so
+					 * setting in_histlen greater than 2048
+					 * quadwords is wasting data. Only the
+					 * last 32KB of history will be
+					 * available for compression matching or
+					 * decompression references.
+					 */
+					uint32_t in_histlen;
+
+					/** \brief Input - Source Unprocessed
+					 * Bit Count.
+					 * \details bits 93:95
+					 *
+					 * During decompression resume
+					 * functions, how many bits in the first
+					 * source byte need to be processed.
+					 * Value of \c 000 indicates all 8 bits.
+					 * Note that the deflate standard has
+					 * reversed bit ordering within each
+					 * byte. So \c SUBC=”011” means bits
+					 * \c 0:2 in the first source byte are
+					 * unprocessed, bits \c 3:7 have already
+					 * been processed.
+					 */
+					uint32_t in_subc;
 				};
 				union {
-					/* bits 108:111 */
+					/** \brief Input - Source Final Block
+					 * Type
+					 * \details bits 108:111
+					 *
+					 * From suspended decompression
+					 * operation.
+					 * Used during decompression resume.
+					 * Indicates type of compressed data
+					 * beginning with first unprocessed bit
+					 * in first byte of source.
+					 *
+					 * Possible values:
+					 * - “0XXX”: Invalid. Accelerator will
+					 *           treat as block header with
+					 *           BFINAL=0.
+					 * - “1000”: Type “00” literal block
+					 *           with BFINAL=0.
+					 * - “1001”: Type “00” literal block
+					 *           with BFINAL=1.
+					 * - “1010”: Type “01” fixed Huffman
+					 *           table block with BFINAL=0.
+					 * - “1011”: Type “01” fixed Huffman
+					 *           table block with BFINAL=1.
+					 * - “1100”: Type “10” dynamic Huffman
+					 *           table block with BFINAL=0.
+					 * - “1101”: Type “10” dynamic Huffman
+					 *           table block with BFINAL=1.
+					 * - “1110”: Block header with BFINAL=0.
+					 *           Since BFINAL is included in
+					 *           unprocessed bits, encoding
+					 *           is superfluous.
+					 * - “1111”: Block header with BFINAL=1.
+					 *           Since BFINAL is included in
+					 *           unprocessed bits, encoding
+					 *           is superfluous.
+					 */
 					uint32_t in_sfbt;
 					/* bits 112:127 */
 					uint32_t in_rembytecnt;
@@ -265,22 +338,80 @@ typedef struct {
 		nx_qw_t  reserved[5];		/* qw[19:23]    */
 	};
 
-	/* CPBOutput */
-
+	/** \brief Output - Coprocessor Parameter Block
+	 *
+	 * \details Coprocessor Parameter Block Output is used to get metadata
+	 * from the accelerator, e.g. computed adler32 and CRC32
+	 */
 	volatile struct {
 		union {
 			nx_qw_t qw24;
 			struct {
-				uint32_t out_adler;    /* bits 0:31  qw[24] */
-				uint32_t out_crc;      /* bits 32:63 qw[24] */
+				/** \brief Computed Adler32
+				 * \details bits 0:31  qw[24]
+				 */
+				uint32_t out_adler;
+				/** \brief Computed CRC32
+				 * \details bits 32:63 qw[24]
+				 */
+				uint32_t out_crc;
 				union {
-					/* bits 77:79 qw[24] */
+					/** \brief Target Ending Bit Count
+					 * \details bits 77:79 qw[24]
+					 */
 					uint32_t out_tebc;
-					/* bits 80:95 qw[24] */
+					/** \brief Source Unprocessed Bit Count
+					 * \details  bits 80:95 qw[24]
+					 */
 					uint32_t out_subc;
 				};
 				union {
-					/* bits 108:111 qw[24] */
+					/** \brief Output - Source Final Block
+					 * Type
+					 * \details bits 108:111 qw[24]
+					 *
+					 * Produced when decompression stops
+					 * receiving source, either normally or
+					 * as a result of a suspend operation.
+					 * Indicates type of compressed data
+					 * being processed. If the source was
+					 * suspended, this field is forwarded
+					 * to the subsequent resume operation
+					 * as SFBT.
+					 *
+					 * Possible values:
+					 * - “0000”: final end-of-block (EOB)
+					 *           code received. Any source
+					 *           after this is counted in
+					 *           SUBC.
+					 * - “1000”: data within a type “00”
+					 *           literal block with
+					 *           BFINAL=0.
+					 * - “1001”: data within a type “00”
+					 *           literal block with
+					 *           BFINAL=1.
+					 * - “1010”: data within a type “01”
+					 *           fixed Huffman table
+					 *           block with BFINAL=0.
+					 * - “1011”: data within a type “01”
+					 *           fixed Huffman table block
+					 *           with BFINAL=1.
+					 * - “1100”: data within a type “10”
+					 *           dynamic Huffman table block
+					 *           with BFINAL=0.
+					 * - “1101”: data within a type “10”
+					 *           dynamic Huffman table block
+					 *           with BFINAL=1.
+					 * - “1110”: within a block header with
+					 *           BFINAL=0. Also given if
+					 *           source data exactly ends
+					 *           (SUBC=0) with EOB code with
+					 *           BFINAL=0. Means the next
+					 *           byte will contain a block
+					 *           header.
+					 * - “1111”: within a block header with
+					 *           BFINAL=1.
+					 */
 					uint32_t out_sfbt;
 					/* bits 112:127 qw[24] */
 					uint32_t out_rembytecnt;
@@ -309,36 +440,69 @@ typedef struct {
 	};
 } nx_gzip_cpb_t  __attribute__ ((aligned (128)));
 
+/** \struct nx_gzip_crb_t
+ *  \brief Coprocessor Request Block.
+ *
+ * The CRB is 128 bytes in length, contains a function code indicating the
+ * type of accelerator request and may also contain direct or indirect
+ * addresses of the source and target buffers for scatter-gather type of
+ * operations.
+ */
 typedef struct {
 	union {                   /* byte[0:3]   */
-		uint32_t gzip_fc;     /* bits[24-31] */
+		/** \brief Function Code
+		 * \details bits[24-31]
+		 *
+		 * Indicates the type of accelerator request.
+		 * - 00000X: Compression with fixed Huffman table.
+		 * - 00001X: Compression with dynamic Huffman table.
+		 * - 00010X: Compression with fixed Huffman table. Count LZ77
+		 *           symbols.
+		 * - 00011X: Compression with dynamic Huffman table. Count LZ77
+		 *           symbols.
+		 * - 00100X: Resume compression with fixed Huffman table.
+		 * - 00101X: Resume compression with dynamic Huffman table.
+		 * - 00110X: Resume compression with fixed Huffman table. Count
+		 *           LZ77 symbols.
+		 * - 00111X: Resume compression with dynamic Huffman table.
+		 *           Count LZ77 symbols.
+		 * - 01000X: Decompression.
+		 * - 01001X: Decompression. Process single block and suspend.
+		 * - 01010X: Resume decompression.
+		 * - 01011X: Resume decompression. Process single block and
+		 *           suspend.
+		 * - 01111X: Wrap. Copy source data to target.
+		 */
+		uint32_t gzip_fc;
 	};
-	uint32_t reserved1;       /* byte[4:7]   */
+	/** \brief Reserved
+	 * \details byte[4:7]
+	 */
+	uint32_t reserved1;
 	union {
-		uint64_t csb_address; /* byte[8:15]  */
+		uint64_t csb_address; /** byte[8:15]  */
 		struct {
 			uint32_t reserved2;
 			union {
-				uint32_t crb_c;
-				/* c==0 no ccb defined */
+				uint32_t crb_c; /** c==0 no ccb defined */
 
-				uint32_t crb_at;
-				/* at==0 address type is ignored;
-				 * all addrs effective assumed.
-				 */
+				uint32_t crb_at; /** at==0 address type is
+						  * ignored;
+						  * all addrs effective assumed.
+						  */
 
 			};
 		};
 	};
-	nx_dde_t source_dde;           /* byte[16:31] */
-	nx_dde_t target_dde;           /* byte[32:47] */
-	volatile nx_ccb_t ccb;         /* byte[48:63] */
+	nx_dde_t source_dde;           /** byte[16:31] */
+	nx_dde_t target_dde;           /** byte[32:47] */
+	volatile nx_ccb_t ccb;         /** byte[48:63] */
 	volatile union {
-		/* byte[64:239] shift csb by 128 bytes out of the crb; csb was
+		/** byte[64:239] shift csb by 128 bytes out of the crb; csb was
 		 * in crb earlier; JReilly says csb written with partial inject
 		 */
 		nx_qw_t reserved64[11];
-		stamped_crb_t stamp;       /* byte[64:79] */
+		stamped_crb_t stamp;       /** byte[64:79] */
 	};
 	volatile nx_csb_t csb;
 } nx_gzip_crb_t __attribute__ ((aligned (128)));
@@ -346,17 +510,18 @@ typedef struct {
 
 typedef struct {
 	/* Figure 6.9 */
-	nx_gzip_crb_t crb;
-	nx_gzip_cpb_t cpb;
+	nx_gzip_crb_t crb; /** Coprocessor Request Block */
+	nx_gzip_cpb_t cpb; /** Coprocessor Parameter Block */
 } nx_gzip_crb_cpb_t __attribute__ ((aligned (2048)));
 
 
-/* 
-   NX hardware convention has the msb bit on the left numbered 0.
-   The defines below has *_offset defined as the right most bit 
-   position of a field.  x of size_mask(x) is the field width in bits 
-*/
-
+/** \brief Mask the least significant bits
+ * \details NX hardware convention has the msb bit on the left numbered 0.
+ * The defines below has *_offset defined as the right most bit
+ * position of a field.
+ *
+ * @param  x Field width in bits
+ */
 #define size_mask(x)          ((1U<<(x))-1)
 
 /* 

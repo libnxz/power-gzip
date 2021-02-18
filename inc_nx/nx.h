@@ -30,6 +30,11 @@
  * limitations under the License.
  *
  */
+
+/** @file nx.h
+ *
+ */
+
 #ifndef _NX_H
 #define _NX_H
 
@@ -50,11 +55,27 @@ typedef struct {
 	char *buf;
 } nxbuf_t;
 
-/* @function should be EFT (aka 842), GZIP etc */
+/** \brief Allocate and initialize an nx_handle.
+ *
+ * @param function Should be EFT (aka 842), GZIP etc
+ * @param pri ID of the NX device. Use -1 to pick any.
+ *
+ * \return A pointer to a dynamically allocated struct nx_handle.
+ * \retval NULL In case of error.
+ */
 void *nx_function_begin(int function, int pri);
 
 int nx_function(void *handle, nxbuf_t *in, nxbuf_t *out, void *arg);
 
+/** \brief Deallocate a previously allocated nx_handle.
+ *
+ * @param handle A pointer to a struct nx_handle previously initialized by
+ *               nx_function_begin().
+ *
+ * \retval 0 In case of success.
+ * \retval -1 In case of failure.  \c errno is set to indicate the cause of the
+ *            error.
+ */
 int nx_function_end(void *handle);
 
 #endif	/* _NX_H */

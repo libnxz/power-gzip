@@ -4,7 +4,7 @@ subdirs = lib test samples
 
 all: $(subdirs)
 
-.PHONY: $(subdirs)
+.PHONY: $(subdirs) doc
 $(subdirs):
 	@if [ -d $@ ]; then				\
 		$(MAKE) -C $@ || exit 1;	 	\
@@ -15,6 +15,9 @@ bench: $(subdirs)
 
 check:  $(subdirs)
 	$(MAKE) -C test $@
+
+doc: doc/libnxz.doxy
+	doxygen $<
 
 unsafe-check:  $(subdirs)
 	$(MAKE) -C test $@

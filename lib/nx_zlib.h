@@ -37,6 +37,10 @@
  *
  */
 
+/** @file nx_zlib.h
+ *  @brief Provides libnxz own API
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -233,9 +237,9 @@ typedef struct nx_stream_s {
 	int             need_stored_block;
 	long            last_ratio;     /* compression ratio; 500
 					 * means 50% */
-	
-        char            *fifo_in;       /* user input collects here */
-        char            *fifo_out;      /* user output overflows here */        
+
+        char            *fifo_in;       /** user input collects here */
+        char            *fifo_out;      /** user output overflows here */
 
         int32_t         len_in;         /* fifo_in length */
         int32_t         used_in;        /* fifo_in used bytes */

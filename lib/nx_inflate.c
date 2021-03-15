@@ -914,7 +914,10 @@ copy_fifo_out_to_next_out:
 
 	if (++loop_cnt == loop_max) {
 		prt_err("cannot make progress; too many loops loop_cnt = %ld\n", (long)loop_cnt);
-		return Z_STREAM_END;
+		/* This should never happen.  If we reach this line, there is
+		   a bug in this code.  Return Z_STREAM_ERROR, which is the
+		   closest error possible in this scenario.  */
+		return Z_STREAM_ERROR;
 	}
 
 	/* if fifo_out is not empty, first copy contents to next_out.
@@ -1377,8 +1380,19 @@ ok_cc3:
 		     /* with BFINAL=0. Means the next byte will contain a block header. */
 	case 0b1111: /* within a block header with BFINAL=1. */
 
+		/** If source_sz becomes 0, the source could not be processed,
+		 * and we have to increase the source before
+		 * \ref NotEnoughSource "the next iteration".
+		 */
 		source_sz = source_sz - ((subc + 7) / 8);
 		partial_bits = subc;
+		prt_info("source_sz %d partial_bits %d in_histlen %d in_subc %d"
+			 " in_sfbt %d in_rembytecnt %d\n",
+			 source_sz, partial_bits,
+			 getnn(cmdp->cpb, in_histlen),
+			 getnn(cmdp->cpb, in_subc),
+			 getnn(cmdp->cpb, in_sfbt),
+			 getnn(cmdp->cpb, in_rembytecnt));
 
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen */
 		cmdp->cpb.in_subc = 0;
@@ -1475,6 +1489,12 @@ offsets_state:
 		s->last_comp_ratio = (1000UL * ((uint64_t)source_sz + 1)) / ((uint64_t)tpbc + 1);
 		s->last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 1 ); /* bounds check */
 	}
+	/** \anchor NotEnoughSource
+	 * However, if not enough source is available, we must give more.
+	 * Assume the worst case and use 100%.
+	 */
+	else if (cc == ERR_NX_DATA_LENGTH && sfbt == 0xe && subc > 0)
+		s->last_comp_ratio = 1000UL;
 
 	prt_info("== %d source_sz %d tpbc %d last_comp_ratio %d\n", __LINE__, source_sz, tpbc, s->last_comp_ratio);
 

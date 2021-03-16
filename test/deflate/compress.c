@@ -57,7 +57,8 @@ static int run(unsigned int len, int all, char digit, const char* test)
 
 	if (_test_nx_compress(compr, &compr_len, src, src_len)) goto err;
 	if (_test_uncompress(uncompr, &uncompr_len, compr, compr_len, src, src_len)) goto err;
-	// if (_test_nx_uncompress(uncompr, &uncompr_len, compr, compr_len, src, src_len)) goto err;
+	if (_test_nx_uncompress(uncompr, &uncompr_len, compr, compr_len, src,
+				src_len)) goto err;
 
 	printf("*** %s %s passed\n", __FILE__, test);
 	free(compr);

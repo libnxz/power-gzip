@@ -37,6 +37,11 @@
  *
  */
 
+/** @file nx_inflate.c
+ * \brief Implement the inflate function for the NX GZIP accelerator and
+ * related functions.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -57,11 +62,17 @@
 #include "nx_zlib.h"
 #include "nx_dbg.h"
 
-#define INF_HIS_LEN (1<<15) /* Fixed 32K history length */
+/** \brief Fixed 32K history length
+ * \details The maximum distance in the deflate standard is 32768 Bytes.
+ */
+#define INF_HIS_LEN (1<<15)
 #define INF_MAX_DICT_LEN  INF_HIS_LEN
 
 #define INF_MIN_INPUT_LEN 300 /* greater than 288 for dht plus 3 bit header plus 1 byte */
-#define INF_MAX_COMPRESSION_RATIO 1032 /* https://stackoverflow.com/a/42865320/5504692 */
+/** \brief Maximum Compression Ratio
+ * https://stackoverflow.com/a/42865320/5504692
+ */
+#define INF_MAX_COMPRESSION_RATIO 1032
 #define INF_MAX_EXPANSION_BYTES (INF_MIN_INPUT_LEN * INF_MAX_COMPRESSION_RATIO)
 
 /* move the overflow from the current fifo head-32KB to the fifo_out
@@ -868,6 +879,11 @@ static int nx_amend_history_with_dict(nx_streamp s, int *hlen, int *dlen )
 	return 0;
 }
 
+/** \brief Internal implementation of inflate.
+ *
+ * @param s nx_streamp to be processed.
+ * @param flush Determines when uncompressed bytes are added to next_out.
+ */
 static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
@@ -886,7 +902,9 @@ static int nx_inflate_(nx_streamp s, int flush)
 
 	uint64_t ticks_total = 0;
 	int cc, rc, timeout_pgfaults, partial_bits=0;
-	int nx_history_len; /* includes dictionary and history going in to nx-gzip */
+	/** \brief Includes dictionary and history going in to nx-gzip
+	 */
+	int nx_history_len;
 
 	timeout_pgfaults = nx_config.timeout_pgfaults;
 

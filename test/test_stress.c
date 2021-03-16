@@ -51,8 +51,6 @@ struct time_duration {
 static alloc_func zalloc = (alloc_func)0;
 static free_func zfree = (free_func)0;
 
-static pthread_mutex_t stress_mutex;
-
 static struct use_time* get_use_time_by_tid(pthread_t id)
 {
 	for (int i = 0; i < THREAD_MAX; i++){

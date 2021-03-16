@@ -115,8 +115,6 @@ struct nx_config_t {
 	uint32_t strm_inf_bufsz;
 	uint32_t soft_copy_threshold;  /* choose memcpy or hwcopy */
 	uint32_t compress_threshold;   /* collect as much input */
-	int 	 inflate_fifo_in_len;
-	int 	 inflate_fifo_out_len;
 	int 	 deflate_fifo_in_len;
 	int 	 deflate_fifo_out_len;
 	int      window_max;

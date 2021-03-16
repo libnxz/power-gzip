@@ -11,7 +11,7 @@ LD = $(shell which ld)
 
 ## Common flags
 FLG    = -std=gnu11
-SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+SFLAGS = -O3 -fPIC
 ZLIB   = -DZLIB_API
 
 ## Compiler related flags

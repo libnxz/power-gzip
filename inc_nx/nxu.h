@@ -324,7 +324,19 @@ typedef struct {
 					 *           is superfluous.
 					 */
 					uint32_t in_sfbt;
-					/* bits 112:127 */
+					/** \brief Input - Remaining Byte Count
+					 * \details bits 112:127
+					 *
+					 * Used for resuming decompression of a
+					 * type \c 00 literal block. Since
+					 * literal blocks don’t contain an end
+					 * of block indicator, a byte count
+					 * needs to be passed in during a resume
+					 * operation.
+					 * The remaining byte count is given
+					 * when the literal block is suspended,
+					 * and is passed along on a resume.
+					 */
 					uint32_t in_rembytecnt;
 					/* bits 116:127 */
 					uint32_t in_dhtlen;
@@ -360,8 +372,53 @@ typedef struct {
 					 * \details bits 77:79 qw[24]
 					 */
 					uint32_t out_tebc;
-					/** \brief Source Unprocessed Bit Count
+					/** \brief Output - Source Unprocessed
+					 * Bit Count
 					 * \details  bits 80:95 qw[24]
+					 *
+					 * Produced when a decompression
+					 * function stops receiving source
+					 * before the end of the last block
+					 * (also called suspend). Or if
+					 * additional source is received after
+					 * the final end-of-block code is
+					 * seen, e.g. a trailer.
+					 * This field indicates how many bits of
+					 * source could not be processed. Worst
+					 * case is when the source interruption
+					 * occurs just after the beginning of a
+					 * type “10” header containing a
+					 * compressed dynamic Huffman table. The
+					 * largest table is 2283 bits. Other
+					 * interruption points will yield much
+					 * less unprocessed source.
+					 * This field is also used by software
+					 * to figure out the first partial or
+					 * full byte that wasn’t processed in
+					 * preparation for resuming the
+					 * decompression. The low order 3 bits
+					 * are fed back to the accelerator as
+					 * part of the resume function
+					 * (nx_gzip_cpb_t.in_subc), along with
+					 * the adjusted source.
+					 * Note that the deflate standard has
+					 * reversed bit ordering within each
+					 * byte. So SUBC(13:15)=5 (”101”) means
+					 * bits 0:4 in the first unprocessed
+					 * source byte were unprocessed, bits
+					 * 5:7 have been processed.
+					 * ZLIB and GZIP trailers (checksum and
+					 * ISIZE fields) if present in the
+					 * stream will typically affect the SUBC
+					 * count.
+					 * For ZLIB and GZIP these values are 32
+					 * and 64 bits respectively. Since the
+					 * trailer is byte aligned up to 7
+					 * unused bits may be present between
+					 * the Deflate block and the trailer,
+					 * and therefore the values may range
+					 * from 32 to 39, and 64 to 71 bits
+					 * respectively.
 					 */
 					uint32_t out_subc;
 				};
@@ -524,7 +581,7 @@ typedef struct {
  */
 #define size_mask(x)          ((1U<<(x))-1)
 
-/* 
+/**
    Offsets and Widths within the containing 32 bits of the various NX
    gzip hardware registers.  Use the getnn/putnn macros to access
    these regs

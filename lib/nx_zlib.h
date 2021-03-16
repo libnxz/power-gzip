@@ -255,6 +255,10 @@ typedef struct nx_stream_s {
         int             z_rc;           /* libz return codes */
 
 	uint32_t        spbc;
+	/** \brief Target Processed Byte Count
+	 * \details Amount of target data bytes an accelerator has written in
+	 * processing this CRB.
+	 */
 	uint32_t        tpbc;
 	uint32_t        tebc;
 

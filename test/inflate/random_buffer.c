@@ -129,8 +129,8 @@ static int run(unsigned int len, int step, const char* test, int flush)
 		return TEST_ERROR;
 	}
 
-    if( (flush != Z_NO_FLUSH) && (flush != Z_PARTIAL_FLUSH) )
-	goto err;
+	if( (flush != Z_NO_FLUSH) && (flush != Z_PARTIAL_FLUSH) )
+		goto err;
 
 	if (_test_deflate(src, src_len, compr, compr_len, src_len)) goto err;
 	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;

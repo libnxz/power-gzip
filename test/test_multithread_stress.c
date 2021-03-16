@@ -202,6 +202,8 @@ static int run_case()
 	pstats->iteration += 1;
 	pstats->running = 0;
 	//printf("thread %d exit...iteration:%d\n", pthread_self(),pstats->iteration);
+
+	return 0;
 }
 
 int main(int argc, char **argv)

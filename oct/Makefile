@@ -30,7 +30,6 @@ source_files = at \
 # They consume a lot of disk space and increase the execution time.
 ifdef LARGEFILES
 source_files += db2
-TIMEOUT = 20m
 endif
 endif
 
@@ -54,6 +53,9 @@ decompress_tests = $(foreach t,$(test_types),\
 
 compdecomp_tests = $(foreach t,$(test_types),\
                      $(foreach f,$(files),$(f).6.compdecomp.$(t)))
+
+# db2 tests usually takes ~140m.
+db2_TIMEOUT=280m
 
 .PHONY: all check
 all: check
@@ -135,5 +137,7 @@ clean-all:
 .SECONDEXPANSION:
 %.test-result: % $$(shell echo -n % | cut -f1 -d.).checksum
 	@echo $<
-	@{ if timeout -s TERM -k 5s ${TIMEOUT} \
-	        ./$< &> $<.log; then echo PASS; else echo FAIL; fi }> $@
+	@{ f=$($(shell echo -n $@ | cut -f1 -d.)_TIMEOUT); \
+	   f=$${f:-$(TIMEOUT)}; \
+	   if timeout -s TERM -k 5s $${f} \
+	       ./$< &> $<.log; then echo PASS; else echo FAIL; fi }> $@

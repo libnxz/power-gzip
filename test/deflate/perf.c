@@ -244,5 +244,6 @@ int run_case41()
 	for (int i = 0; i < THREAD_NUM; i++) {
 		pthread_join(tid[i], NULL);
 	}
-}
 
+	return 0;
+}

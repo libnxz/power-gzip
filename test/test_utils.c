@@ -24,7 +24,7 @@ static char dict[] = {
 	',', '.', '!', '?', '.', '{', '}'
 };
 
-int generate_all_data(int len, char digit)
+void generate_all_data(int len, char digit)
 {
 	assert(len > 0);
 
@@ -35,7 +35,7 @@ int generate_all_data(int len, char digit)
 	}
 }
 
-int generate_random_data(int len)
+void generate_random_data(int len)
 {
 	assert(len > 0);
 

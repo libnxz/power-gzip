@@ -852,6 +852,7 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 }
 
 /* copies spbc, tpbc, in_histlen from cpb in to nx_streamp */
+static void nx_compress_block_get_cpb(nx_streamp s, int fc) __attribute__ ((unused));
 static void nx_compress_block_get_cpb(nx_streamp s, int fc)
 {
 	uint32_t spbc;

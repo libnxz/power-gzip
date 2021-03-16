@@ -933,8 +933,6 @@ void nx_hw_init(void)
 	nx_config.strm_inf_bufsz = (1<<16); /* affect the inflate fifo_in and fifo_out */
 	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */
 	nx_config.compress_threshold = (10*1024); /* collect as much input */
-	nx_config.inflate_fifo_in_len = ((1<<16)*2); /* default 128K, half used */
-	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
 	nx_config.deflate_fifo_in_len = 1<<17; /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.verbose = 0;
@@ -1059,11 +1057,6 @@ void nx_hw_init(void)
 		nx_dht_config = str_to_num(dht_config);
 		prt_info("DHT config set to 0x%x\n", nx_dht_config);
 	}
-
-	/* revalue the fifo_in and fifo_out */
-	nx_config.inflate_fifo_in_len  = (nx_config.strm_inf_bufsz * 2);
-	nx_config.inflate_fifo_out_len = (nx_config.strm_inf_bufsz * 2);
-	nx_config.deflate_fifo_out_len = (nx_config.strm_def_bufsz * 2);
 
 	/* If user is asking for a specific accelerator. Otherwise we
 	   accept the accelerator(s) assigned by kernel */

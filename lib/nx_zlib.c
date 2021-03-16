@@ -773,7 +773,7 @@ FILE* open_logfile(char *filename)
 	if (!filename)
 		return NULL;
 	/* try to open in append mode */
-	if (logfile = fopen(filename, "a+")) {
+	if ((logfile = fopen(filename, "a+"))) {
 		/* ok, try to chmod so all users can access it.
 		 * the first process creating this file should success, others are expected to fail */
 		//fprintf(stderr, "try chmod: %s\n", filename);
@@ -787,7 +787,7 @@ FILE* open_logfile(char *filename)
 		/* file not exist, fall back to use /tmp/nx.log */
 		syslog(LOG_NOTICE, "nx-zlib: cannot open log file: %s, %s\n",
 			filename, strerror(errno));
-		if (logfile = fopen("/tmp/nx.log", "a+")) {
+		if ((logfile = fopen("/tmp/nx.log", "a+"))) {
 			//fprintf(stderr, "%s not exists, use /tmp/nx.log\n", filename);
 			/* ok, try to chmod so all users can access it. */
 			//fprintf(stderr, "try chmod: /tmp/nx.log\n");
@@ -799,7 +799,7 @@ FILE* open_logfile(char *filename)
 		syslog(LOG_NOTICE, "nx-zlib: cannot access log file: %s\n", filename);
 		/* file exists, we might have no access right, try to use /tmp/nx.log,
 		 * but this may fail if no right to access /tmp/log */
-		if (logfile = fopen("/tmp/nx.log", "a+")) {
+		if ((logfile = fopen("/tmp/nx.log", "a+"))) {
 			//fprintf(stderr, "use /tmp/nx.log\n");
 			return logfile;
 		}

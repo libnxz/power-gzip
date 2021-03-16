@@ -36,11 +36,6 @@ struct stats{
 };
 static struct stats thread_info[THREAD_MAX];
 
-
-static alloc_func zalloc = (alloc_func)0;
-static free_func zfree = (free_func)0;
-
-
 static float get_time_duration(struct timeval e, struct timeval s)
 {
 	return ((e.tv_sec - s.tv_sec) * 1000 + (e.tv_usec - s.tv_usec)/1000.0);
@@ -214,7 +209,6 @@ int main(int argc, char **argv)
 
 	int thread_num = THREAD_MAX;
 	unsigned long tsize = 0;
-	char *s;
 	int i;
 
 	if(argc != 4) {

@@ -7,6 +7,10 @@ static int _test_nx_compress(Byte* compr, unsigned long *compr_len, Byte* src, u
 	int rc;
 	rc = nx_compress(compr, compr_len, src, src_len);
 	dbg_printf("rc %d src_len %ld compr_len %ld\n", rc, src_len, *compr_len);
+	if (rc < 0) {
+		printf("*** failed: nx_compress returned %d\n", rc);
+		return TEST_ERROR;
+	}
 	return TEST_OK;
 }
 
@@ -17,6 +21,10 @@ static int _test_uncompress(Byte* uncompr, unsigned long *uncomprLen, Byte* comp
 	memset(uncompr, 0, *uncomprLen);
 	rc = uncompress(uncompr, uncomprLen, compr, comprLen);
 	dbg_printf("rc %d compr_len %ld uncompr_len %ld\n", rc, comprLen, *uncomprLen);
+	if (rc < 0) {
+		printf("*** failed: uncompress returned %d\n", rc);
+		return TEST_ERROR;
+	}
 	if (compare_data(uncompr, src, src_len)) {
 		return TEST_ERROR;
 	}
@@ -30,6 +38,10 @@ static int _test_nx_uncompress(Byte* uncompr, unsigned long *uncomprLen, Byte* c
 	memset(uncompr, 0, *uncomprLen);
 	rc = nx_uncompress(uncompr, uncomprLen, compr, comprLen);
 	dbg_printf("rc %d compr_len %ld uncompr_len %ld\n", rc, comprLen, *uncomprLen);
+	if (rc < 0) {
+		printf("*** failed: nx_uncompress returned %d\n", rc);
+		return TEST_ERROR;
+	}
 	if (compare_data(uncompr, src, src_len)) {
 		return TEST_ERROR;
 	}

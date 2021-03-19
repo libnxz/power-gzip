@@ -62,7 +62,7 @@ static struct use_time* get_use_time_by_tid(pthread_t id)
 }
 
 /* use zlib to deflate */
-static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned int compr_len, int step)
+static int _test_deflates(Byte* src, unsigned int src_len, Byte* compr, unsigned int compr_len, int step)
 {
 	int err;
 	z_stream c_stream;
@@ -90,6 +90,10 @@ static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned 
 	    c_stream.avail_in = c_stream.avail_out = step;
 	    err = deflate(&c_stream, Z_NO_FLUSH);
 	    if (c_stream.total_in > src_len) break;
+		if (err < 0) {
+			printf("*** failed: nx_deflate returned %d\n", err);
+			return TEST_ERROR;
+		}
 	}
 	assert(c_stream.total_in == src_len);
 
@@ -97,6 +101,10 @@ static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned 
             c_stream.avail_out = 1;
             err = deflate(&c_stream, Z_FINISH);
             if (err == Z_STREAM_END) break;
+		if (err < 0) {
+			printf("*** failed: nx_deflate returned %d\n", err);
+			return TEST_ERROR;
+		}
         }
 
 	gettimeofday(&(get_use_time_by_tid(pthread_self())->deflate_end), NULL);
@@ -110,7 +118,8 @@ static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned 
 }
 
 /* use nx to deflate */
-static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned int compr_len, int step)
+static int _test_nx_deflates(Byte* src, unsigned int src_len, Byte* compr,
+			     unsigned int compr_len, int step)
 {
 	int err;
 	z_stream c_stream;
@@ -138,6 +147,10 @@ static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsign
 	    c_stream.avail_in = c_stream.avail_out = step;
 	    err = nx_deflate(&c_stream, Z_NO_FLUSH);
 	    if (c_stream.total_in > src_len) break;
+		if (err < 0) {
+			printf("*** failed: nx_deflate returned %d\n", err);
+			return TEST_ERROR;
+		}
 	}
 	assert(c_stream.total_in == src_len);
 
@@ -145,6 +158,10 @@ static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsign
             c_stream.avail_out = 1;
             err = nx_deflate(&c_stream, Z_FINISH);
             if (err == Z_STREAM_END) break;
+		if (err < 0) {
+			printf("*** failed: nx_deflate returned %d\n", err);
+			return TEST_ERROR;
+		}
         }
 
 	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_deflate_end), NULL);
@@ -158,7 +175,9 @@ static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsign
 }
 
 /* use zlib to infalte */
-static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsigned int uncomprLen, Byte* src, unsigned int src_len, int step)
+static int _test_inflates(Byte* compr, unsigned int comprLen, Byte* uncompr,
+			  unsigned int uncomprLen, Byte* src,
+			  unsigned int src_len, int step)
 {
         int err;
         z_stream d_stream;
@@ -184,6 +203,10 @@ static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsi
                 d_stream.avail_in = d_stream.avail_out = step;
                 err = inflate(&d_stream, Z_NO_FLUSH);
                 if (err == Z_STREAM_END) break;
+		if (err < 0) {
+			printf("*** failed: nx_deflate returned %d\n", err);
+			return TEST_ERROR;
+		}
         }
 	gettimeofday(&(get_use_time_by_tid(pthread_self())->inflate_end), NULL);
 
@@ -197,7 +220,9 @@ static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsi
 }
 
 /* use nx inflate to infalte */
-static int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsigned int uncomprLen, Byte* src, unsigned int src_len, int step)
+static int _test_nx_inflates(Byte* compr, unsigned int comprLen, Byte* uncompr,
+			     unsigned int uncomprLen, Byte* src,
+			     unsigned int src_len, int step)
 {
         int err;
         z_stream d_stream;
@@ -223,6 +248,10 @@ static int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, u
                 d_stream.avail_in = d_stream.avail_out = step;
                 err = nx_inflate(&d_stream, Z_NO_FLUSH);
                 if (err == Z_STREAM_END) break;
+		if (err < 0) {
+			printf("*** failed: nx_deflate returned %d\n", err);
+			return TEST_ERROR;
+		}
         }
 	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_inflate_end), NULL);
 
@@ -264,10 +293,12 @@ static int run(unsigned int len, int step, const char* test)
 	}
 	pthread_mutex_unlock(&mutex);
 
-	if (_test_deflate(src, src_len, compr, compr_len, step)) goto err;
-	if (_test_nx_deflate(src, src_len, compr, compr_len, step)) goto err;
-	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
-	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
+	if (_test_deflates(src, src_len, compr, compr_len, step)) goto err;
+	if (_test_nx_deflates(src, src_len, compr, compr_len, step)) goto err;
+	if (_test_inflates(compr, compr_len, uncompr, uncompr_len, src,
+			   src_len, step)) goto err;
+	if (_test_nx_inflates(compr, compr_len, uncompr, uncompr_len, src,
+			      src_len, step)) goto err;
 
 	free(src);
 	free(compr);

@@ -399,19 +399,21 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
 	indirect_count = getpnn(ddep, dde_count);
 	buf_len = getp32(ddep, ddebc);
 
-	prt_err("%s dde %p dde_count %d, ddebc 0x%x\n", msg, ddep, indirect_count, buf_len);
+	prt_critical("%s dde %p dde_count %d, ddebc 0x%x\n", msg, ddep,
+		     indirect_count, buf_len);
 
 	if (indirect_count == 0) {
 		/* direct dde */
 		buf_len = getp32(ddep, ddebc);
 		buf_addr = getp64(ddep, ddead);
-		prt_err("  direct dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
+		prt_critical("  direct dde: ddebc 0x%x ddead %p %p\n", buf_len,
+			     (void *)buf_addr, (void *)buf_addr + buf_len);
 		return;
 	}
 
 	/* indirect dde */
 	if (indirect_count > MAX_DDE_COUNT) {
-		prt_err("  error MAX_DDE_COUNT\n");
+		prt_critical("  MAX_DDE_COUNT\n");
 		return;
 	}
 
@@ -421,7 +423,9 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
 	for (i=0; i < indirect_count; i++) {
 		buf_len = get32(dde_list[i], ddebc);
 		buf_addr = get64(dde_list[i], ddead);
-		prt_err(" indirect dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
+		prt_critical("  indirect dde: ddebc 0x%x ddead %p %p\n",
+			     buf_len, (void *)buf_addr,
+			     (void *)buf_addr + buf_len);
 	}
 	return;
 }

@@ -38,7 +38,7 @@ if [[ -z "\${checksum2}" ]]; then
   exit 1
 fi
 
-echo -e  "Final checksum:\t\${checksum1}"
+echo -e  "Final checksum:\t\t\${checksum2}"
 
 if [[ "\${checksum1}" != "\${checksum2}" ]]; then
   echo "Error: checksum did not match"

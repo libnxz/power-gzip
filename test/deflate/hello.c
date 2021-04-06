@@ -24,6 +24,8 @@ int run_case1()
 			return TEST_ERROR;
 	}
 
+	free(compr);
+	free(uncompr);
 	printf("*** deflate %s passed\n", __func__);
 	return TEST_OK;
 }

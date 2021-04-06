@@ -1473,14 +1473,15 @@ offsets_state:
 			len = INF_HIS_LEN - (len_next_out + overflow_len);
 			/* len_next_out is the amount engine wrote next_out. */
 			/* Shifts fifo_out contents backwards towards
-			   the beginning. TODO check the logic for
-			   correctness when source and destination
-			   overlap; backward memcpy may be OK when
-			   overlapped? */
-			memcpy(s->fifo_out + s->cur_out - len_next_out - len, s->fifo_out + s->cur_out - len, len);
+			   the beginning. Use memmove because memory may
+			   overlap. */
+			memmove(s->fifo_out + s->cur_out - len_next_out - len,
+				s->fifo_out + s->cur_out - len, len);
 			/* copies from next_out to the gap opened in
-			   fifo_out as a result of previous memcpy */
-			memcpy(s->fifo_out + s->cur_out - len_next_out, s->next_out, len_next_out);
+			   fifo_out as a result of previous memmove. Also use
+			   memmove because memory may overlap. */
+			memmove(s->fifo_out + s->cur_out - len_next_out,
+				s->next_out, len_next_out);
 		}
 
 		s->used_out += overflow_len;

@@ -893,7 +893,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 	uint32_t inflate_per_job_len = 64 * nx_config.per_job_len;
 
 	/* nx hardware */
-	uint32_t sfbt, subc, spbc, tpbc, nx_ce, fc;
+	uint32_t sfbt = 0, subc = 0, spbc, tpbc, nx_ce, fc;
 
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 	nx_dde_t *ddl_in = s->ddl_in;

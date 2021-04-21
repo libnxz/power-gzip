@@ -11,7 +11,7 @@ LD = $(shell which ld)
 
 ## Common flags
 FLG    = -std=gnu11
-SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+SFLAGS = -O3 -Wall -Werror -Wno-error=pointer-sign -fPIC
 ZLIB   = -DZLIB_API
 
 ## Compiler related flags
@@ -23,4 +23,3 @@ ifeq "$(shell expr $(GCC_VER_MAIN) \>= 6)" "1"
 endif
 
 CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) #-DNXTIMER
-

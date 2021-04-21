@@ -37,6 +37,10 @@
  *
  */
 
+/** @file nx_zlib.h
+ *  @brief Provides libnxz own API
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -93,6 +97,9 @@
 void nx_print_dde(nx_dde_t *ddep, const char *msg);
 #endif
 
+#define zlib_version zlibVersion()
+extern const char *zlibVersion OF((void));
+
 /* common config variables for all streams */
 struct nx_config_t {
 	long     page_sz;
@@ -108,8 +115,6 @@ struct nx_config_t {
 	uint32_t strm_inf_bufsz;
 	uint32_t soft_copy_threshold;  /* choose memcpy or hwcopy */
 	uint32_t compress_threshold;   /* collect as much input */
-	int 	 inflate_fifo_in_len;
-	int 	 inflate_fifo_out_len;
 	int 	 deflate_fifo_in_len;
 	int 	 deflate_fifo_out_len;
 	int      window_max;
@@ -230,9 +235,9 @@ typedef struct nx_stream_s {
 	int             need_stored_block;
 	long            last_ratio;     /* compression ratio; 500
 					 * means 50% */
-	
-        char            *fifo_in;       /* user input collects here */
-        char            *fifo_out;      /* user output overflows here */        
+
+        char            *fifo_in;       /** user input collects here */
+        char            *fifo_out;      /** user output overflows here */
 
         int32_t         len_in;         /* fifo_in length */
         int32_t         used_in;        /* fifo_in used bytes */
@@ -248,6 +253,10 @@ typedef struct nx_stream_s {
         int             z_rc;           /* libz return codes */
 
 	uint32_t        spbc;
+	/** \brief Target Processed Byte Count
+	 * \details Amount of target data bytes an accelerator has written in
+	 * processing this CRB.
+	 */
 	uint32_t        tpbc;
 	uint32_t        tebc;
 

@@ -114,7 +114,6 @@ static inline void print_ret(const char *s, int line) { prt_info("%s:%d\n", s, l
 
 /* config variables */
 static const int nx_stored_block_len = 60000;
-static uint32_t nx_max_source_dde_count = MAX_DDE_COUNT;
 
 typedef int retlibnx_t;
 typedef int retz_t;
@@ -470,56 +469,6 @@ static inline int nx_compress_append_trailer(nx_streamp s)
 	return 0;
 }
 
-/* Updates LEN/NLEN field of a block, we use this after we have written
-   the block header then we must update the len nlen fields later. avail_out
-   is the bytes available in next_in starting from len_nlen. if the block
-   header overflows in to fifo_out, this routine will handle the overflow.
-   block_len is less than or equal to 1<<16-1
-*/
-static int update_block_len(nx_streamp s, char *buf, uint32_t avail_out, uint32_t block_len)
-{
-	uint64_t blen;
-	int j,k,shift;
-	char tmp[6];
-	char *ptr;
-
-	ASSERT(block_len < 0x10000);
-
-	blen = (uint64_t) block_len;
-	blen = ((1ULL<<32)-1) & ((~blen << 16) | blen); /* NLEN,LEN TODO check bi-endian */
-	shift = 32;
-
-	if (avail_out > 5)
-		ptr = buf;
-	else
-		ptr = tmp;
-
-	k = 0;
-	while (shift > 0) {
-		ptr[k++] = (unsigned char)(blen & 0xffULL);
-		blen = blen >> 8;
-		shift = shift - 8;
-	}
-
-	if (avail_out > 5)
-		return 4;
-
-	/* copy back to the stream possibly
-	   overflowing in to fifo_out */
-	k = 0;
-	while (avail_out > 0 && k < 4) {
-		*buf++ = tmp[k++];
-		--avail_out;
-	}
-	/* overflowing any remainder in to fifo_out */
-	j = 0;
-	while (k < 4) {
-		*(s->fifo_out + j++) = tmp[k++];
-	}
-	return 4;
-}
-
-
 /* Prepares a blank no filename no timestamp gzip header and returns
    the number of bytes written to buf;
    https://tools.ietf.org/html/rfc1952 */
@@ -540,174 +489,6 @@ int gzip_header_blank(char *buf)
 	return i;
 }
 
-
-static retnx_t nx_get_dde_byte_count(nx_dde_t *d, uint32_t *indirect_count, uint32_t *dde_byte_count)
-{
-	u32 icount = getpnn(d, dde_count);
-	ASSERT(!!d && !!dde_byte_count && !!indirect_count);
-
-
-	*dde_byte_count = 0;
-	*indirect_count = icount;
-	if (icount == 0) {
-		/* direct dde */
-		*dde_byte_count = getp32(d, ddebc);
-		/* TODO max byte count thresholding */
-	}
-	else {
-		/* In an indirect DDE, the DDEad is a pointer to
-		   the first DDE of a contiguous set of DDEcount direct DDE(s) */
-		int i;
-		u32 total_dde_bytes = 0;
-		nx_dde_t *dde_list = (nx_dde_t *) getp64(d, ddead); /* list base */
-
-		if (icount > nx_max_source_dde_count)
-			return TRACERET(ERR_NX_EXCESSIVE_DDE);
-
-		for (i=0; i < icount; i++) {
-
-			/* printf("ddelist %d ddecount %08x ddebc %08x ddead %08lx\n", i,
-			   dde_list[i].dde_count, dde_list[i].ddebc, dde_list[i].ddead); */
-
-			total_dde_bytes += get32(dde_list[i], ddebc);
-			if (getnn(dde_list[i], dde_count) != 0)
-				return ERR_NX_SEGMENTED_DDL;
-		}
-		/* if (total_dde_bytes < d->ddebc)
-		   return ERR_NX_DDE_OVERFLOW; */
-		*dde_byte_count = total_dde_bytes;
-		/* last dde may be partially full;
-		   what happens when d->ddebc is so short it doesn't reach
-		   last couple ddes? */
-		if (total_dde_bytes != getp32(d, ddebc)) {
-			printf("WARN: ddebc mismatch\n");
-		}
-	}
-	return ERR_NX_OK;
-}
-
-/* Read source data from direct or indirect dde.
- * Return data in a contiguous buffer internally allocated.
- * Return amount of data copied in *size.
- * Caller must free the data buffer. Return >= 0 for NX codes.
- * Return < 0 for programming errors
- */
-static retnx_t nx_copy_dde_to_buffer(nx_dde_t *d, char **data, uint32_t *size)
-{
-	u32 indirect_count;
-	u32 dde_byte_count;
-	int actual_byte_count;
-	int cc;
-
-	ASSERT(!!d && !!data && !!size);
-	ASSERT(!!((void *)getp64(d, ddead)));
-
-
-	*data = NULL;
-	*size = 0;
-
-	if ((cc = nx_get_dde_byte_count(d, &indirect_count, &dde_byte_count)) != ERR_NX_OK)
-		return cc;
-
-	actual_byte_count = (int) getp32(d, ddebc);
-
-	if (dde_byte_count < actual_byte_count)
-		return TRACERET(ERR_NX_DDE_OVERFLOW);
-
-	*size = (uint32_t) actual_byte_count;
-
-	if (indirect_count == 0) {
-		/* direct dde */
-		char *tmp;
-		ASSERT(!!(tmp = malloc(actual_byte_count))); /* caller frees memory */
-		*data = tmp;
-		memcpy(tmp, (char *) getp64(d, ddead), actual_byte_count);
-		/* TODO max byte count thresholding */
-	}
-	else {
-		int i;
-		char *tmp;
-		u32 offset=0;
-		nx_dde_t *dde_list = (nx_dde_t *) getp64(d, ddead); /* list base */
-
-		ASSERT(!!(tmp = malloc(actual_byte_count)));
-		*data = tmp;
-
-		for (i = 0; i < indirect_count; i++) {
-			char *buf;
-			u32 per_dde_bytes;
-			buf = (char *) get64(dde_list[i], ddead);
-			per_dde_bytes = get32(dde_list[i], ddebc);
-			memcpy(tmp+offset, buf, NX_MIN(per_dde_bytes, actual_byte_count));
-			offset += per_dde_bytes;
-			actual_byte_count -= (int) per_dde_bytes;
-			if (actual_byte_count <= 0) break; /* all the valid data copied */
-		}
-	}
-	return ERR_NX_OK;
-}
-
-
-/* Read source data from a contigious memory and copy in to
- * direct or indirect dde.
- * Caller must supply all memory.
- */
-static int nx_copy_buffer_to_dde(nx_dde_t *d, char *data, uint32_t size)
-{
-	u32 indirect_count;
-	u32 dde_byte_count;
-	int cc;
-	ASSERT(!!d && !!data);
-	ASSERT(!!((void *)getp64(d, ddead)));
-
-
-	if ((cc = nx_get_dde_byte_count(d, &indirect_count, &dde_byte_count)) != ERR_NX_OK)
-		return cc;
-
-	if (indirect_count == 0) {
-		/* direct dde */
-		if (size > dde_byte_count)
-			return TRACERET(ERR_NX_TARGET_SPACE);
-		memcpy((char *) getp64(d, ddead), data, size);
-	}
-	else {
-		int i;
-		u32 offset = 0;
-		int actual_byte_count = size;
-		nx_dde_t *dde_list = (nx_dde_t *) getp64(d, ddead); /* list base */
-
-		if (size > dde_byte_count )
-			return TRACERET(ERR_NX_TARGET_SPACE);
-
-		for (i = 0; i < indirect_count; i++) {
-			char *buf;
-			u32 per_dde_bytes;
-			buf = (char *) get64(dde_list[i], ddead);
-			per_dde_bytes = get32(dde_list[i], ddebc);
-			memcpy(buf, data+offset, NX_MIN(per_dde_bytes, actual_byte_count));
-			offset += per_dde_bytes;
-			actual_byte_count -= per_dde_bytes;
-			if (actual_byte_count <= 0) break; /* all the valid data copied */
-		}
-	}
-	return ERR_NX_OK;
-}
-
-
-/*
-  Append CRC, ADLER, ISIZE
-*/
-static retlibnx_t nx_to_zstrm_trailer(void *buf, uint32_t cksum)
-{
-	int i;
-	char *b = buf;
-	if (buf == NULL)
-		return LIBNX_ERR_ARG;
-	cksum = htole32(cksum);
-	for (i=0; i<4; i++)
-		*(b+i) = (cksum >> i*8) & 0xFF;
-	return LIBNX_OK;
-}
 
 static int nx_deflateResetKeep(z_streamp strm)
 {
@@ -981,59 +762,6 @@ static inline void small_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 	s->used_in += copy_bytes;
 }
 
-/* unused */
-static int nx_copy_nxstrm_in_to_fifo_in(nx_streamp s)
-{
-	int rc;
-	uint32_t ask, len;
-	uint32_t first_bytes, last_bytes, copy_bytes;
-
-	ask = len = s->avail_in;
-
-	first_bytes = fifo_free_first_bytes(s->cur_in,
-					    s->used_in,
-					    s->len_in);
-	last_bytes = fifo_free_last_bytes(s->cur_in,
-					  s->used_in,
-					  s->len_in);
-
-	copy_bytes = NX_MIN(first_bytes, len);
-
-	if (copy_bytes > 0) {
-		rc = nx_copy(s->fifo_in + s->cur_in,
-			     (char*) s->next_in,
-			     copy_bytes, NULL, NULL,
-			     s->nxdevp);
-		if (rc != LIBNX_OK ) {
-			memcpy(s->fifo_in + s->cur_in, s->next_in, copy_bytes);
-			prt_err("nx_copy failed\n");
-		}
-
-		s->used_in += copy_bytes;
-		len = len - copy_bytes;
-	}
-
-	if (copy_bytes == first_bytes && last_bytes > 0) {
-		/* fifo free has wrapped; copy remaining */
-		copy_bytes = NX_MIN(last_bytes, len);
-
-		if (copy_bytes > 0) {
-			rc = nx_copy(s->fifo_in,
-				     (char*) s->next_in,
-				     copy_bytes, NULL, NULL,
-				     s->nxdevp);
-			if (rc != LIBNX_OK ) {
-				memcpy(s->fifo_in, s->next_in, copy_bytes);
-				prt_err("nx_copy failed\n");
-			}
-			s->used_in += copy_bytes;
-			len -= copy_bytes;
-		}
-	}
-	return ask;
-}
-
-
 
 /*
   Section 6.4 For a source indirect DDE: If indirect DDEbc is <= the
@@ -1124,6 +852,7 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 }
 
 /* copies spbc, tpbc, in_histlen from cpb in to nx_streamp */
+static void nx_compress_block_get_cpb(nx_streamp s, int fc) __attribute__ ((unused));
 static void nx_compress_block_get_cpb(nx_streamp s, int fc)
 {
 	uint32_t spbc;

@@ -13,7 +13,7 @@ the POWER processor chip.
 
 NX contains accelerators for compression and cryptography.
 
-nx-gzip: A DEFLATE compliant (RFC1950, 1951, 1952) compression 
+nx-gzip: A DEFLATE compliant (RFC1950, 1951, 1952) compression
 accelerator in NX.
 
 Coprocessor Request Block (CRB).  A cache line sized command block for
@@ -129,7 +129,7 @@ Main PowerVM differences from PowerNV
   per window are allowed
 
 - PowerVM introduces 2 different types of credits called the Default
-  and QoS credits Default uses the normal priority nx-gzip queue. QoS
+  and QoS credits. Default uses the normal priority nx-gzip queue. QoS
   uses the high priority nx-gzip priority queue. NX-gzip prioritizes
   the high priority queue requests over the normal priority
   queue. NXgzip may also preempt a normal priority request in progress
@@ -141,7 +141,7 @@ Main PowerVM differences from PowerNV
   QoS credits which can be configured by system administrators through
   HMC.  The total number of available default credits on an LPAR are
   reduced by the number of QoS credits configured.
-  
+
 - On PowerNV, windows are allocated on a specific VAS instance and the
   user-space app can select a VAS instance with the open window
   ioctl. Since VAS instances can be shared across partitions on
@@ -155,7 +155,7 @@ Main PowerVM differences from PowerNV
   is used to allocate a VAS window based on CPU that the process is
   executing. This option is needed for process affinity to NUMA node.
 
-  PowerVM also enforces hard limits on nx-gzip data lengths, 1MB by
+- PowerVM also enforces hard limits on nx-gzip data lengths, 1MB by
   default.  A request exceeding this limit is suspended by nx-gzip and
   must be resumed by submitting the request again, essentially putting
   the resume request at the end of any queued requests of the same
@@ -190,7 +190,7 @@ Credit types:
 - Two different types of credit:
 
   Quality of service (QoS) and Default QoS credits are configured in
-  HMC. QoS credits quarantee that these credits are always available
+  HMC. QoS credits guarantee that these credits are always available
   for QoS windows to minimize NX resource contention.  QoS credits are
   not shared across LPARs. They use the high priority nx-gzip queue
   which priority over the normal queue.
@@ -204,9 +204,9 @@ Credit types:
   Interfaces: By default, PowerVM issues default credits as on PowerNV
   today.  For processes allocating a QoS credit, the following
   interface was developed:
-  		
+
 #define VAS_WIN_QOS_CREDITS     0x0000000000000001
-		
+
 struct vas_tx_win_open_attr {
   __u32 version;
   __s16 vas_id; /* specific instance of vas or -1 for default */
@@ -221,21 +221,21 @@ struct vas_tx_win_open_attr {
   Adding the following sysfs interfaces to the user-space:
 
 /sys/kernel/vas/VasCaps/VDefGzip:    (Called default GZIP capabilities)
-	avail_lpar_creds  target_lpar_creds  used_lpar_creds      
+	avail_lpar_creds  target_lpar_creds  used_lpar_creds
 
   On our development system with 16 cores and dedicated: these entry
   values are 320 320 0 respectively
 
 /sys/kernel/vas/VasCaps/VQosGzip    (Called QoS GZIP capabilities)
 	avail_lpar_creds   target_lpar_creds  used_lpar_creds
- 
+
 
   VAS instances: There is no concept of VAS ID on PowerVM. Instead the
   PowerVM must receive a domain ID (based on the CPU ID) in the
   H_ALLOCATE_VAS_WINDOW hcall to allocate a VAS window on the specific
   chip and node.  Domain ID to VAS ID mapping cannot be easily
   determined by the user-space. Therefore, in the Linux driver
-  implementation When user-space sets vas_id= -1, the domain ID is set
+  implementation when user-space sets vas_id= -1, the domain ID is set
   by the Linux kernel for the cpu core the process is executing on.
   This interface was added to support NUMA node affinity as found on
   PowerNV.  In a future release, we are considering passing a specific
@@ -245,7 +245,7 @@ struct vas_tx_win_open_attr {
   __s16 vas_id / CPU_id; /* specific instance of vas or -1 for default */
 
 
-Limits 
+Limits
 ------
 
   PowerVM restricts the maximum request buffer length to 1MB: PowerVM
@@ -256,7 +256,7 @@ Limits
 min_compress_len   --- Recommended minimum compress length in bytes
 min_decompress_len --- Recommended minimum decompress length in bytes
 req_max_processed_len ---  Maximum processed length in bytes
-On our development system, these values are: 
+On our development system, these values are:
 32768
 32768
 1048576
@@ -268,7 +268,7 @@ Page Faults
 -----------
 
   Handling of nx-gzip caused page faults is same between PowerVM and
-  PowerN. Refer to the ERR_NX_AT_FAULT condition code in the libnxz
+  PowerNV. Refer to the ERR_NX_AT_FAULT condition code in the libnxz
   source [LIBNXZ]
 
 
@@ -292,7 +292,7 @@ References
 ----------
 
 [P1]
-https://patchwork.ozlabs.org/project/linuxppc-dev/list/?series=238878
+https://patchwork.ozlabs.org/project/linuxppc-dev/list/?series=238878&state=*
 
 [P2]
 https://lists.ozlabs.org/pipermail/linuxppc-dev/2021-April/227330.html
@@ -314,4 +314,3 @@ https://openpowerfoundation.org/?resource_lib=power-isa-version-3-0
 
 [VAS]
 https://www.kernel.org/doc/html/latest/powerpc/vas-api.html
-  

@@ -91,7 +91,7 @@ extern uint64_t dbgtimer;
 static int compress_dht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
 			       int with_count, nx_gzip_crb_cpb_t *cmdp, void *handle)
 {
-	int i,cc;
+	int cc;
 	uint32_t fc;
 
 	assert(!!cmdp);
@@ -199,7 +199,6 @@ int read_alloc_input_file(char *fname, char **buf, size_t *bufsize)
 int write_output_file(char *fname, char *buf, size_t bufsize)
 {
 	FILE *fp;
-	char *p;
 	size_t num_bytes;
 	if (NULL == (fp = fopen(fname, "w"))) {
 		perror(fname);
@@ -289,11 +288,11 @@ int compress_file(int argc, char **argv, void *handle)
 	char outname[1024];
 	uint32_t srclen, dstlen;
 	uint32_t flushlen, chunk;
-	size_t inlen, outlen, dsttotlen, srctotlen;	
-	uint32_t adler, crc, spbc, tpbc, tebc;
+	size_t inlen, outlen, dsttotlen, srctotlen;
+	uint32_t crc=0, spbc, tpbc, tebc;
 	int lzcounts=1; /* always collect lzcounts */
 	int initial_pass;
-	int cc,fc;
+	int cc;
 	int num_hdr_bytes;
 	nx_gzip_crb_cpb_t nxcmd, *cmdp;
 	uint32_t pagelen = 65536; /* should get this with syscall */
@@ -408,9 +407,8 @@ int compress_file(int argc, char **argv, void *handle)
 
 		/* Page faults are handled by the user code */
 		if (cc == ERR_NX_AT_FAULT) {
-			volatile char touch = *(char *)cmdp->crb.csb.fsaddr;
 			NXPRT( fprintf(stderr, "page fault: cc= %d, try= %d, fsa= %08llx\n", cc, fault_tries, (long long unsigned) cmdp->crb.csb.fsaddr) );
-			NX_CLK( (td.fault += 1) );			
+			NX_CLK( (td.fault += 1) );
 
 			fault_tries --;
 			if (fault_tries > 0) {
@@ -419,7 +417,7 @@ int compress_file(int argc, char **argv, void *handle)
 			else {
 				fprintf(stderr, "error: cannot progress; too many faults\n");
 				exit(-1);
-			};			    
+			};
 		}
 
 		fault_tries = 50; /* reset for the next chunk */

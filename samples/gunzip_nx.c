@@ -132,11 +132,12 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	/* exit(0); */
 }
 
+__attribute__ ((unused))
 static void nx_print_dde(nx_dde_t *ddep, const char *msg)
 {
 	uint32_t indirect_count;
-	uint32_t buf_len;
-	uint64_t buf_addr;
+	uint32_t buf_len __attribute__ ((unused));
+	uint64_t buf_addr __attribute__ ((unused));
 	nx_dde_t *dde_list;
 	int i;
 
@@ -251,7 +252,6 @@ static inline uint32_t nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 */
 static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 {
-	volatile char t;
 	uint32_t indirect_count;
 	uint32_t buf_len;
 	long total;
@@ -369,24 +369,24 @@ static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 int decompress_file(int argc, char **argv, void *devhandle)
 {
 #ifdef NX_MMAP
-	int inpf;
-	int outf;
+	int inpf = 0;
+	int outf = 0;
 #else
-	FILE *inpf;
-	FILE *outf;
+	FILE *inpf = NULL;
+	FILE *outf = NULL;
 #endif
 	int c, expect, i, cc, rc = 0;
 	char gzfname[1024];
 
 	/* queuing, file ops, byte counting */
 	char *fifo_in, *fifo_out;
-	int used_in, cur_in, used_out, cur_out, free_in, read_sz, n;
+	int used_in, cur_in, used_out, cur_out, read_sz, n;
 	int first_free, last_free, first_used, last_used;
 	int first_offset, last_offset;
-	int write_sz, free_space, copy_sz, source_sz;
+	int write_sz, free_space, source_sz;
 	int source_sz_estimate, target_sz_estimate;
-	uint64_t last_comp_ratio; /* 1000 max */
-	uint64_t total_out;
+	uint64_t last_comp_ratio = 1; /* 1000 max */
+	uint64_t total_out = 0;
 	int is_final, is_eof;
 	
 	/* nx hardware */
@@ -400,12 +400,14 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	int pgfault_retries;
 
 	/* when using mmap'ed files */
-	off_t input_file_size;	
 	off_t input_file_offset;
+#ifdef NX_MMAP
+	off_t input_file_size;
 	off_t fifo_in_mmap_offset;
 	off_t fifo_out_mmap_offset;
 	size_t fifo_in_mmap_size;
 	size_t fifo_out_mmap_size;
+#endif
 
 	NX_CLK( memset(&td, 0, sizeof(td)) );
 	NX_CLK( (td.freq = nx_get_freq())  );
@@ -459,7 +461,9 @@ int decompress_file(int argc, char **argv, void *devhandle)
 #endif
 
 		/* make a new file name to write to; ignoring .gz stored name */
-		wp = ( NULL != (wp = strrchr(argv[1], '/')) ) ? ++wp : argv[1];
+		wp = strrchr(argv[1], '/');
+		if (NULL != wp) ++wp;
+		else wp = argv[1];
 		strcpy(w, wp);
 		strcat(w, ".nx.gunzip");
 

@@ -133,7 +133,6 @@ int def(FILE *source, FILE *dest, int level, gzcfg_t *cf)
 
     /* compress until end of file */
     do {
-	int toggle=0;
 	strm.avail_in = fread(in, 1, CHUNK, source);
 	if (ferror(source)) {
 	    (void)deflateEnd(&strm);
@@ -359,7 +358,7 @@ int main(int argc, char **argv)
    dest bytes in the dest buffer on return */
 int def_mb(char *source, char *dest, int *size_of_data, gzcfg_t *cf)
 {
-    int ret, flush, remainder, inp_size;
+    int ret, flush, remainder;
     unsigned have;
     z_stream strm;
     unsigned char in[CHUNK];

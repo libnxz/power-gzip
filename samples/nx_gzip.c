@@ -593,7 +593,6 @@ int main(int argc, char **argv)
 	FILE *i_fp = stdin;
 	FILE *o_fp = NULL;
 	const char *suffix = "gz";
-	int force_software = 0;
 	unsigned char *in = NULL;
 	unsigned char *out = NULL;
 	z_stream strm;
@@ -672,9 +671,6 @@ int main(int argc, char **argv)
 			break;
 		case 'S':
 			suffix = optarg;
-			break;
-		case 's':
-			force_software = true;
 			break;
 		case 'l':
 			list_contents++;

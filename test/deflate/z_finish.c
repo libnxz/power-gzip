@@ -1,11 +1,12 @@
 #include "../test_deflate.h"
 #include "../test_utils.h"
 
-static alloc_func zalloc = (alloc_func)0;
-static free_func zfree = (free_func)0;
+extern alloc_func zalloc;
+extern free_func zfree;
 
 /* use nx to deflate */
-static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned int compr_len)
+static int _test_nx_deflatef(Byte* src, unsigned int src_len, Byte* compr,
+			     unsigned int compr_len)
 {
 	int err;
 	z_stream c_stream;
@@ -38,70 +39,6 @@ static int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr, unsign
 	return TEST_OK;
 }
 
-/* use zlib inflate to infalte */
-static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsigned int uncomprLen, Byte* src, unsigned int src_len, int step)
-{
-        int err;
-        z_stream d_stream;
-
-	memset(uncompr, 0, uncomprLen);
-
-        d_stream.zalloc = zalloc;
-        d_stream.zfree = zfree;
-        d_stream.opaque = (voidpf)0;
-
-        d_stream.next_in  = compr;
-        d_stream.avail_in = 0;
-        d_stream.next_out = uncompr;
-
-        err = inflateInit(&d_stream);
-        while (d_stream.total_out < uncomprLen && d_stream.total_in < comprLen) {
-                d_stream.avail_in = d_stream.avail_out = step;
-                err = inflate(&d_stream, Z_NO_FLUSH);
-                if (err == Z_STREAM_END) break;
-        }
-
-        err = inflateEnd(&d_stream);
-
-        if (compare_data(uncompr, src, src_len)) {
-		return TEST_ERROR;
-        }
-
-	return TEST_OK;
-}
-
-/* use nx inflate to infalte */
-static int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsigned int uncomprLen, Byte* src, unsigned int src_len, int step)
-{
-        int err;
-        z_stream d_stream;
-
-	memset(uncompr, 0, uncomprLen);
-
-        d_stream.zalloc = zalloc;
-        d_stream.zfree = zfree;
-        d_stream.opaque = (voidpf)0;
-
-        d_stream.next_in  = compr;
-        d_stream.avail_in = 0;
-        d_stream.next_out = uncompr;
-
-        err = nx_inflateInit(&d_stream);
-        while (d_stream.total_out < uncomprLen && d_stream.total_in < comprLen) {
-                d_stream.avail_in = d_stream.avail_out = step;
-                err = nx_inflate(&d_stream, Z_NO_FLUSH);
-                if (err == Z_STREAM_END) break;
-        }
-
-        err = nx_inflateEnd(&d_stream);
-
-        if (compare_data(uncompr, src, src_len)) {
-		return TEST_ERROR;
-        }
-
-	return TEST_OK;
-}
-
 /* The total src buffer > nx_compress_threshold (10*1024) but avail_in is 1 */
 static int run(unsigned int len, int step, const char* test)
 {
@@ -119,9 +56,10 @@ static int run(unsigned int len, int step, const char* test)
 		return TEST_ERROR;
 	}
 
-	if (_test_nx_deflate(src, src_len, compr, compr_len)) goto err;
+	if (_test_nx_deflatef(src, src_len, compr, compr_len)) goto err;
 	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
-	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
+	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src,
+			     src_len, step, Z_NO_FLUSH)) goto err;
 
 	printf("*** %s %s passed\n", __FILE__, test);
 	free(compr);

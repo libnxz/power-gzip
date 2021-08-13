@@ -37,9 +37,13 @@
  *
  */
 
+/** @file nx_inflate.c
+ * \brief Implement the inflate function for the NX GZIP accelerator and
+ * related functions.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <malloc.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
@@ -57,11 +61,17 @@
 #include "nx_zlib.h"
 #include "nx_dbg.h"
 
-#define INF_HIS_LEN (1<<15) /* Fixed 32K history length */
+/** \brief Fixed 32K history length
+ * \details The maximum distance in the deflate standard is 32768 Bytes.
+ */
+#define INF_HIS_LEN (1<<15)
 #define INF_MAX_DICT_LEN  INF_HIS_LEN
 
 #define INF_MIN_INPUT_LEN 300 /* greater than 288 for dht plus 3 bit header plus 1 byte */
-#define INF_MAX_COMPRESSION_RATIO 1032 /* https://stackoverflow.com/a/42865320/5504692 */
+/** \brief Maximum Compression Ratio
+ * https://stackoverflow.com/a/42865320/5504692
+ */
+#define INF_MAX_COMPRESSION_RATIO 1032
 #define INF_MAX_EXPANSION_BYTES (INF_MIN_INPUT_LEN * INF_MAX_COMPRESSION_RATIO)
 
 /* move the overflow from the current fifo head-32KB to the fifo_out
@@ -868,6 +878,11 @@ static int nx_amend_history_with_dict(nx_streamp s, int *hlen, int *dlen )
 	return 0;
 }
 
+/** \brief Internal implementation of inflate.
+ *
+ * @param s nx_streamp to be processed.
+ * @param flush Determines when uncompressed bytes are added to next_out.
+ */
 static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
@@ -878,7 +893,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 	uint32_t inflate_per_job_len = 64 * nx_config.per_job_len;
 
 	/* nx hardware */
-	uint32_t sfbt, subc, spbc, tpbc, nx_ce, fc;
+	uint32_t sfbt = 0, subc = 0, spbc, tpbc, nx_ce, fc;
 
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 	nx_dde_t *ddl_in = s->ddl_in;
@@ -886,7 +901,9 @@ static int nx_inflate_(nx_streamp s, int flush)
 
 	uint64_t ticks_total = 0;
 	int cc, rc, timeout_pgfaults, partial_bits=0;
-	int nx_history_len; /* includes dictionary and history going in to nx-gzip */
+	/** \brief Includes dictionary and history going in to nx-gzip
+	 */
+	int nx_history_len;
 
 	timeout_pgfaults = nx_config.timeout_pgfaults;
 
@@ -914,7 +931,10 @@ copy_fifo_out_to_next_out:
 
 	if (++loop_cnt == loop_max) {
 		prt_err("cannot make progress; too many loops loop_cnt = %ld\n", (long)loop_cnt);
-		return Z_STREAM_END;
+		/* This should never happen.  If we reach this line, there is
+		   a bug in this code.  Return Z_STREAM_ERROR, which is the
+		   closest error possible in this scenario.  */
+		return Z_STREAM_ERROR;
 	}
 
 	/* if fifo_out is not empty, first copy contents to next_out.
@@ -1377,8 +1397,19 @@ ok_cc3:
 		     /* with BFINAL=0. Means the next byte will contain a block header. */
 	case 0b1111: /* within a block header with BFINAL=1. */
 
+		/** If source_sz becomes 0, the source could not be processed,
+		 * and we have to increase the source before
+		 * \ref NotEnoughSource "the next iteration".
+		 */
 		source_sz = source_sz - ((subc + 7) / 8);
 		partial_bits = subc;
+		prt_info("source_sz %d partial_bits %d in_histlen %d in_subc %d"
+			 " in_sfbt %d in_rembytecnt %d\n",
+			 source_sz, partial_bits,
+			 getnn(cmdp->cpb, in_histlen),
+			 getnn(cmdp->cpb, in_subc),
+			 getnn(cmdp->cpb, in_sfbt),
+			 getnn(cmdp->cpb, in_rembytecnt));
 
 		/* Clear subc, histlen, sfbt, rembytecnt, dhtlen */
 		cmdp->cpb.in_subc = 0;
@@ -1442,14 +1473,15 @@ offsets_state:
 			len = INF_HIS_LEN - (len_next_out + overflow_len);
 			/* len_next_out is the amount engine wrote next_out. */
 			/* Shifts fifo_out contents backwards towards
-			   the beginning. TODO check the logic for
-			   correctness when source and destination
-			   overlap; backward memcpy may be OK when
-			   overlapped? */
-			memcpy(s->fifo_out + s->cur_out - len_next_out - len, s->fifo_out + s->cur_out - len, len);
+			   the beginning. Use memmove because memory may
+			   overlap. */
+			memmove(s->fifo_out + s->cur_out - len_next_out - len,
+				s->fifo_out + s->cur_out - len, len);
 			/* copies from next_out to the gap opened in
-			   fifo_out as a result of previous memcpy */
-			memcpy(s->fifo_out + s->cur_out - len_next_out, s->next_out, len_next_out);
+			   fifo_out as a result of previous memmove. Also use
+			   memmove because memory may overlap. */
+			memmove(s->fifo_out + s->cur_out - len_next_out,
+				s->next_out, len_next_out);
 		}
 
 		s->used_out += overflow_len;
@@ -1475,6 +1507,12 @@ offsets_state:
 		s->last_comp_ratio = (1000UL * ((uint64_t)source_sz + 1)) / ((uint64_t)tpbc + 1);
 		s->last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 1 ); /* bounds check */
 	}
+	/** \anchor NotEnoughSource
+	 * However, if not enough source is available, we must give more.
+	 * Assume the worst case and use 100%.
+	 */
+	else if (cc == ERR_NX_DATA_LENGTH && sfbt == 0xe && subc > 0)
+		s->last_comp_ratio = 1000UL;
 
 	prt_info("== %d source_sz %d tpbc %d last_comp_ratio %d\n", __LINE__, source_sz, tpbc, s->last_comp_ratio);
 

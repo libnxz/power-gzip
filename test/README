@@ -1,5 +1,0 @@
-This directory contains test cases.
-To be compliant with zlib, usually we use nxzlib to deflate,
-the compressed data will use both zlib and nxzlib to inflate for verification.
-We also use zlib to deflate, the compressed data will use nxzlib to infalte for verification.
-

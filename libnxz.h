@@ -34,6 +34,11 @@
  *
  */
 
+/** @file libnxz.h
+ *  @brief Provides a public API
+ */
+
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -115,6 +120,33 @@ extern int inflateInit2_(void *strm, int windowBits, const char *version,
 			 int stream_size);
 extern int inflateReset(void *strm);
 extern int inflateEnd(void *strm);
+
+/** @brief Attempt to decompress data
+ *
+ *  @param strm A stream structure initialized by a call to inflateInit2().
+ *  @param flush Determines when uncompressed bytes are added to the output
+ *         buffer.  Possible values are:
+ *         - Z_NO_FLUSH: May return with some data pending output.
+ *         - Z_SYNC_FLUSH: Flush as much as possible to the output buffer.
+ *         - Z_FINISH: Performs decompression in a single step.  The output
+ *                     buffer must be large enough to fit all the decompressed
+ *                     data.  Otherwise, behaves as Z_NO_FLUSH.
+ *         - Z_BLOCK: Stop when it gets to the next block boundary.
+ *         - Z_TREES: Like Z_BLOCK, but also returns at the end of each deflate
+ *                    block header.
+ *  @return Possible values are:
+ *          - Z_OK: Decompression progress has been made.
+ *          - Z_STREAM_END: All the input has been decompressed and there was
+ *                          enough space in the output buffer to store the
+ *                          uncompressed result.
+ *          - Z_BUF_ERROR: No progress is possible.
+ *          - Z_MEM_ERROR: Insufficient memory.
+ *          - Z_STREAM_ERROR: The state (as represented in \c stream) is
+ *                            inconsistent, or stream was \c NULL.
+ *          - Z_NEED_DICT: A preset dictionary is required. Set the \c adler
+ *                         field to the Adler-32 checksum of the dictionary.
+ *          - Z_DATA_ERROR: The input data was corrupted.
+ */
 extern int inflate(void *strm, int flush);
 extern int inflateSetDictionary(void *strm, const unsigned char *dictionary,
 				uint dictLength);

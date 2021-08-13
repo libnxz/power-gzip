@@ -399,19 +399,21 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
 	indirect_count = getpnn(ddep, dde_count);
 	buf_len = getp32(ddep, ddebc);
 
-	prt_err("%s dde %p dde_count %d, ddebc 0x%x\n", msg, ddep, indirect_count, buf_len);
+	prt_critical("%s dde %p dde_count %d, ddebc 0x%x\n", msg, ddep,
+		     indirect_count, buf_len);
 
 	if (indirect_count == 0) {
 		/* direct dde */
 		buf_len = getp32(ddep, ddebc);
 		buf_addr = getp64(ddep, ddead);
-		prt_err("  direct dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
+		prt_critical("  direct dde: ddebc 0x%x ddead %p %p\n", buf_len,
+			     (void *)buf_addr, (void *)buf_addr + buf_len);
 		return;
 	}
 
 	/* indirect dde */
 	if (indirect_count > MAX_DDE_COUNT) {
-		prt_err("  error MAX_DDE_COUNT\n");
+		prt_critical("  MAX_DDE_COUNT\n");
 		return;
 	}
 
@@ -421,15 +423,19 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
 	for (i=0; i < indirect_count; i++) {
 		buf_len = get32(dde_list[i], ddebc);
 		buf_addr = get64(dde_list[i], ddead);
-		prt_err(" indirect dde: ddebc 0x%x ddead %p %p\n", buf_len, (void *)buf_addr, (void *)buf_addr + buf_len);
+		prt_critical("  indirect dde: ddebc 0x%x ddead %p %p\n",
+			     buf_len, (void *)buf_addr,
+			     (void *)buf_addr + buf_len);
 	}
 	return;
 }
 
-/*
-   Src and dst buffers are supplied in scatter gather lists.
-   NX function code and other parameters supplied in cmdp
-*/
+/**
+ * Src and dst buffers are supplied in scatter gather lists.
+ * NX function code and other parameters supplied in cmdp.
+ *
+ * @param cmdp NX command and parameter
+ */
 int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *handle)
 {
 	int cc;
@@ -771,7 +777,7 @@ FILE* open_logfile(char *filename)
 	if (!filename)
 		return NULL;
 	/* try to open in append mode */
-	if (logfile = fopen(filename, "a+")) {
+	if ((logfile = fopen(filename, "a+"))) {
 		/* ok, try to chmod so all users can access it.
 		 * the first process creating this file should success, others are expected to fail */
 		//fprintf(stderr, "try chmod: %s\n", filename);
@@ -785,7 +791,7 @@ FILE* open_logfile(char *filename)
 		/* file not exist, fall back to use /tmp/nx.log */
 		syslog(LOG_NOTICE, "nx-zlib: cannot open log file: %s, %s\n",
 			filename, strerror(errno));
-		if (logfile = fopen("/tmp/nx.log", "a+")) {
+		if ((logfile = fopen("/tmp/nx.log", "a+"))) {
 			//fprintf(stderr, "%s not exists, use /tmp/nx.log\n", filename);
 			/* ok, try to chmod so all users can access it. */
 			//fprintf(stderr, "try chmod: /tmp/nx.log\n");
@@ -797,7 +803,7 @@ FILE* open_logfile(char *filename)
 		syslog(LOG_NOTICE, "nx-zlib: cannot access log file: %s\n", filename);
 		/* file exists, we might have no access right, try to use /tmp/nx.log,
 		 * but this may fail if no right to access /tmp/log */
-		if (logfile = fopen("/tmp/nx.log", "a+")) {
+		if ((logfile = fopen("/tmp/nx.log", "a+"))) {
 			//fprintf(stderr, "use /tmp/nx.log\n");
 			return logfile;
 		}
@@ -931,8 +937,6 @@ void nx_hw_init(void)
 	nx_config.strm_inf_bufsz = (1<<16); /* affect the inflate fifo_in and fifo_out */
 	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */
 	nx_config.compress_threshold = (10*1024); /* collect as much input */
-	nx_config.inflate_fifo_in_len = ((1<<16)*2); /* default 128K, half used */
-	nx_config.inflate_fifo_out_len = ((1<<24)*2); /* default 32M, half used */
 	nx_config.deflate_fifo_in_len = 1<<17; /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.verbose = 0;
@@ -1057,11 +1061,6 @@ void nx_hw_init(void)
 		nx_dht_config = str_to_num(dht_config);
 		prt_info("DHT config set to 0x%x\n", nx_dht_config);
 	}
-
-	/* revalue the fifo_in and fifo_out */
-	nx_config.inflate_fifo_in_len  = (nx_config.strm_inf_bufsz * 2);
-	nx_config.inflate_fifo_out_len = (nx_config.strm_inf_bufsz * 2);
-	nx_config.deflate_fifo_out_len = (nx_config.strm_def_bufsz * 2);
 
 	/* If user is asking for a specific accelerator. Otherwise we
 	   accept the accelerator(s) assigned by kernel */
@@ -1221,4 +1220,9 @@ int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, 
 	if (!!crc) *crc = in_crc;
 	if (!!adler) *adler = in_adler;
 	return cc;
+}
+
+const char * zlibVersion()
+{
+    return ZLIB_VERSION;
 }

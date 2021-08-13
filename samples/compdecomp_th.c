@@ -104,7 +104,6 @@ int read_alloc_input_file(char *fname, char **buf, size_t *bufsize)
 int write_output_file(char *fname, char *buf, size_t bufsize)
 {
 	FILE *fp;
-	char *p;
 	size_t num_bytes;
 	if (NULL == (fp = fopen(fname, "w"))) {
 		perror(fname);
@@ -232,8 +231,10 @@ void *decomp_file_multith(void *argsv)
 	double elapsed;
 	thread_args_t *argsp = (thread_args_t *) argsv;
 	int tid;
+#ifdef SIMPLE_CHECKSUM
 	unsigned long cksum = 1;
-	
+#endif
+
 	inbuf = argsp->inbuf;
 	inlen = argsp->inlen;	
 	iterations = argsp->iterations;

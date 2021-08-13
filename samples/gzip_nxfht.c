@@ -82,7 +82,7 @@ extern uint64_t dbgtimer;
 static int compress_fht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
 			       int with_count, nx_gzip_crb_cpb_t *cmdp, void *handle)
 {
-	int i,cc;
+	int cc;
 	uint32_t fc;
 
 	assert(!!cmdp);
@@ -178,7 +178,6 @@ int read_alloc_input_file(char *fname, char **buf, size_t *bufsize)
 int write_output_file(char *fname, char *buf, size_t bufsize)
 {
 	FILE *fp;
-	char *p;
 	size_t num_bytes;
 	if (NULL == (fp = fopen(fname, "w"))) {
 		perror(fname);
@@ -269,20 +268,15 @@ int compress_file(int argc, char **argv, void *handle)
 	uint32_t srclen, dstlen;
 	uint32_t flushlen, chunk;
 	size_t inlen, outlen, dsttotlen, srctotlen;	
-	uint32_t adler, crc, spbc, tpbc, tebc;
+	uint32_t crc=0, spbc, tpbc, tebc;
 	int lzcounts=0;
-	int cc,fc;
+	int cc;
 	int num_hdr_bytes;
-	nx_gzip_crb_cpb_t nxcmd, *cmdp;
+	nx_gzip_crb_cpb_t *cmdp;
 	uint32_t pagelen = 65536; /* should get this with syscall */
 	int fault_tries=50;
 
-#define TEST2
-#ifdef TEST2
 	cmdp = (void *)(uintptr_t)aligned_alloc(sizeof(nx_gzip_crb_t),sizeof(nx_gzip_crb_cpb_t));
-#else
-	cmdp = &nxcmd;
-#endif
 	fprintf(stderr, "crb %p\n", cmdp);
 	
     
@@ -315,7 +309,6 @@ int compress_file(int argc, char **argv, void *handle)
 	srctotlen = 0;
 
 	/* prep the CRB */
-	/* cmdp = &nxcmd; */
 	memset(&cmdp->crb, 0, sizeof(cmdp->crb));
 	put32(cmdp->cpb, in_crc, 0); /* initial gzip crc */
 
@@ -359,7 +352,6 @@ int compress_file(int argc, char **argv, void *handle)
 
 		/* Page faults are handled by the user code */
 		if (cc == ERR_NX_AT_FAULT) {
-			volatile char touch = *(char *)cmdp->crb.csb.fsaddr;
 			NXPRT( fprintf(stderr, "page fault: cc= %d, try= %d, fsa= %08llx\n", cc, fault_tries, (long long unsigned) cmdp->crb.csb.fsaddr) );
 			NX_CLK( (td.fault += 1) );			
 

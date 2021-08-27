@@ -639,7 +639,8 @@ static int nx_enumerate_engines()
 				fclose(f);
 				continue;
 			}
-			nx_devices[count].nx_id = be32toh(*(int *)buf);
+			int *tmp = (int *) buf;
+			nx_devices[count].nx_id = be32toh(*tmp);
 			fclose(f);
 
 			memset(vas_file,0,sizeof(vas_file));
@@ -657,7 +658,8 @@ static int nx_enumerate_engines()
 				fclose(f);
 				continue;
 			}
-			nx_devices[count].socket_id = be32toh(*(int *)buf);
+			tmp = (int *) buf;
+			nx_devices[count].socket_id = be32toh(*tmp);
 			fclose(f);
 
 			count++;

@@ -79,7 +79,7 @@
 #define EOB 256     /* end of block symbol */
 
 typedef struct top_sym_t {
-	struct { 
+	struct {
 		uint32_t lzcnt;
 		int sym;
 	} sorted[3];
@@ -575,7 +575,9 @@ static int dht_lookup5(nx_gzip_crb_cpb_t *cmdp, int request, void *handle)
 	top_sym_t top[1];
 	dht_tab_t *dht_tab = (dht_tab_t *) handle;
 	dht_entry_t *dht_cache = dht_tab->cache;
-	
+
+	__builtin_bzero(top, sizeof(top_sym_t));
+
 	if (request == dht_default_req) {
 		/* first builtin entry is the default */
 		copy_dht_to_cpb(cmdp, &dht_tab->builtin[0]);
@@ -653,9 +655,9 @@ force_dhtgen:
 
 	/* save the dht identifying key */
 	dht_cache[clock].litlen[0] = top[llns].sorted[0].sym;
-	dht_cache[clock].litlen[1] = top[llns].sorted[1].sym;	
-	dht_cache[clock].litlen[2] = top[llns].sorted[2].sym;	
-	
+	dht_cache[clock].litlen[1] = top[llns].sorted[1].sym;
+	dht_cache[clock].litlen[2] = top[llns].sorted[2].sym;
+
 	dht_atomic_store( &dht_cache[clock].valid, 1 );
 
 	DHTPRT( fprintf(stderr, "dht_lookup: insert idx %d (litlen %d %d)\n", clock, dht_cache[clock].litlen[0],dht_cache[clock].litlen[1]));

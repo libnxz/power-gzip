@@ -419,9 +419,11 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 {
     leaf_node_t leafarr[NLEN]; /* [NLEN]; */
     tree_node_t nodearr[NLEN];
-    tree_node_t remaining_node = {0};
+    tree_node_t remaining_node;
     q_t leaf_q, node_q;
     int nz_nsym;
+
+    __builtin_bzero(&remaining_node, sizeof(tree_node_t));
 
     /* This is where we would copy in the CPBout buffer to dhtgen */
 

@@ -13,6 +13,11 @@ int run_case1()
 	compr = (Byte*)calloc((uInt)comprLen, 1);
 	uncompr = (Byte*)calloc((uInt)uncomprLen, 1);
 
+	if (compr == NULL || uncompr == NULL ) {
+		printf("*** alloc buffer failed\n");
+		return TEST_ERROR;
+	}
+
 	for (int i = 0; i < 30; i++) {
 		if (_test_nx_deflate((Byte *)hello, len, compr, comprLen, 1))
 			return TEST_ERROR;

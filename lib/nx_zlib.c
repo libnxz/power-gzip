@@ -665,6 +665,11 @@ static int nx_enumerate_engines()
 			count++;
 
 		}
+		/* On PowerVM, there is no concept of multiple NX engines.  */
+		if (strncmp(de->d_name, "ibm,powervm", 11) == 0){
+			closedir(d);
+			return 1;
+		}
 	}
 
 	closedir(d);

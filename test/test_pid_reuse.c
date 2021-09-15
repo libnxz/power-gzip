@@ -59,7 +59,7 @@ void* comp_file_multith (void *iterations)
 	/* Open the window. */
 	err = deflateInit(&c_stream, Z_DEFAULT_COMPRESSION);
 	if (err != 0) {
-		printf("nx_deflateInit err %d\n", err);
+		printf("deflateInit err %d\n", err);
 		return (void *) 1;
 	}
 
@@ -93,6 +93,12 @@ void fork_children (int parent_pid) {
 			fprintf(stderr, "%d: child(%d)\n", i, (int) pid);
 			/* Wait enough time to fork all children. */
 			sleep(seconds);
+			/* Finish the deflate structures copied to each fork. */
+			int err = deflateEnd(&c_stream);
+			if (err != 0) {
+				fprintf(stderr, "%d: child(%d) deflateEnd err %d\n", i, (int)pid, err);
+				exit(-1);
+			}
 			fprintf(stderr, "%d: child(%d) exits\n", i, (int) pid);
 			exit(0);
 		} else if (child_id == -1) {
@@ -100,6 +106,7 @@ void fork_children (int parent_pid) {
 			exit(-1);
 		}
 	}
+
 }
 
 int main(int argc, char **argv)
@@ -125,9 +132,6 @@ int main(int argc, char **argv)
 	c_stream.zfree = Z_NULL;
 	c_stream.opaque = Z_NULL;
 
-	compr = malloc(compLen);
-	assert(compr != NULL);
-
 	rc = pthread_create(&thread, NULL, comp_file_multith,
 			    (void *) &iterations);
 	if (rc != 0) {
@@ -148,6 +152,9 @@ int main(int argc, char **argv)
 	/* Wait for all children to run. */
 	sleep(60);
 
+	compr = malloc(compLen);
+	assert(compr != NULL);
+
 	/* Try to trigger csb error signal. */
 	c_stream.next_in  = (z_const unsigned char *) hello;
 	c_stream.next_out = compr;
@@ -157,12 +164,19 @@ int main(int argc, char **argv)
 	assert(rc == Z_OK || rc == Z_STREAM_END);
 	fprintf(stderr, "rc = %d\n", rc);
 	for (;;) {
-		c_stream.avail_out = compLen;
 		rc = deflate(&c_stream, Z_FINISH);
 		if (rc == Z_STREAM_END)
 			break;
 	}
 
+	/* Finish the deflate internal structures of the main thread.*/
+	rc = deflateEnd(&c_stream);
+	if (rc != 0) {
+		fprintf(stderr, "deflateEnd failed %d\n", rc);
+		return -1;
+	}
+
+	free(compr);
 	/* Wait for all children to terminate. */
 	do {
 		rc = wait(NULL);

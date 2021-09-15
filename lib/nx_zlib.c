@@ -993,6 +993,7 @@ void nx_hw_init(void)
 	if (nx_gzip_gather_statistics()) {
 		rc = pthread_mutex_init(&zlib_stats_mutex, NULL);
 		if (rc != 0){
+			nx_close_cfg(&cfg_tab);
 			prt_err("initializing phtread_mutex failed!\n");
 			return;
 		}
@@ -1001,6 +1002,7 @@ void nx_hw_init(void)
 	nx_count = nx_enumerate_engines();
 	nx_dev_count = nx_count;
 	if (nx_count == 0) {
+		nx_close_cfg(&cfg_tab);
 		prt_err("NX-gzip accelerators found: %d\n", nx_count);
 		return;
 	}

@@ -27,11 +27,13 @@ static int run(unsigned int len, int digit, const char* test)
 
 	printf("*** %s %s passed\n", __FILE__, test);
 	free(compr);
+	free(src);
 	free(uncompr);
 	return TEST_OK;
 err:
 	printf("*** %s %s failed\n", __FILE__, test);
 	free(compr);
+	free(src);
 	free(uncompr);
 	return TEST_ERROR;
 }

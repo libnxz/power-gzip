@@ -1116,6 +1116,7 @@ void nx_hw_done(void)
 	fflush(stderr);
 
 	if (nx_gzip_log != stderr) {
+		fclose(nx_gzip_log);
 		nx_gzip_log = NULL;
 	}
 }

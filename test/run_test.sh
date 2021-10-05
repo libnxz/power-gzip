@@ -35,7 +35,8 @@ if [ $? -ne 0 ]; then
     exit 1;
 fi
 echo "running test_multithread_stress..."
-$TEST_WRAPPER ./test_multithread_stress `nproc` 10 6  >> $run_test_log 2>&1
+nthreads=${TEST_NTHREADS:-$(nproc)}
+$TEST_WRAPPER ./test_multithread_stress $nthreads 10 6  >> $run_test_log 2>&1
 if [ $? -ne 0 ]; then
     echo "test_multithread_stress failed."
     exit 1;

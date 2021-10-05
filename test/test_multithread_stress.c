@@ -41,17 +41,6 @@ static float get_time_duration(struct timeval e, struct timeval s)
 	return ((e.tv_sec - s.tv_sec) * 1000 + (e.tv_usec - s.tv_usec)/1000.0);
 }
 
-static struct stats* get_info_by_tid(pthread_t id)
-{
-	for (int i = 0; i < THREAD_MAX; i++){
-		if (thread_info[i].tid == id)
-		return thread_info + i;
-	}
-	assert(0);
-	return NULL;
-}
-
-
 static char* generate_allocated_random_data(unsigned int len)
 {
 	assert(len > 0);
@@ -136,14 +125,11 @@ static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsi
 	return TEST_OK;
 }
 
-static int run(const char* test)
+static int run(struct stats* pstats)
 {
 	Byte *src, *compr, *uncompr;
 	unsigned int src_len, compr_len, uncompr_len;
 	int index;
-	struct stats* pstats;
-
-	pstats = get_info_by_tid(pthread_self());
 
 	index = nx_get_time() % (sizeof(buf_size_array)/sizeof(unsigned int));
 	src_len = buf_size_array[index];
@@ -174,17 +160,16 @@ err:
 	return TEST_ERROR;
 }
 
-static int run_case()
+static int run_case(void* _pstats)
 {
-	struct stats* pstats;
+	struct stats* pstats = (struct stats *) _pstats;
 	int rc;
-	pstats = get_info_by_tid(pthread_self());
 	pstats->running = 1;
 
 	gettimeofday(&(pstats->start_time), NULL);
 
 	while(1){
-		rc = run(__func__);
+		rc = run(pstats);
 		if(rc != TEST_OK) {
 			printf("thread %ld failed. xxxxxxxxxxxxxxxxxx\n", (unsigned long) pthread_self());
 			__atomic_fetch_add(&failed_thread, 1, __ATOMIC_RELAXED);
@@ -233,7 +218,7 @@ int main(int argc, char **argv)
 
 	/*Start thread*/
 	for (i = 0; i < thread_num; i++) {
-		if (pthread_create(&(thread_info[i].tid), NULL, (void*) run_case, NULL) != 0) {
+		if (pthread_create(&(thread_info[i].tid), NULL, (void*) run_case, (void *) &(thread_info[i])) != 0) {
 			printf ("Create pthread1 error!\n");
 		}
 	}
@@ -244,7 +229,7 @@ int main(int argc, char **argv)
 		/*Check for finish*/
 		for (i = 0; i < thread_num; i++){
 			if (!thread_info[i].running && (thread_info[i].iteration < test_iterations)) {
-				pthread_create(&(thread_info[i].tid), NULL, (void*) run_case, NULL);
+				pthread_create(&(thread_info[i].tid), NULL, (void*) run_case, (void *) &(thread_info[i]));
 			}else if(thread_info[i].iteration >=  test_iterations){
 				finish_thread++;
 			}

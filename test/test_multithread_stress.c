@@ -19,7 +19,7 @@
 #endif
 
 static unsigned int buf_size_array[DATA_NUM] = {4096, 4096, 65536, 65536, 131072, 131072, 262144, 262144, 1048576, 1048576};
-char *data_buf[DATA_NUM];
+char *data_buf[DATA_NUM] = {NULL};
 
 int test_interval = 10;
 int test_iterations = 1;
@@ -82,6 +82,8 @@ static int generate_data_buffer(char **buffer)
 	for ( i = 0; i < DATA_NUM; i++){
 		size = buf_size_array[i];
 		buffer[i] = generate_allocated_random_data(size);
+		if (buffer[i] == NULL)
+			return TEST_ERROR;
 	}
 
 	return 0;
@@ -222,7 +224,10 @@ int main(int argc, char **argv)
 	printf("Test Interval  :\t%d\n", test_interval);
 	printf("Test Iterations:\t%d\n",test_iterations);
 
-	generate_data_buffer(data_buf);
+	if (generate_data_buffer(data_buf) != 0) {
+		free_data_buffer(data_buf);
+		return TEST_ERROR;
+	}
 
 	printf("Testing start...\n");
 

@@ -82,7 +82,6 @@ static int generate_data_buffer(char **buffer)
 	for ( i = 0; i < DATA_NUM; i++){
 		size = buf_size_array[i];
 		buffer[i] = generate_allocated_random_data(size);
-		//printf("generate_data_buffer: %d\n", size);
 	}
 
 	return 0;
@@ -149,8 +148,6 @@ static int run(const char* test)
 	compr_len = src_len*2;
 	uncompr_len = src_len*2;
 
-	//printf("index %d, src_len:%d\n", index, src_len);
-
 	src = data_buf[index];
 	if (src == NULL) return TEST_ERROR;
 	pstats->total_size += src_len;
@@ -182,8 +179,6 @@ static int run_case()
 	pstats = get_info_by_tid(pthread_self());
 	pstats->running = 1;
 
-	//printf("thread %d start...iteration:%d\n", pthread_self(),pstats->iteration);
-
 	gettimeofday(&(pstats->start_time), NULL);
 
 	while(1){
@@ -201,7 +196,6 @@ static int run_case()
 	}
 	pstats->iteration += 1;
 	pstats->running = 0;
-	//printf("thread %d exit...iteration:%d\n", pthread_self(),pstats->iteration);
 
 	return 0;
 }

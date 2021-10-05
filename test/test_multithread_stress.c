@@ -267,7 +267,7 @@ int main(int argc, char **argv)
 
 	printf("Testing finished...\n");
 
-	printf("Total data: %ld GB\n", tsize/(1<<30));
+	printf("Total data: %.3f GB\n", ((double)tsize)/(1<<30));
 
 	return failed_thread;
 }

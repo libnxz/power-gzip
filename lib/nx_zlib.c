@@ -150,12 +150,6 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 	   header to this hidden address.  Later, when caller supplies
 	   to be freed address (aligned), subtract the header amount
 	   to get to the hidden address. */
-
-#ifdef NXTIMER
-	uint64_t ts, te;
-	ts = nx_get_time();
-#endif
-
 	buf = malloc( len + alignment + sizeof(nx_alloc_header_t) );
 	if (buf == NULL)
 		return buf;
@@ -167,12 +161,6 @@ void *nx_alloc_buffer(uint32_t len, long alignment, int lock)
 
 	/* save the hidden address behind buf, and return buf */
 	*((nx_alloc_header_t *)(buf - sizeof(nx_alloc_header_t))) = h;
-
-#ifdef NXTIMER
-	te = nx_get_time();
-	fprintf(stderr,"time %ld freq %ld, bytes %d alignment %ld, file %s line %d\n", te-ts, nx_get_freq(), len, alignment, __FILE__, __LINE__);
-	fflush(stderr);
-#endif
 
 	if (lock) {
 		if (mlock(buf, len))
@@ -757,14 +745,16 @@ static void print_stats(void)
 
 	prt_stat("deflate data length: %ld KiB\n", s->deflate_len/1024);
 #ifndef __KERNEL__
-	prt_stat("deflate time: %1.2f secs\n",nxtime_to_us(s->deflate_time)/1000000);
-	prt_stat("deflate rate: %1.2f MiB/s\n", s->deflate_len/(1024*1024)/(nxtime_to_us(s->deflate_time)/1000000));
+	double us = nx_time_to_us(s->deflate_time)/1000000.0;
+	prt_stat("deflate time: %1.2f secs\n", us);
+	prt_stat("deflate rate: %1.2f MiB/s\n", s->deflate_len/(1024*1024)/us);
 #endif
 
 	prt_stat("inflate data length: %ld KiB\n", s->inflate_len/1024);
 #ifndef __KERNEL__
-	prt_stat("inflate time: %1.2f secs\n",nxtime_to_us(s->inflate_time)/1000000);
-	prt_stat("inflate rate: %1.2f MiB/s\n", s->inflate_len/(1024*1024)/(nxtime_to_us(s->inflate_time)/1000000));
+	us = nx_time_to_us(s->inflate_time)/1000000.0;
+	prt_stat("inflate time: %1.2f secs\n", us);
+	prt_stat("inflate rate: %1.2f MiB/s\n", s->inflate_len/(1024*1024)/us);
 #endif
 
 	pthread_mutex_unlock(&zlib_stats_mutex);
@@ -1184,8 +1174,8 @@ static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, u
 		if (!!crc) *crc     = get32( cmd.cpb, out_crc );
 		if (!!adler) *adler = get32( cmd.cpb, out_adler );
 	}
-	else if ((cc == ERR_NX_AT_FAULT) && (ticks_total > (timeout_pgfaults
-			    * __ppc_get_timebase_freq()))) {
+	else if ((cc == ERR_NX_AT_FAULT)
+		 && (ticks_total > (timeout_pgfaults * nx_get_freq()))) {
 		ticks_total = nx_wait_ticks(500, ticks_total, 0);
 		goto restart_copy;
 	}

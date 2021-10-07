@@ -78,15 +78,12 @@
 #endif
 #define NX_CHUNK_SZ  (1<<18)
 
-#ifdef NXTIMER
 struct _nx_time_dbg {
 	uint64_t freq;
 	uint64_t sub1, sub2, sub3, subc;
 	uint64_t touch1, touch2;
 	uint64_t fault;
 } td;
-extern uint64_t dbgtimer;
-#endif	
 
 static int compress_dht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
 			       int with_count, nx_gzip_crb_cpb_t *cmdp, void *handle)

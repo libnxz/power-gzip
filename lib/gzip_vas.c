@@ -73,7 +73,7 @@
 #endif
 
 void *nx_fault_storage_address;
-uint64_t dbgtimer=0;
+uint64_t tb_freq=0;
 
 const uint64_t timeout_seconds = 60;
 
@@ -179,9 +179,8 @@ uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks,
 {
 	uint64_t ts, te, mhz, sleep_overhead, sleep_threshold;
 
-	mhz = __ppc_get_timebase_freq() / 1000000; /* 500 MHz */
-	ts = te =  __ppc_get_timebase();  /* start */
-
+	mhz = nx_get_freq() / 1000000; /* 500 MHz */
+	ts = te = nx_get_time();       /* start */
 	sleep_overhead = 30000;  /* usleep(0) overhead */
 	sleep_threshold = 4 * sleep_overhead;
 
@@ -195,12 +194,10 @@ uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks,
 	/* Save power and let other threads use the core. top may show
 	   100%, only because OS doesn't know the thread runs slowly */
 	cpu_pri_low();
-
 	/* busy wait */
 	while ((te - ts) <= ticks) {
-		te = __ppc_get_timebase();
+		te = nx_get_time();
 	}
-
 	cpu_pri_default();
 
 	return (te - ts) + accumulated_ticks;
@@ -210,7 +207,7 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 {
 	uint64_t t = 0;
 	const int may_sleep = 1;
-	uint64_t onesecond = __ppc_get_timebase_freq();
+	uint64_t onesecond = nx_get_freq();
 
 	while (getnn( cmdp->crb.csb, csb_v ) == 0)
 	{
@@ -286,7 +283,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 
 			ticks_total = nx_wait_ticks(500, ticks_total, no_sleep);
 
-			if (ticks_total > (timeout_seconds * __ppc_get_timebase_freq()))
+			if (ticks_total > (timeout_seconds * nx_get_freq()))
 				return -ETIMEDOUT;
 
 			++retries;

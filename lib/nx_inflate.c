@@ -317,7 +317,7 @@ int nx_inflate(z_streamp strm, int flush)
 		zlib_stats.inflate++;
 
 		zlib_stats.inflate_len += strm->avail_in;
-		t1 = get_nxtime_now();
+		t1 = nx_get_time();
 		pthread_mutex_unlock(&zlib_stats_mutex);
 	}
 
@@ -738,8 +738,8 @@ inf_return:
 	/* statistic */
 	if (nx_gzip_gather_statistics()) {
 		pthread_mutex_lock(&zlib_stats_mutex);
-		t2 = get_nxtime_now();
-		zlib_stats.inflate_time += get_nxtime_diff(t1,t2);
+		t2 = nx_get_time();
+		zlib_stats.inflate_time += nx_time_diff(t1, t2);
 		pthread_mutex_unlock(&zlib_stats_mutex);
 	}
 	return rc;
@@ -1213,8 +1213,7 @@ restart_nx:
 				target_sz = INF_MAX_EXPANSION_BYTES;
 
 			ticks_total = nx_wait_ticks(500, ticks_total, 0);
-			if (ticks_total > (timeout_pgfaults
-			    * __ppc_get_timebase_freq())) {
+			if (ticks_total > (timeout_pgfaults * nx_get_freq())) {
 			   /* TODO what to do when page faults are too many?
 			    * Kernel MM would have killed the process. */
 				prt_err("Cannot make progress; too many page");

@@ -144,7 +144,7 @@ static int run(const char* test)
 
 	pstats = get_info_by_tid(pthread_self());
 
-	index = __ppc_get_timebase() % (sizeof(buf_size_array)/sizeof(unsigned int));
+	index = nx_get_time() % (sizeof(buf_size_array)/sizeof(unsigned int));
 	src_len = buf_size_array[index];
 	compr_len = src_len*2;
 	uncompr_len = src_len*2;

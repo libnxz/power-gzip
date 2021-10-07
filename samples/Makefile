@@ -6,7 +6,7 @@ LDFLAGS = -L../lib
 LDLIB = ../lib/libnxz.a -lpthread
 TESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th \
 	bad_irq_check rand_pfault_check
-NXFLAGS = #-DNXDBG  #-DNXDBG -DNXTIMER -DNX_MMAP
+NXFLAGS = #-DNXDBG  #-DNXDBG -DNX_MMAP
 
 all:
 

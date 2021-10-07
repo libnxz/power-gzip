@@ -22,4 +22,4 @@ ifeq "$(shell expr $(GCC_VER_MAIN) \>= 6)" "1"
     SFLAGS += -mcpu=power9
 endif
 
-CFLAGS = $(FLG) $(SFLAGS) $(ZLIB) #-DNXTIMER
+CFLAGS = $(FLG) $(SFLAGS) $(ZLIB)

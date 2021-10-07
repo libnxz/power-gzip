@@ -1239,8 +1239,7 @@ restart:
 				bytes_out = DEF_MAX_EXPANSION_LEN;
 
 			ticks_total = nx_wait_ticks(500, ticks_total, 0);
-			if (ticks_total > (timeout_pgfaults
-			    * __ppc_get_timebase_freq())) {
+			if (ticks_total > (timeout_pgfaults * nx_get_freq())) {
 				/* When page faults are too many oom_killer
 				 * should kill this process. */
 				rc = LIBNX_ERR_PAGEFLT;

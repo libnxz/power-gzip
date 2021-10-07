@@ -63,15 +63,12 @@
 
 #define ASSERT(X) assert(X)
 
-#ifdef NXTIMER
 struct _nx_time_dbg {
 	uint64_t freq;
 	uint64_t sub1, sub2, subc;
 	uint64_t touch1, touch2;
 	uint64_t faultc, targetlenc, datalenc;
 } td;
-extern uint64_t dbgtimer;
-#endif
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
@@ -1206,7 +1203,6 @@ finish_state:
 			NX_CLK( fprintf(stderr, "touch  %ld ticks ", td.touch2)     );
 			NX_CLK( fprintf(stderr, "%g byte/s ", ((double)total_out*REPCNT)/((double)td.sub2/(double)td.freq)) );
 			NX_CLK( fprintf(stderr, "fault %ld target %ld datalen %ld\n", td.faultc, td.targetlenc, td.datalenc) );
-			/* NX_CLK( fprintf(stderr, "dbgtimer %ld\n", dbgtimer) ); */
 
 			if (cksum == cmdp->cpb.out_crc && isize == (uint32_t)(total_out % (1ULL<<32))) {
 				rc = 0;	goto ok1;

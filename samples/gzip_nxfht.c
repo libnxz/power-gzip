@@ -67,15 +67,12 @@
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 
-#ifdef NXTIMER
 struct _nx_time_dbg {
 	uint64_t freq;
 	uint64_t sub1, sub2, sub3, subc;
 	uint64_t touch1, touch2;
 	uint64_t fault;
 } td;
-extern uint64_t dbgtimer;
-#endif	
 
 
 /* LZ counts returned in the user supplied nx_gzip_crb_cpb_t structure */

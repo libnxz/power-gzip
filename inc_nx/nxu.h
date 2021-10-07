@@ -60,15 +60,59 @@
 #define NXPRT(X)
 #endif
 
-#ifdef NXTIMER
 #include <sys/platform/ppc.h>
 #define NX_CLK(X)	X
+/** \brief Returns the value of the Timebase Register.
+ *
+ * @return uint64_t with the value of the Timebase Register.
+ */
 #define nx_get_time()	__ppc_get_timebase()
-#define nx_get_freq()	__ppc_get_timebase_freq()
-#else
-#define NX_CLK(X)
-#define nx_get_time()  (-1)
-#define nx_get_freq()  (-1)
+
+extern uint64_t tb_freq;
+
+/** \brief Returns the frequency of the Timebase Register.
+ *
+ * This function assumes the timebase register frequency doe not change over
+ * time.  It reads caches the frequency value when called for the first time.
+ *
+ * @return uint64_t with frequency at which the timebase register is updated in
+ *	   Hertz.
+ */
+static inline uint64_t nx_get_freq()
+{
+	/* Reading the timebase frequency takes time.  Cache the value after
+	   reading it for the first time.  */
+	if (tb_freq == 0)
+		tb_freq = __ppc_get_timebase_freq();
+	return tb_freq;
+}
+
+/** \brief Calculate the difference 2 reads of the Timebase Register.
+ *
+ * @param t1 initial time
+ * @param t2 later time
+ * @return uint64_t with frequency at which the timebase register is updated in
+ *	   Hertz.
+ */
+static inline uint64_t nx_time_diff(uint64_t t1, uint64_t t2)
+{
+	if (t2 >= t1) {
+		return t2-t1;
+	} else {
+		return (0xFFFFFFFFFFFFFFF-t1) + t2;
+	}
+}
+
+#ifndef __KERNEL__
+/** \brief Convert a Timebase register value to microseconds
+ *
+ * @param nxtime a timebase register value.
+ * @return The same value converted to microseconds
+ */
+static inline double nx_time_to_us(uint64_t nxtime)
+{
+	return (double) (nxtime * 1000000 / nx_get_freq());
+}
 #endif
 
 /**

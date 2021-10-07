@@ -441,31 +441,6 @@ inline void zlib_stats_inc(unsigned long *count)
         pthread_mutex_unlock(&zlib_stats_mutex);
 }
 
-static inline uint64_t get_nxtime_now(void)
-{
-	return __ppc_get_timebase();
-}
-
-static inline uint64_t get_nxtime_diff(uint64_t t1, uint64_t t2)
-{
-	if (t2 > t1) {
-		return t2-t1;
-	}else{
-		return (0xFFFFFFFFFFFFFFF-t1) + t2;
-	}
-}
-
-#ifndef __KERNEL__
-static inline double nxtime_to_us(uint64_t nxtime)
-{
-	uint64_t freq;
-
-	freq = __ppc_get_timebase_freq();
-	
-	return (double)(nxtime * 1000000 / freq) ;
-}
-#endif
-
 #ifndef ARRAY_SIZE
 #  define ARRAY_SIZE(a)	 (sizeof((a)) / sizeof((a)[0]))
 #endif

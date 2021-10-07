@@ -96,7 +96,6 @@ int read_alloc_input_file(char *fname, char **buf, size_t *bufsize)
 int write_output_file(char *fname, char *buf, size_t bufsize)
 {
 	FILE *fp;
-	char *p;
 	size_t num_bytes;
 	if (NULL == (fp = fopen(fname, "w"))) {
 		perror(fname);
@@ -113,9 +112,8 @@ int write_output_file(char *fname, char *buf, size_t bufsize)
 
 int compress_file(int argc, char **argv)
 {
-	char *inbuf, *outbuf, *compbuf, *decompbuf;
-	char outname[1024];
-	size_t inlen, outlen;
+	char *inbuf, *compbuf, *decompbuf;
+	size_t inlen;
 	size_t compbuf_len, decompbuf_len;
 	uLongf compdata_len, decompdata_len;
 	int iterations = 100;

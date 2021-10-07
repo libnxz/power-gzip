@@ -16,10 +16,10 @@ typedef unsigned long ulong;
 int main(int argc, char **argv)
 {
 	size_t bufsz = OUTFILESZ;
-	size_t readsz, writesz;
+	size_t readsz;
 	char *buf;
 	size_t idx;
-	int seed;
+	int seed=0;
 
 	if (argc == 5 && strcmp(argv[1], "-s") == 0 && strcmp(argv[3], "-b") == 0) {
 		seed = atoi(argv[2]);
@@ -68,8 +68,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	writesz = fwrite(buf, 1, idx, stdout);
-		
+	fwrite(buf, 1, idx, stdout);
+
 	return 0;
 }
 

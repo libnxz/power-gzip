@@ -99,8 +99,6 @@ static int find_cfg(char *key, struct nx_cfg_tab *cfg_table)
 
 	configs = cfg_table->configs;
 	for (i = 0; i < cfg_table->cfg_num; i++) {
-		if (!configs[i].key)
-			continue;
 		if (strcmp(key, configs[i].key) == 0)
 			return i;
 	}
@@ -138,9 +136,6 @@ static int set_cfg(struct nx_cfg_tab *cfg_table, char *key, char *val, int cnt)
 	} else
 		ret = 0;
 
-	if (!configs[cfg_cnt].key || !configs[cfg_cnt].val)
-		return -1;
-
 	memcpy(configs[cfg_cnt].key, trim_key, key_size);
 	if (trim_space(configs[cfg_cnt].val, MAX_CONFIG_LINE, val) < 0) {
 		/* val is all space, or lengh of val larger than MAX_CONFIG_LINE,
@@ -154,15 +149,14 @@ static int set_cfg(struct nx_cfg_tab *cfg_table, char *key, char *val, int cnt)
 int nx_dump_cfg(struct nx_cfg_tab *cfg_table, FILE *fp)
 {
 	int i;
-	char *key, *val;
+
 	if (!cfg_table || !fp)
 		return -1;
 
 	fprintf(fp, "nx-zlib config file ========\n");
 	for (i = 0; i < cfg_table->cfg_num; i++) {
-		key = (!cfg_table->configs[i].key) ? "NULL" : cfg_table->configs[i].key;
-		val = (!cfg_table->configs[i].val) ? "NULL" : cfg_table->configs[i].val;
-		fprintf(fp, "[%d]: %s = %s\n", i, key, val);
+		fprintf(fp, "[%d]: %s = %s\n", i, cfg_table->configs[i].key,
+			cfg_table->configs[i].val);
 	}
 
 	return 0;

@@ -82,6 +82,7 @@ extern int nx_inflate(void *strm, int flush);
 extern int nx_inflateEnd(void *strm);
 extern int nx_inflateCopy(void *dest, void *source);
 extern int nx_inflateGetHeader(void *strm, void *head);
+extern int nx_inflateSyncPoint(void *strm);
 extern int nx_inflateResetKeep(void *strm);
 extern int nx_inflateSetDictionary(void *strm, const unsigned char *dictionary,
 				   uint dictLength);
@@ -152,6 +153,7 @@ extern int inflateSetDictionary(void *strm, const unsigned char *dictionary,
 				uint dictLength);
 extern int inflateCopy(void *dest, void *source);
 extern int inflateGetHeader(void *strm, void *head);
+extern int inflateSyncPoint(void *strm);
 extern ulong adler32_combine(ulong adler1, ulong adler2, uint64_t len2);
 extern ulong adler32_combine64(ulong adler1, ulong adler2, uint64_t len2);
 extern ulong adler32(ulong adler, const char *buf, uint len);

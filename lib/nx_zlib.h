@@ -232,6 +232,7 @@ typedef struct nx_stream_s {
 	int             wrap;           /* 0 raw, 1 zlib, 2 gzip */
 	long            page_sz;
 
+        int             sync_point;     /* is inflate currently at a sync point? */
 	int             need_stored_block;
 	long            last_ratio;     /* compression ratio; 500
 					 * means 50% */
@@ -480,6 +481,7 @@ extern int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version,
 #define nx_inflateInit(strm) nx_inflateInit_((strm), ZLIB_VERSION, (int)sizeof(z_stream))
 extern int nx_inflate(z_streamp strm, int flush);
 extern int nx_inflateEnd(z_streamp strm);
+extern int nx_inflateSyncPoint(z_streamp strm);
 
 /* nx_compress.c */
 extern int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);

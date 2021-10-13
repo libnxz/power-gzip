@@ -652,6 +652,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 
 	s->zstrm      = strm; /* pointer to parent */
 	s->page_sz    = nx_config.page_sz;
+	s->sync_point = 0;
 	s->nxdevp     = h;
 	s->gzhead     = NULL;
 

@@ -212,6 +212,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	//s->gzhead  = nx_alloc_buffer(sizeof(gz_header), nx_config.page_sz, 0);
 	s->ddl_in  = s->dde_in;
 	s->ddl_out = s->dde_out;
+	s->sync_point = 0;
 
 	/* small input data will be buffered here */
 	s->fifo_in = NULL;
@@ -1011,6 +1012,9 @@ copy_fifo_out_to_next_out:
 	}
 	print_dbg_info(s, __LINE__);
 
+	/* Reset the sync point status */
+	s->sync_point = 0;
+
 	/* NX decompresses input data */
 
 	/* address/len lists */
@@ -1337,6 +1341,7 @@ ok_cc3:
 	   history bytes.
 	*/
 	switch (sfbt) {
+		char* last_byte;
 		int dhtlen;
 
 	case 0b0000: /* Deflate final EOB received */
@@ -1413,6 +1418,52 @@ ok_cc3:
 	case 0b1110: /* Within a block header; bfinal=0; */
 		     /* Also given if source data exactly ends (SUBC=0) with EOB code */
 		     /* with BFINAL=0. Means the next byte will contain a block header. */
+
+		/* Find if the last byte is in fifo_in or next_in. */
+		last_byte = source_sz <= s->used_in ?
+			&s->fifo_in[s->cur_in + source_sz - 1] :
+			(char*) &s->next_in[source_sz - s->used_in - 1];
+
+		/* inflateSyncPoint needs to detect the situation when we are in
+		 * the middle of processing a literal block and run out of input
+		 * right before LEN/NLEN fields. So the engine will have
+		 * processed the 3-bit header and between 0 and 7 padding bits.
+		 * However, according to the docs (Table 5-3) there are
+		 * two other situations that may yield the same SFBT and SUBC
+		 * combination:
+		 *   1. Last block ended and FC was *_DECOMPRESS_*_SINGLE_BLK_N_SUSPEND
+		 *   2. Stopped in the middle of processing DH block header.
+		 *
+		 * The first case is easily ignored after testing the value of
+		 * fc.  The second case requires to analyse the value of the
+		 * last 1 or 2 bytes of the input stream in order to distinguish
+		 * it with the case that has a sync point. */
+
+		if (subc >= 3 && subc <= 10
+		    && fc != GZIP_FC_DECOMPRESS_SINGLE_BLK_N_SUSPEND
+		    && fc != GZIP_FC_DECOMPRESS_RESUME_SINGLE_BLK_N_SUSPEND) {
+
+			/* A sync point happens when the last SUBC input bits
+			 * are all zero (all-zero header and padding bits).
+			 * These should correspond to:
+			 *   BFINAL == 0b0 (1 bit) | BTYPE == 0b00 (2 bits) |
+			 *             padding (0-7 bits). */
+			if(subc <= 8) {
+				/* If SUBC is less than 8, it means the BTYPE
+				 * field was completely contained in the last
+				 * byte, so we don't have to check the one
+				 * before that. */
+				s->sync_point = !(*last_byte & (char)(0xff<<(8-subc)));
+			} else {
+				s->sync_point = *last_byte == 0 &&
+					!(*(last_byte-1) & (char)(0xff<<(16-subc)));
+			}
+
+		}
+
+		prt_info("sync point check: s->sync_point %d fc %x subc %d"
+			 " last_byte 0x%x last_byte-1 0x%x\n",
+			s->sync_point, fc, subc, *last_byte, *(last_byte-1));
 	case 0b1111: /* within a block header with BFINAL=1. */
 
 		/** If source_sz becomes 0, the source could not be processed,
@@ -1796,6 +1847,20 @@ int nx_inflateGetHeader(z_streamp strm, gz_headerp head)
 	return Z_OK;
 }
 
+int nx_inflateSyncPoint(z_streamp strm)
+{
+	nx_streamp s;
+
+	if (strm == NULL)
+		return Z_STREAM_ERROR;
+
+	if (strm->state == NULL)
+		return Z_STREAM_ERROR;
+
+	s = (nx_streamp) strm->state;
+
+	return s->sync_point;
+}
 
 #ifdef ZLIB_API
 int inflateInit_(z_streamp strm, const char *version, int stream_size)
@@ -1831,6 +1896,11 @@ int inflateCopy(z_streamp dest, z_streamp source)
 int inflateGetHeader(z_streamp strm, gz_headerp head)
 {
 	return nx_inflateGetHeader(strm, head);
+}
+
+int inflateSyncPoint(z_streamp strm)
+{
+	return nx_inflateSyncPoint(strm);
 }
 
 #endif

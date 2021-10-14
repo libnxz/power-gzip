@@ -1,4 +1,5 @@
 test_inflate
+test_inflatesyncpoint
 test_deflate
 test_stress
 test_crc32

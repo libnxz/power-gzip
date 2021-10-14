@@ -20,6 +20,12 @@ if [ $? -ne 0 ]; then
     echo "test_inflate failed."
     exit 1;
 fi
+echo "running test_inflatesyncpoint..."
+$TEST_WRAPPER ./test_inflatesyncpoint >> $run_test_log 2>&1
+if [ $? -ne 0 ]; then
+    echo "test_inflatesyncpoint failed."
+    exit 1;
+fi
 echo "running test_stress..."
 $TEST_WRAPPER ./test_stress  >> $run_test_log 2>&1
 echo "running test_crc32..."

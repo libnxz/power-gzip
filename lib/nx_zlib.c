@@ -884,6 +884,7 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "csb_poll_max: %d\n", nx_config.csb_poll_max);
 	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
 	fprintf(fp, "paste_retries: %d\n", nx_config.paste_retries);
+	fprintf(fp, "soft_copy_threshold: %d\n", nx_config.soft_copy_threshold);
 
 	return 0;
 };

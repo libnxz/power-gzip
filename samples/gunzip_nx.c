@@ -74,8 +74,6 @@ struct _nx_time_dbg {
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
 
 #define mb()     asm volatile("sync" ::: "memory")
-#define rmb()    asm volatile("lwsync" ::: "memory")
-#define wmb()    rmb()
 
 const int fifo_in_len = 1<<24;
 const int fifo_out_len = 1<<24;	

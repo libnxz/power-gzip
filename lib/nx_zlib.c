@@ -920,6 +920,7 @@ void nx_hw_init(void)
 	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES"); /* number of retries if vas_paste() failed */
 	/* number of retries if nx_submit_job() returns ERR_NX_AT_FAULT */
 	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
+	char* soft_copy_threshold = NULL;
 
 	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
@@ -979,6 +980,9 @@ void nx_hw_init(void)
 		if (!timeout_pgfaults)
 			timeout_pgfaults = nx_get_cfg("timeout_pgfaults",
 							&cfg_tab);
+
+		soft_copy_threshold = nx_get_cfg("soft_copy_threshold",
+						   &cfg_tab);
 	}
 
 	/* log file should be initialized first*/
@@ -1086,6 +1090,12 @@ void nx_hw_init(void)
 
 	if (timeout_pgfaults) {
 		nx_config.timeout_pgfaults = str_to_num(timeout_pgfaults);
+	}
+
+	if (soft_copy_threshold) {
+		nx_config.soft_copy_threshold = str_to_num(soft_copy_threshold);
+		nx_config.soft_copy_threshold = NX_MAX(nx_config.soft_copy_threshold, 31);
+		nx_config.soft_copy_threshold = NX_MIN(nx_config.soft_copy_threshold, 8190);
 	}
 
 	if (nx_dbg >= 1 && nx_gzip_log) {

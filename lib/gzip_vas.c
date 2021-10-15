@@ -34,11 +34,18 @@
  * Author: Bulent Abali <abali@us.ibm.com>
  *
  */
+
+/** @file gzip_vas.c
+ *  \brief Implementation of the functions that communicate with the Virtual
+ *         Accelerator Switchboard.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -168,51 +175,89 @@ int nx_function_end(void *handle)
 	return rc;
 }
 
-/* wait for ticks amount; accumulated_ticks is the accumulated wait so
+/** \brief Wait for ticks amount
+
+   Wait for ticks amount; accumulated_ticks is the accumulated wait so
    far. Return value is >= accumulated_ticks + ticks. If do_sleep==1 and
    accumulated_ticks is non-zero and greater than some threshold then
    the function may usleep() for about 1/4 of the accumulated time to
    reduce cpu utilization
+
+   @param ticks Number of Timebase ticks that should be waited.
+   @param accumulated_ticks Number of Timebase ticks the library has already
+   been waiting.
+   @param do_sleep If set to 1, the function may let the thread sleep. If 0
+   the thread will never sleep.
+   @return Accumulated ticks, i.e. accumulated_ticks + number of ticks spent
+   in the function.
 */
 uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks,
 			int do_sleep)
 {
-	uint64_t ts, te, mhz, sleep_overhead, sleep_threshold;
+	uint64_t ts, te, mhz;
+	uint64_t sleep_t1, sleep_t2;
+	unsigned int us;
 
-	mhz = nx_get_freq() / 1000000; /* 500 MHz */
 	ts = te = nx_get_time();       /* start */
-	sleep_overhead = 30000;  /* usleep(0) overhead */
-	sleep_threshold = 4 * sleep_overhead;
 
-	if (!!do_sleep && (accumulated_ticks > sleep_threshold)) {
-		uint64_t us;
-		us = (accumulated_ticks / mhz) / 4;
-		us = ( us > 1000 ) ? 1000 : us; /* 1 ms */
-		usleep( (useconds_t) us );
-	}
+	/* Ideally, we tell the operating system to remove this thread from
+	   context in order to let other threads/processes use this HW thread.
+	   But when calling usleep(0), it's expected it will sleep for at least
+	   6000 timebase ticks.  However, it's more likely the thread will sleep
+	   for 28000 timebase ticks.  This number is much larger than the
+	   latency from the accelerator, which is less than 30 timebase ticks.
+	   That means sleeping must be avoided unless the accelerator is under
+	   very high load.
 
-	/* Save power and let other threads use the core. top may show
-	   100%, only because OS doesn't know the thread runs slowly */
-	cpu_pri_low();
-	/* busy wait */
-	while ((te - ts) <= ticks) {
+	   It's necessary to find a balance for the sleep threshold where CPU
+	   time is given to other processes/threads when the system is at high
+	   load, but at the same time does not increase the latency of requests
+	   when the system is at low load.
+
+	   Stay on the safe side and use a very high value for now.  */
+
+	#define SLEEP_THRESHOLD 110000
+
+	if (!!do_sleep && (accumulated_ticks > SLEEP_THRESHOLD)) {
+		mhz = nx_get_freq() / 1000000; /* 512 MHz */
+		us = accumulated_ticks / mhz;
+		/* usleep() guarantees the thread will sleep for at least
+		   the specified amount of time.  */
+		us = (us > 1000) ? 1000 : us;
+		prt_stat("%s:%d Asking to sleep for %u us\n", __FUNCTION__,
+			 __LINE__, us);
+		sleep_t1 = nx_get_time();
+		usleep(us);
+		sleep_t2 = nx_get_time();
+		prt_stat("%s:%d Slept for %f us\n", __FUNCTION__, __LINE__,
+			 (double) nx_time_to_us(nx_time_diff(sleep_t1,
+							     sleep_t2)));
 		te = nx_get_time();
+	} else {
+		/* Tell the processor to use the resources from this HW thread
+		   with other threads. The following loop is still consuming
+		   CPU time, but at least it is offering its resources to other
+		   threads while executing this busy wait loop. */
+		cpu_pri_low();
+		while (nx_time_diff(ts, te) <= ticks) {
+			te = nx_get_time();
+		}
+		cpu_pri_default();
 	}
-	cpu_pri_default();
-
-	return (te - ts) + accumulated_ticks;
+	accumulated_ticks += nx_time_diff(ts, te);
+	prt_stat("%s:%d accumulated ticks: %"PRIu64"\n", __FUNCTION__,
+		 __LINE__, accumulated_ticks);
+	return accumulated_ticks;
 }
 
 static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 {
 	uint64_t t = 0;
-	const int may_sleep = 1;
 	uint64_t onesecond = nx_get_freq();
 
-	while (getnn( cmdp->crb.csb, csb_v ) == 0)
-	{
-		/* check for job completion every 100 ticks */
-		t = nx_wait_ticks(100, t, may_sleep);
+	do {
+		/* Check for job completion. */
+		t = nx_wait_ticks(100, t, 1);
 
 		if (t > (timeout_seconds * onesecond)) /* 1 min */
 			break;
@@ -223,7 +268,7 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 		}
 
 		hwsync();
-	}
+	} while (getnn( cmdp->crb.csb, csb_v ) == 0);
 
 	/* check CSB flags */
 	if( getnn( cmdp->crb.csb, csb_v ) == 0 ) {
@@ -279,9 +324,14 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
 			   queue is full or the paste buffer in the
 			   cache was being used
 			*/
-			const int no_sleep = 0;
-
-			ticks_total = nx_wait_ticks(500, ticks_total, no_sleep);
+			/* If the NX queue was full, it should complete at
+			   least 2 requests after 50 timebase ticks.
+			   If the system is under very high load, we might see
+			   a couple of failures. In that case, it is a good
+			   idea to sleep this thread in order to give the other
+			   threads/processes CPU time to complete their
+			   execution. */
+			ticks_total = nx_wait_ticks(500, ticks_total, 0);
 
 			if (ticks_total > (timeout_seconds * nx_get_freq()))
 				return -ETIMEDOUT;

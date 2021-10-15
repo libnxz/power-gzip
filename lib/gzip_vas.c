@@ -72,8 +72,16 @@
 #define hwsync()    asm volatile("hwsync" ::: "memory")
 
 #ifndef NX_NO_CPU_PRI
-#define cpu_pri_default()  __asm__ volatile ("or 2,2,2")
-#define cpu_pri_low()      __asm__ volatile ("or 31,31,31")
+/**
+ * \brief Set the program priority (PRI) to the default (medium) value.
+ */
+#define cpu_pri_default()  __asm__ volatile ("or 2,2,2\r\n" \
+					     "isync")
+/**
+ * \brief Set the program priority (PRI) to the very low value.
+ */
+#define cpu_pri_low()      __asm__ volatile ("or 31,31,31\r\n" \
+					     "isync")
 #else
 #define cpu_pri_default()  ((void)(0))
 #define cpu_pri_low()      ((void)(0))

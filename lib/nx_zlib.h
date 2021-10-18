@@ -431,7 +431,7 @@ struct zlib_stats {
 
 extern pthread_mutex_t zlib_stats_mutex; 
 extern struct zlib_stats zlib_stats; 
-inline void zlib_stats_inc(unsigned long *count)
+static inline void zlib_stats_inc(unsigned long *count)
 {
         if (!nx_gzip_gather_statistics())
                 return;

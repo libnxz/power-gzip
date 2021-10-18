@@ -1,3 +1,4 @@
+#define _GNU_SOURCE /* For pthread_tryjoin_np */
 #include <sys/time.h>
 #include <time.h>
 #include <pthread.h>
@@ -229,6 +230,9 @@ int main(int argc, char **argv)
 		/*Check for finish*/
 		for (i = 0; i < thread_num; i++){
 			if (!thread_info[i].running && (thread_info[i].iteration < test_iterations)) {
+				/*  Make sure to join the thread before reuse the thread_info field.
+				    Otherwise the internal thread resources will leak. */
+				if (pthread_tryjoin_np(thread_info[i].tid, NULL) != 0) continue;
 				pthread_create(&(thread_info[i].tid), NULL, (void*) run_case, (void *) &(thread_info[i]));
 			}else if(thread_info[i].iteration >=  test_iterations){
 				finish_thread++;

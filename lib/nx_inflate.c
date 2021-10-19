@@ -962,14 +962,29 @@ copy_fifo_out_to_next_out:
 
 	assert(s->used_out == 0);
 
-	/* if s->avail_out and  s->avail_in is 0, return */
+	/* If there is no input (s->avail_in == 0 && s->used_in == 0) or there
+	   is no space for output (s->avail_out == 0), return. */
 	if (s->avail_out == 0 || (s->avail_in == 0 && s->used_in == 0)) return Z_OK;
 	if (s->used_out == 0 && s->avail_in == 0 && s->used_in == 0) return Z_OK;
 	/* we should flush all data to next_out here, s->used_out should be 0 */
 
 	/* used_in is the data amount waiting in fifo_in; avail_in is
-	   the data amount waiting in the user buffer next_in */
-	if (s->avail_in < nx_config.soft_copy_threshold && s->avail_out > 0) {
+	   the data amount waiting in the user buffer next_in.
+	   Cache the input in fifo_in until we have enough data in order to send
+	   to the NX GZIP accelerator.
+	   Avoid executing this code when avail_in is 0.  That means either the
+	   end of the stream or the end of the current request.  There is
+	   nothing to copy anyway.
+	   Likewise when flush is either Z_FINISH or Z_SYNC_FLUSH.  In these
+	   cases, inflate is expected to provide an output and copying data to
+	   fifo_in would just add unnecessary delays.
+	   The following code is not just an optimization, it is also required
+	   by NX because it may refuse to start processing a stream if the input
+	   is not large enough.  */
+	if (s->avail_in > 0
+	    && (s->avail_in + s->used_in < nx_config.soft_copy_threshold)
+	    && s->avail_out > 0
+	    && flush != Z_FINISH && flush != Z_SYNC_FLUSH) {
 		if (s->fifo_in == NULL) {
 			s->len_in = nx_config.soft_copy_threshold * 2;
 			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
@@ -989,6 +1004,10 @@ copy_fifo_out_to_next_out:
 			update_stream_in(s, read_sz);
 			s->used_in = s->used_in + read_sz;
 		}
+		/* We haven't accumulated enough data. Wait for the
+		   application to send more in order to reduce the
+		   amount of requests sent to the accelerator. */
+		return Z_OK;
 	}
 	print_dbg_info(s, __LINE__);
 

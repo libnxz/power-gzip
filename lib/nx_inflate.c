@@ -1516,7 +1516,7 @@ offsets_state:
 
 	print_dbg_info(s, __LINE__);
 
-	s->history_len = (s->total_out + s->used_out > INF_HIS_LEN) ? INF_HIS_LEN : (s->total_out + s->used_out);
+	s->history_len = NX_MIN(s->total_out + s->used_out, INF_HIS_LEN);
 
 	prt_info("== %d source_sz %d tpbc %d last_comp_ratio %d\n", __LINE__, source_sz, tpbc, s->last_comp_ratio);
 
@@ -1581,14 +1581,6 @@ offsets_state:
 		print_dbg_info(s, __LINE__);
 		return Z_OK;
 	}
-
-#if 0
-	/* dead code */
-	if (flush == Z_FINISH) return Z_STREAM_END;
-
-	print_dbg_info(s, __LINE__);
-	return Z_OK;
-#endif
 
 err5:
 	prt_err("rc %d\n", rc);

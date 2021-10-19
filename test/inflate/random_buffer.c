@@ -43,8 +43,6 @@ err:
 	return TEST_ERROR;
 }
 
-/* case prefix is 2 ~ 9 */
-
 /* Test with short arrays.  */
 int run_case1()
 {

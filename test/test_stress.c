@@ -10,7 +10,7 @@
 static int ready_count;
 
 pthread_t tid[THREAD_MAX];
-pthread_mutex_t mutex;  
+pthread_mutex_t mutex;
 pthread_cond_t cond;
 
 struct use_time {

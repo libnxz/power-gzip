@@ -231,7 +231,7 @@ uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks,
 		us = accumulated_ticks / mhz;
 		/* usleep() guarantees the thread will sleep for at least
 		   the specified amount of time.  */
-		us = (us > 1000) ? 1000 : us;
+		us = NX_MIN(us, 1000);
 		prt_stat("%s:%d Asking to sleep for %u us\n", __FUNCTION__,
 			 __LINE__, us);
 		sleep_t1 = nx_get_time();

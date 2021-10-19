@@ -19,6 +19,7 @@
 
 int main()
 {
+	check ( run_case1() );
 	check ( run_case2() );
 	check ( run_case3() );
 	check ( run_case4() );
@@ -39,4 +40,3 @@ int main()
 	check ( run_case19() );
 	check ( run_case19_1() );
 }
-

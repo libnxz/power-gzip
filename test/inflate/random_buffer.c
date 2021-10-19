@@ -6,6 +6,9 @@ static int run(unsigned int len, int step, const char* test, int flush)
 	Byte *src, *compr, *uncompr;
 	unsigned int src_len = len;
 	unsigned int compr_len = src_len*2;
+	/* When compressing a short array, we may need a buffer larger than
+	   2*src_len. Round this up to 1KiB. */
+	compr_len = compr_len > 1024 ? compr_len : 1024;
 	unsigned int uncompr_len = src_len*2;
 	generate_random_data(src_len);
 	src = &ran_data[0];
@@ -42,6 +45,27 @@ err:
 
 /* case prefix is 2 ~ 9 */
 
+/* Test with short arrays.  */
+int run_case1()
+{
+	int rc = TEST_OK;
+	/* TODO: Test for i >= 1. The NX GZIP accelerator does not progress when
+		 i < 31, so these values can't be tested at the moment. */
+	for (int i = 31; i <= 100; i++) {
+		for (int j = 1; j <= i; j++) {
+			rc = run(i, j, __func__, Z_NO_FLUSH);
+			if (rc != TEST_OK) {
+				printf("** %s %s with i = %d, j = %d failed\n",
+				       __FILE__, __func__, i, j);
+				return rc;
+			}
+			printf("** %s %s with i = %d, j = %d passed\n",
+			       __FILE__, __func__, i, j);
+		}
+	}
+	return TEST_OK;
+}
+
 /* The total src buffer < 64K and avail_in is 1 */
 int run_case2()
 {
@@ -63,7 +87,6 @@ int run_case4()
 /* The total src buffer > 64K and avail_in is 1 */
 int run_case5()
 {
-	// return run(128*1024, 1, __func__);
 	return run(25*1024, 1, __func__,Z_NO_FLUSH);
 }
 

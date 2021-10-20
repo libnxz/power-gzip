@@ -78,7 +78,7 @@ free_func zfree = (free_func) 0;
 
 /* Use nx to deflate. */
 int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
-		     unsigned int compr_len, int step)
+		     unsigned int *compr_len, int step)
 {
 	int err;
 	z_stream c_stream;
@@ -96,7 +96,8 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	c_stream.next_in  = (z_const unsigned char *)src;
 	c_stream.next_out = compr;
 
-	while (c_stream.total_in != src_len && c_stream.total_out < compr_len) {
+	while (c_stream.total_in != src_len
+	       && c_stream.total_out < *compr_len) {
 		step = (step < (src_len - c_stream.total_in))
 		       ? (step) : (src_len - c_stream.total_in);
 		c_stream.avail_in = c_stream.avail_out = step;
@@ -123,12 +124,13 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	if (err != 0)
 		return TEST_ERROR;
 
+	*compr_len = c_stream.total_out;
 	return TEST_OK;
 }
 
 /* Use zlib to deflate. */
 int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
-		  unsigned int compr_len, int step)
+		  unsigned int* compr_len, int step)
 {
 	int err;
 	z_stream c_stream;
@@ -146,7 +148,8 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	c_stream.next_in  = (z_const unsigned char *)src;
 	c_stream.next_out = compr;
 
-	while (c_stream.total_in != src_len && c_stream.total_out < compr_len) {
+	while (c_stream.total_in != src_len
+	       && c_stream.total_out < *compr_len) {
 		c_stream.avail_in = c_stream.avail_out = step;
 		err = deflate(&c_stream, Z_NO_FLUSH);
 		if (c_stream.total_in > src_len) break;
@@ -173,6 +176,7 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	if (err != 0)
 		return TEST_ERROR;
 
+	*compr_len = c_stream.total_out;
 	return TEST_OK;
 }
 

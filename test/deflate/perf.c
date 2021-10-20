@@ -21,8 +21,10 @@ static int run(unsigned int len, int step, const char* test)
 		return TEST_ERROR;
 	}
 
-	if (_test_deflate(src, src_len, compr, compr_len, step)) goto err;
-	if (_test_nx_deflate(src, src_len, compr, compr_len, step)) goto err;
+	if (_test_deflate(src, src_len, compr, &compr_len, step)) goto err;
+	/* Reset compr_len to its original value. */
+	compr_len = src_len*2;
+	if (_test_nx_deflate(src, src_len, compr, &compr_len, step)) goto err;
 	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
 	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src,
 			     src_len, step, Z_NO_FLUSH)) goto err;

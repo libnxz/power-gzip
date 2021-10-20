@@ -199,9 +199,10 @@ int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 	d_stream.next_out = uncompr;
 
 	err = inflateInit(&d_stream);
-	while (d_stream.total_out < uncomprLen
-	       && d_stream.total_in < comprLen) {
-		d_stream.avail_in = d_stream.avail_out = step;
+	while (d_stream.total_out < uncomprLen) {
+		if (d_stream.total_in < comprLen)
+			d_stream.avail_in = step;
+		d_stream.avail_out = step;
 		err = inflate(&d_stream, Z_NO_FLUSH);
 		if (err == Z_STREAM_END) break;
 		if (err < 0) {
@@ -241,9 +242,10 @@ int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 	d_stream.next_out = uncompr;
 
 	err = nx_inflateInit(&d_stream);
-	while (d_stream.total_out < uncomprLen
-	       && d_stream.total_in < comprLen) {
-		d_stream.avail_in = d_stream.avail_out = step;
+	while (d_stream.total_out < uncomprLen) {
+		if (d_stream.total_in < comprLen)
+			d_stream.avail_in = step;
+		d_stream.avail_out = step;
 		err = nx_inflate(&d_stream, flush);
 		if (err == Z_STREAM_END) break;
 		if (err < 0) {

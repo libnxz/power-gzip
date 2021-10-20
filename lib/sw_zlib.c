@@ -2,7 +2,7 @@
  * NX-GZIP compression accelerator user library
  * implementing zlib compression library interfaces
  *
- * Copyright (C) IBM Corporation, 2011-2017
+ * Copyright (C) IBM Corporation, 2011-2021
  *
  * Licenses for GPLv2 and Apache v2.0:
  *
@@ -55,9 +55,6 @@
 #include <dlfcn.h>
 #include "nx_dbg.h"
 #include "nx_zlib.h"
-
-#define DEFAULT_ZLIB_PATH "/lib64/libz.so.1"
-
 
 static void *sw_handler = NULL;
 

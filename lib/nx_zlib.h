@@ -62,14 +62,14 @@
 #ifndef _NX_ZLIB_H
 #define _NX_ZLIB_H
 
-#define GZIP_SW		0x01 /* all ops to software gzip */
-#define GZIP_NX		0x02 /* all ops to nx gzip */
-#define GZIP_MIX	0x03 /* mix sw and nx with specific ratio*/
+#define GZIP_AUTO	0x00 /* use sw for small inputs and nx otherwise */
+#define GZIP_SW 	0x01 /* all ops to software gzip */
+#define GZIP_NX 	0x02 /* all ops to nx gzip */
+#define GZIP_MIX	0x03 /* mix sw and nx with specific ratio */
 #define GZIP_MIX2	0x04 /* deflate: nx ; inflate: sw */
 
-#define COMPRESS_THRESHOLD	(4*1024)
-#define DECOMPRESS_THRESHOLD	(4*1024)
-
+#define COMPRESS_THRESHOLD	(1024)
+#define DECOMPRESS_THRESHOLD	(1024)
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
@@ -331,6 +331,8 @@ static inline int use_nx_inflate(z_streamp strm)
 
 	/* #1 Threshold */
 	if(strm->avail_in <= DECOMPRESS_THRESHOLD) return 0;
+
+	if(nx_config.gzip_selector == GZIP_AUTO) return 1;
 
 	/* #2 Percentage */
 	rnd = __ppc_get_timebase();

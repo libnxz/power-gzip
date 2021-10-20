@@ -971,7 +971,7 @@ void nx_hw_init(void)
 	nx_config.dht = 0; /* default is literals only */
 	nx_config.nx_ratio = 100; /* default is 100% NX */
 	nx_config.strategy_override = 1; /* default is dynamic huffman */
-	nx_config.gzip_selector = GZIP_NX; /* default is to use NX only */
+	nx_config.gzip_selector = GZIP_AUTO; /* default to the automatic switch */
 
 	if (!cfg_file_s)
 		cfg_file_s = "./nx-zlib.conf";
@@ -1025,10 +1025,11 @@ void nx_hw_init(void)
 
 	if(type_selector != NULL){
 		nx_config.gzip_selector = str_to_num(type_selector);
-		prt("gzip_selector: %d (1-SW;2-NX;3/4-MIX)\n", nx_config.gzip_selector);
-		if(nx_config.gzip_selector == 0 || nx_config.gzip_selector > 4) {
-			prt("Unrecognized option, defaulting to NX.\n");
-			nx_config.gzip_selector = GZIP_NX;
+		prt("gzip_selector: %d (0-AUTO;1-SW;2-NX;3/4-MIX)\n", nx_config.gzip_selector);
+		/* check for misconfiguration */
+		if(nx_config.gzip_selector > 4) {
+			prt("Unrecognized option, defaulting to AUTO.\n");
+			nx_config.gzip_selector = GZIP_AUTO;
 		}
 	}
 

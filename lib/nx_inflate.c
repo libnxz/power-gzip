@@ -1935,7 +1935,9 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 	zlib_stats_inc(&zlib_stats.inflateInit);
 
 	strm->state = NULL;
-	if(nx_config.gzip_selector == GZIP_MIX){
+	if(nx_config.gzip_selector == GZIP_AUTO ||
+	   nx_config.gzip_selector == GZIP_MIX){
+		/* Call sw and nx initialization.  */
 		rc = sw_inflateInit2_(strm, windowBits, version, stream_size);
 		if(rc != Z_OK) return rc;
 
@@ -2034,7 +2036,6 @@ int inflate(z_streamp strm, int flush)
 		avail_out = strm->avail_out;
 		t1 = nx_get_time();
 	}
-
 
 	if (0 == has_nx_state(strm)){
 		prt_info("call sw_inflate,len=%d\n", strm->avail_in);

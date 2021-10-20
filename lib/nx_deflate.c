@@ -2142,7 +2142,8 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	zlib_stats_inc(&zlib_stats.deflateInit);
 
 	strm->state = NULL;
-	if(nx_config.gzip_selector == GZIP_MIX){
+	if(nx_config.gzip_selector == GZIP_AUTO ||
+	   nx_config.gzip_selector == GZIP_MIX){
 
 		/* call sw and nx initialization */
 		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);

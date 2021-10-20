@@ -13,7 +13,7 @@ LD = $(shell which ld)
 FLG    = -std=gnu11
 SFLAGS = -O3 -Wall -Werror -Wno-error=pointer-sign -fPIC
 ZLIB   = -DZLIB_API
-ZLIB_PATH ?= /lib64/libz.so.1
+ZLIB_PATH ?= libz.so
 
 ## Compiler related flags
 GCC_VER = $(shell $(CC) -dumpversion)

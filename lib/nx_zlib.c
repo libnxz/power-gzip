@@ -834,7 +834,6 @@ static int print_nx_env(FILE *fp)
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");
 	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY");
-	char *csb_poll_max = getenv("NX_GZIP_CSB_POLL_MAX");
 	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES");
 	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
 	char *nx_ratio_s     = getenv("NX_GZIP_RATIO");
@@ -860,8 +859,6 @@ static int print_nx_env(FILE *fp)
 		fprintf(fp, "NX_GZIP_DHT_CONFIG: \'%s\'\n", dht_config);
 	if (strategy_ovrd)
 		fprintf(fp, "NX_GZIP_STRATEGY: \'%s\'\n", strategy_ovrd);
-	if (csb_poll_max)
-		fprintf(fp, "NX_GZIP_CSB_POLL_MAX: \'%s\'\n", csb_poll_max);
 	if (paste_retries)
 		fprintf(fp, "NX_GZIP_PASTE_RETRIES: \'%s\'\n", paste_retries);
 	if (timeout_pgfaults)
@@ -888,7 +885,6 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "strategy: %d\n", nx_strategy_override);
 	fprintf(fp, "mlock_csb: %d\n", nx_config.mlock_nx_crb_csb);
 	fprintf(fp, "dis_savedevp: %d\n", disable_saved_nx_devp);
-	fprintf(fp, "csb_poll_max: %d\n", nx_config.csb_poll_max);
 	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
 	fprintf(fp, "paste_retries: %d\n", nx_config.paste_retries);
 	fprintf(fp, "soft_copy_threshold: %d\n", nx_config.soft_copy_threshold);
@@ -924,7 +920,6 @@ void nx_hw_init(void)
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");  /* default 0 is using literals only, odd is lit and lens */
 	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
-	char *csb_poll_max = getenv("NX_GZIP_CSB_POLL_MAX"); /* maximum poll number before wait_for_csb() timeout */
 	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES"); /* number of retries if vas_paste() failed */
 	/* number of retries if nx_submit_job() returns ERR_NX_AT_FAULT */
 	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
@@ -947,7 +942,6 @@ void nx_hw_init(void)
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.verbose = 0;
 	nx_config.mlock_nx_crb_csb = 0;
-	nx_config.csb_poll_max = 2000000; /* est. 120 seconds */
 	nx_config.paste_retries = 5000;
 	nx_config.timeout_pgfaults = 300; /* seconds */
 
@@ -977,8 +971,6 @@ void nx_hw_init(void)
 			mlock_csb = nx_get_cfg("mlock_csb", &cfg_tab);
 		if (!dis_savdev)
 			dis_savdev = nx_get_cfg("dis_savedevp", &cfg_tab);
-		if (!csb_poll_max)
-			csb_poll_max = nx_get_cfg("csb_poll_max", &cfg_tab);
 		if (!paste_retries)
 			paste_retries = nx_get_cfg("paste_retries", &cfg_tab);
 		if (!timeout_pgfaults)
@@ -1087,12 +1079,6 @@ void nx_hw_init(void)
 		if ((nx_gzip_chip_num < -1) || (nx_gzip_chip_num > 2)) {
 			prt_err("Unsupported NX_GZIP_DEV_NUM %d!\n", nx_gzip_chip_num);
 		}
-	}
-
-	if (csb_poll_max) {
-		nx_config.csb_poll_max = str_to_num(csb_poll_max);
-		if (nx_config.csb_poll_max < 1)
-			nx_config.csb_poll_max = 1;
 	}
 
 	if (paste_retries) {

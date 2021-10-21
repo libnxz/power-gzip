@@ -834,7 +834,6 @@ static int print_nx_env(FILE *fp)
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");
 	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY");
-	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES");
 	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
 	char *nx_ratio_s     = getenv("NX_GZIP_RATIO");
 
@@ -859,8 +858,6 @@ static int print_nx_env(FILE *fp)
 		fprintf(fp, "NX_GZIP_DHT_CONFIG: \'%s\'\n", dht_config);
 	if (strategy_ovrd)
 		fprintf(fp, "NX_GZIP_STRATEGY: \'%s\'\n", strategy_ovrd);
-	if (paste_retries)
-		fprintf(fp, "NX_GZIP_PASTE_RETRIES: \'%s\'\n", paste_retries);
 	if (timeout_pgfaults)
 		fprintf(fp, "NX_GZIP_TIMEOUT_PGFAULTS: \'%s\'\n",
 		        timeout_pgfaults);
@@ -886,7 +883,6 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "mlock_csb: %d\n", nx_config.mlock_nx_crb_csb);
 	fprintf(fp, "dis_savedevp: %d\n", disable_saved_nx_devp);
 	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
-	fprintf(fp, "paste_retries: %d\n", nx_config.paste_retries);
 	fprintf(fp, "soft_copy_threshold: %d\n", nx_config.soft_copy_threshold);
 
 	return 0;
@@ -920,7 +916,6 @@ void nx_hw_init(void)
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");  /* default 0 is using literals only, odd is lit and lens */
 	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY"); /* Z_FIXED: 0, Z_DEFAULT_STRATEGY: 1 */
-	char *paste_retries = getenv("NX_GZIP_PASTE_RETRIES"); /* number of retries if vas_paste() failed */
 	/* number of retries if nx_submit_job() returns ERR_NX_AT_FAULT */
 	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
 	char* soft_copy_threshold = NULL;
@@ -942,7 +937,6 @@ void nx_hw_init(void)
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.verbose = 0;
 	nx_config.mlock_nx_crb_csb = 0;
-	nx_config.paste_retries = 5000;
 	nx_config.timeout_pgfaults = 300; /* seconds */
 
 	if (!cfg_file_s)
@@ -971,8 +965,6 @@ void nx_hw_init(void)
 			mlock_csb = nx_get_cfg("mlock_csb", &cfg_tab);
 		if (!dis_savdev)
 			dis_savdev = nx_get_cfg("dis_savedevp", &cfg_tab);
-		if (!paste_retries)
-			paste_retries = nx_get_cfg("paste_retries", &cfg_tab);
 		if (!timeout_pgfaults)
 			timeout_pgfaults = nx_get_cfg("timeout_pgfaults",
 							&cfg_tab);
@@ -1079,12 +1071,6 @@ void nx_hw_init(void)
 		if ((nx_gzip_chip_num < -1) || (nx_gzip_chip_num > 2)) {
 			prt_err("Unsupported NX_GZIP_DEV_NUM %d!\n", nx_gzip_chip_num);
 		}
-	}
-
-	if (paste_retries) {
-		nx_config.paste_retries = str_to_num(paste_retries);
-		if (nx_config.paste_retries < 1)
-			nx_config.paste_retries = 1;
 	}
 
 	if (timeout_pgfaults) {

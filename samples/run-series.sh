@@ -43,7 +43,7 @@ done
 if $unsafe; then
     head -c 1048576 $1 > junk2; # 1 Mb
     # Stress test for a system checkstop on kernel.
-    NX_GZIP_PASTE_RETRIES=200 ./compdecomp_th junk2 400 24
+    ./compdecomp_th junk2 400 24
     # Stress test for disabling IRQ on kernel.
     echo "Testing for kernel disabling IRQ..."
     NX_GZIP_TIMEOUT_PGFAULTS=3 ./bad_irq_check junk2 400 96

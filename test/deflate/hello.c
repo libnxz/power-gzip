@@ -21,13 +21,14 @@ int run_case1()
 	for (int i = 0; i < 30; i++) {
 		/* Reset comprLen. */
 		comprLen = 10000*sizeof(int);
-		if (_test_nx_deflate((Byte *)hello, len, compr, &comprLen, 1))
+		if (_test_nx_deflate((Byte *)hello, len, compr, &comprLen, 1,
+				     NULL))
 			return TEST_ERROR;
 		if (_test_inflate(compr, comprLen, uncompr, uncomprLen,
-				  (Byte *) hello, len, 1))
+				  (Byte *) hello, len, 1, NULL))
 			return TEST_ERROR;
 		if (_test_nx_inflate(compr, comprLen, uncompr, uncomprLen,
-				     (Byte *) hello, len, 1, Z_NO_FLUSH))
+				     (Byte *) hello, len, 1, Z_NO_FLUSH, NULL))
 			return TEST_ERROR;
 	}
 

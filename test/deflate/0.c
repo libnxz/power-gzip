@@ -20,11 +20,14 @@ static int run(unsigned int len, int digit, const char* test)
 	}
 
 	printf("*** src_len %d compr_len %d uncompr_len %d\n", src_len, compr_len, uncompr_len);
-	if (_test_nx_deflate(src, src_len, compr, &compr_len, src_len))
+	if (_test_nx_deflate(src, src_len, compr, &compr_len, src_len, NULL))
 		goto err;
-	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, compr_len)) goto err;
+	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len,
+			  compr_len, NULL))
+		goto err;
 	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src,
-			     src_len, compr_len, Z_NO_FLUSH)) goto err;
+			     src_len, compr_len, Z_NO_FLUSH, NULL))
+		goto err;
 
 	printf("*** %s %s passed\n", __FILE__, test);
 	free(compr);

@@ -78,7 +78,8 @@ free_func zfree = (free_func) 0;
 
 /* Use nx to deflate. */
 int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
-		     unsigned int *compr_len, int step)
+		     unsigned int *compr_len, int step,
+		     struct f_interval * time)
 {
 	int err;
 	z_stream c_stream;
@@ -87,7 +88,14 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	c_stream.zfree = zfree;
 	c_stream.opaque = (voidpf)0;
 
+	if (time != NULL)
+		gettimeofday(&time->init_start, NULL);
+
 	err = nx_deflateInit(&c_stream, Z_DEFAULT_COMPRESSION);
+
+	if (time != NULL)
+		gettimeofday(&time->init_end, NULL);
+
 	if (err != 0) {
 		printf("nx_deflateInit err %d\n", err);
 		return TEST_ERROR;
@@ -95,6 +103,9 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 
 	c_stream.next_in  = (z_const unsigned char *)src;
 	c_stream.next_out = compr;
+
+	if (time != NULL)
+		gettimeofday(&time->start, NULL);
 
 	while (c_stream.total_in != src_len
 	       && c_stream.total_out < *compr_len) {
@@ -120,6 +131,9 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 		}
 	}
 
+	if (time != NULL)
+		gettimeofday(&time->end, NULL);
+
 	err = nx_deflateEnd(&c_stream);
 	if (err != 0)
 		return TEST_ERROR;
@@ -130,7 +144,8 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 
 /* Use zlib to deflate. */
 int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
-		  unsigned int* compr_len, int step)
+		  unsigned int* compr_len, int step,
+		  struct f_interval * time)
 {
 	int err;
 	z_stream c_stream;
@@ -139,7 +154,14 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	c_stream.zfree = zfree;
 	c_stream.opaque = (voidpf)0;
 
+	if (time != NULL)
+		gettimeofday(&time->init_start, NULL);
+
 	err = deflateInit(&c_stream, Z_DEFAULT_COMPRESSION);
+
+	if (time != NULL)
+		gettimeofday(&time->init_end, NULL);
+
 	if (err != 0) {
 		printf("deflateInit err %d\n", err);
 		return TEST_ERROR;
@@ -147,6 +169,9 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 
 	c_stream.next_in  = (z_const unsigned char *)src;
 	c_stream.next_out = compr;
+
+	if (time != NULL)
+		gettimeofday(&time->start, NULL);
 
 	while (c_stream.total_in != src_len
 	       && c_stream.total_out < *compr_len) {
@@ -169,6 +194,10 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 			return TEST_ERROR;
 		}
 	}
+
+	if (time != NULL)
+		gettimeofday(&time->end, NULL);
+
 	printf("\n*** c_stream.total_out %ld\n",
 	       (unsigned long) c_stream.total_out);
 
@@ -183,7 +212,7 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 /* Use zlib to inflate. */
 int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 		  unsigned int uncomprLen, Byte* src, unsigned int src_len,
-		  int step)
+		  int step, struct f_interval * time)
 {
 	int err;
 	z_stream d_stream;
@@ -198,7 +227,17 @@ int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 	d_stream.avail_in = 0;
 	d_stream.next_out = uncompr;
 
+	if (time != NULL)
+		gettimeofday(&time->init_start, NULL);
+
 	err = inflateInit(&d_stream);
+
+	if (time != NULL)
+		gettimeofday(&time->init_end, NULL);
+
+	if (time != NULL)
+		gettimeofday(&time->start, NULL);
+
 	while (d_stream.total_out < uncomprLen) {
 		if (d_stream.total_in < comprLen)
 			d_stream.avail_in = step;
@@ -210,6 +249,10 @@ int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 			return TEST_ERROR;
 		}
 	}
+
+	if (time != NULL)
+		gettimeofday(&time->end, NULL);
+
 	printf("*** d_stream.total_in %ld d_stream.total_out %ld src_len %d\n",
 	       (unsigned long) d_stream.total_in,
 	       (unsigned long) d_stream.total_out, src_len);
@@ -226,7 +269,7 @@ int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 /* Use nx to inflate. */
 int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 		     unsigned int uncomprLen, Byte* src, unsigned int src_len,
-		     int step, int flush)
+		     int step, int flush, struct f_interval * time)
 {
 	int err;
 	z_stream d_stream;
@@ -241,7 +284,17 @@ int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 	d_stream.avail_in = 0;
 	d_stream.next_out = uncompr;
 
+	if (time != NULL)
+		gettimeofday(&time->init_start, NULL);
+
 	err = nx_inflateInit(&d_stream);
+
+	if (time != NULL)
+		gettimeofday(&time->init_end, NULL);
+
+	if (time != NULL)
+		gettimeofday(&time->start, NULL);
+
 	while (d_stream.total_out < uncomprLen) {
 		if (d_stream.total_in < comprLen)
 			d_stream.avail_in = step;
@@ -253,6 +306,10 @@ int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 			return TEST_ERROR;
 		}
 	}
+
+	if (time != NULL)
+		gettimeofday(&time->end, NULL);
+
 	printf("*** d_stream.total_in %ld d_stream.total_out %ld src_len %d\n",
 	       (unsigned long) d_stream.total_in,
 	       (unsigned long) d_stream.total_out, src_len);

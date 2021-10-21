@@ -10,3 +10,4 @@
 *.uncompressed
 *.xz
 *.zip
+*.checksum

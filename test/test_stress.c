@@ -1,5 +1,3 @@
-#include <sys/time.h>
-#include <time.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -15,23 +13,11 @@ pthread_t tid[THREAD_MAX];
 pthread_mutex_t mutex;  
 pthread_cond_t cond;
 
-struct use_time{
-		struct timeval nx_deflate_init_start;
-		struct timeval nx_deflate_init_end;
-		struct timeval nx_deflate_start;
-		struct timeval nx_deflate_end;
-		struct timeval nx_inflate_init_start;
-		struct timeval nx_inflate_init_end;
-		struct timeval nx_inflate_start;
-		struct timeval nx_inflate_end;
-		struct timeval deflate_init_start;
-		struct timeval deflate_init_end;
-		struct timeval deflate_start;
-		struct timeval deflate_end;
-		struct timeval inflate_init_start;
-		struct timeval inflate_init_end;
-		struct timeval inflate_start;
-		struct timeval inflate_end;
+struct use_time {
+		struct f_interval nx_deflate;
+		struct f_interval nx_inflate;
+		struct f_interval deflate;
+		struct f_interval inflate;
 };
 static struct use_time count_info[THREAD_MAX];
 struct time_duration {
@@ -48,220 +34,15 @@ struct time_duration {
 #define MIN(x, y) (((x)<(y) && ((x)!=0))?(x):(y))
 #define MAX(x, y) ((x)>(y)?(x):(y))
 
-static alloc_func zalloc = (alloc_func)0;
-static free_func zfree = (free_func)0;
-
 static struct use_time* get_use_time_by_tid(pthread_t id)
 {
 	for (int i = 0; i < THREAD_MAX; i++){
 		if (tid[i] == id)
 			return count_info + i;
 	}
+	/* This should never happen. */
 	assert(0);
 	return NULL;
-}
-
-/* use zlib to deflate */
-static int _test_deflates(Byte* src, unsigned int src_len, Byte* compr, unsigned int compr_len, int step)
-{
-	int err;
-	z_stream c_stream;
-	
-	c_stream.zalloc = zalloc;
-	c_stream.zfree = zfree;
-	c_stream.opaque = (voidpf)0;
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->deflate_init_start), NULL);
-	
-	err = deflateInit(&c_stream, Z_DEFAULT_COMPRESSION);
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->deflate_init_end), NULL);
-
-	if (err != 0) {
-		printf("deflateInit err %d\n", err);
-		return TEST_ERROR;
-	}
-	
-	c_stream.next_in  = (z_const unsigned char *)src;
-	c_stream.next_out = compr;
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->deflate_start), NULL);
-	while (c_stream.total_in != src_len && c_stream.total_out < compr_len) {
-	    c_stream.avail_in = c_stream.avail_out = step;
-	    err = deflate(&c_stream, Z_NO_FLUSH);
-	    if (c_stream.total_in > src_len) break;
-		if (err < 0) {
-			printf("*** failed: nx_deflate returned %d\n", err);
-			return TEST_ERROR;
-		}
-	}
-	assert(c_stream.total_in == src_len);
-
-        for (;;) {
-            c_stream.avail_out = 1;
-            err = deflate(&c_stream, Z_FINISH);
-            if (err == Z_STREAM_END) break;
-		if (err < 0) {
-			printf("*** failed: nx_deflate returned %d\n", err);
-			return TEST_ERROR;
-		}
-        }
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->deflate_end), NULL);
-
-	err = deflateEnd(&c_stream);
-	if (err != 0) {
-		return TEST_ERROR;
-	}
-
-	return TEST_OK;
-}
-
-/* use nx to deflate */
-static int _test_nx_deflates(Byte* src, unsigned int src_len, Byte* compr,
-			     unsigned int compr_len, int step)
-{
-	int err;
-	z_stream c_stream;
-	
-	c_stream.zalloc = zalloc;
-	c_stream.zfree = zfree;
-	c_stream.opaque = (voidpf)0;
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_deflate_init_start), NULL);
-
-	err = nx_deflateInit(&c_stream, Z_DEFAULT_COMPRESSION);
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_deflate_init_end), NULL);
-
-	if (err != 0) {
-		printf("nx_deflateInit err %d\n", err);
-		return TEST_ERROR;
-	}
-	
-	c_stream.next_in  = (z_const unsigned char *)src;
-	c_stream.next_out = compr;
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_deflate_start), NULL);
-	while (c_stream.total_in != src_len && c_stream.total_out < compr_len) {
-	    c_stream.avail_in = c_stream.avail_out = step;
-	    err = nx_deflate(&c_stream, Z_NO_FLUSH);
-	    if (c_stream.total_in > src_len) break;
-		if (err < 0) {
-			printf("*** failed: nx_deflate returned %d\n", err);
-			return TEST_ERROR;
-		}
-	}
-	assert(c_stream.total_in == src_len);
-
-        for (;;) {
-            c_stream.avail_out = 1;
-            err = nx_deflate(&c_stream, Z_FINISH);
-            if (err == Z_STREAM_END) break;
-		if (err < 0) {
-			printf("*** failed: nx_deflate returned %d\n", err);
-			return TEST_ERROR;
-		}
-        }
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_deflate_end), NULL);
-
-	err = nx_deflateEnd(&c_stream);
-	if (err != 0) {
-		return TEST_ERROR;
-	}
-
-	return TEST_OK;
-}
-
-/* use zlib to infalte */
-static int _test_inflates(Byte* compr, unsigned int comprLen, Byte* uncompr,
-			  unsigned int uncomprLen, Byte* src,
-			  unsigned int src_len, int step)
-{
-        int err;
-        z_stream d_stream;
-
-	memset(uncompr, 0, uncomprLen);
-
-        d_stream.zalloc = zalloc;
-        d_stream.zfree = zfree;
-        d_stream.opaque = (voidpf)0;
-
-        d_stream.next_in  = compr;
-        d_stream.avail_in = 0;
-        d_stream.next_out = uncompr;
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->inflate_init_start), NULL);
-
-        err = inflateInit(&d_stream);
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->inflate_init_end), NULL);
-	
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->inflate_start), NULL);
-        while (d_stream.total_out < uncomprLen && d_stream.total_in < comprLen) {
-                d_stream.avail_in = d_stream.avail_out = step;
-                err = inflate(&d_stream, Z_NO_FLUSH);
-                if (err == Z_STREAM_END) break;
-		if (err < 0) {
-			printf("*** failed: nx_deflate returned %d\n", err);
-			return TEST_ERROR;
-		}
-        }
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->inflate_end), NULL);
-
-        err = inflateEnd(&d_stream);
-
-        if (compare_data(uncompr, src, src_len)) {
-		return TEST_ERROR;
-        }
-
-	return TEST_OK;
-}
-
-/* use nx inflate to infalte */
-static int _test_nx_inflates(Byte* compr, unsigned int comprLen, Byte* uncompr,
-			     unsigned int uncomprLen, Byte* src,
-			     unsigned int src_len, int step)
-{
-        int err;
-        z_stream d_stream;
-
-	memset(uncompr, 0, uncomprLen);
-
-        d_stream.zalloc = zalloc;
-        d_stream.zfree = zfree;
-        d_stream.opaque = (voidpf)0;
-
-        d_stream.next_in  = compr;
-        d_stream.avail_in = 0;
-        d_stream.next_out = uncompr;
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_inflate_init_start), NULL);
-
-        err = nx_inflateInit(&d_stream);
-
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_inflate_init_end), NULL);
-	
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_inflate_start), NULL);
-        while (d_stream.total_out < uncomprLen && d_stream.total_in < comprLen) {
-                d_stream.avail_in = d_stream.avail_out = step;
-                err = nx_inflate(&d_stream, Z_NO_FLUSH);
-                if (err == Z_STREAM_END) break;
-		if (err < 0) {
-			printf("*** failed: nx_deflate returned %d\n", err);
-			return TEST_ERROR;
-		}
-        }
-	gettimeofday(&(get_use_time_by_tid(pthread_self())->nx_inflate_end), NULL);
-
-        err = nx_inflateEnd(&d_stream);
-
-        if (compare_data(uncompr, src, src_len)) {
-		return TEST_ERROR;
-        }
-
-	return TEST_OK;
 }
 
 static int run(unsigned int len, int step, const char* test)
@@ -293,12 +74,22 @@ static int run(unsigned int len, int step, const char* test)
 	}
 	pthread_mutex_unlock(&mutex);
 
-	if (_test_deflates(src, src_len, compr, compr_len, step)) goto err;
-	if (_test_nx_deflates(src, src_len, compr, compr_len, step)) goto err;
-	if (_test_inflates(compr, compr_len, uncompr, uncompr_len, src,
-			   src_len, step)) goto err;
-	if (_test_nx_inflates(compr, compr_len, uncompr, uncompr_len, src,
-			      src_len, step)) goto err;
+	if (_test_deflate(src, src_len, compr, &compr_len, step,
+			  &get_use_time_by_tid(pthread_self())->deflate))
+		goto err;
+	/* Reset compr_len. */
+	compr_len = src_len*2;
+	if (_test_nx_deflate(src, src_len, compr, &compr_len, step,
+			     &get_use_time_by_tid(pthread_self())->nx_deflate))
+		goto err;
+	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src,
+			  src_len, step,
+			  &get_use_time_by_tid(pthread_self())->inflate))
+		goto err;
+	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src,
+			     src_len, step, Z_NO_FLUSH,
+			     &get_use_time_by_tid(pthread_self())->nx_inflate))
+		goto err;
 
 	free(src);
 	free(compr);
@@ -342,14 +133,30 @@ int main()
 	}
 
 	for (int i = 0; i < thread_num; i++) {
-		duration[i].deflate_init    = get_time_duration(count_info[i].deflate_init_end, count_info[i].deflate_init_start);
-		duration[i].deflate         = get_time_duration(count_info[i].deflate_end, count_info[i].deflate_start);
-		duration[i].inflate_init    = get_time_duration(count_info[i].inflate_init_end, count_info[i].inflate_init_start);
-		duration[i].inflate         = get_time_duration(count_info[i].inflate_end, count_info[i].inflate_start);
-		duration[i].nx_deflate_init = get_time_duration(count_info[i].nx_deflate_init_end, count_info[i].nx_deflate_init_start);
-		duration[i].nx_deflate      = get_time_duration(count_info[i].nx_deflate_end, count_info[i].nx_deflate_start);
-		duration[i].nx_inflate_init = get_time_duration(count_info[i].nx_inflate_init_end, count_info[i].nx_inflate_init_start);
-		duration[i].nx_inflate      = get_time_duration(count_info[i].nx_inflate_end, count_info[i].nx_inflate_start);
+		duration[i].deflate_init =
+			get_time_duration(count_info[i].deflate.init_end,
+					  count_info[i].deflate.init_start);
+		duration[i].deflate =
+			get_time_duration(count_info[i].deflate.end,
+					  count_info[i].deflate.start);
+		duration[i].inflate_init =
+			get_time_duration(count_info[i].inflate.init_end,
+					  count_info[i].inflate.init_start);
+		duration[i].inflate =
+			get_time_duration(count_info[i].inflate.end,
+					  count_info[i].inflate.start);
+		duration[i].nx_deflate_init =
+			get_time_duration(count_info[i].nx_deflate.init_end,
+					  count_info[i].nx_deflate.init_start);
+		duration[i].nx_deflate =
+			get_time_duration(count_info[i].nx_deflate.end,
+					  count_info[i].nx_deflate.start);
+		duration[i].nx_inflate_init =
+			get_time_duration(count_info[i].nx_inflate.init_end,
+					  count_info[i].nx_inflate.init_start);
+		duration[i].nx_inflate =
+			get_time_duration(count_info[i].nx_inflate.end,
+					  count_info[i].nx_inflate.start);
 	}
 
 	for (int i = 0; i < thread_num; i++) {

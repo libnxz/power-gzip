@@ -18,10 +18,14 @@ static int run(unsigned int len, int step, const char* test)
 		return TEST_ERROR;
 	}
 
-	if (_test_nx_deflate(src, src_len, compr, &compr_len, step)) goto err;
-	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len, step)) goto err;
+	if (_test_nx_deflate(src, src_len, compr, &compr_len, step, NULL))
+		goto err;
+	if (_test_inflate(compr, compr_len, uncompr, uncompr_len, src, src_len,
+			  step, NULL))
+		goto err;
 	if (_test_nx_inflate(compr, compr_len, uncompr, uncompr_len, src,
-			     src_len, step, Z_NO_FLUSH)) goto err;
+			     src_len, step, Z_NO_FLUSH, NULL))
+		goto err;
 
 	printf("*** %s %s passed\n", __FILE__, test);
 	free(compr);

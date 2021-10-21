@@ -130,7 +130,6 @@ struct nx_config_t {
 	int      timeout_pgfaults;
 	int      verbose;
 	int      mlock_nx_crb_csb;
-	int      csb_poll_max;
 	int      paste_retries;
 };
 typedef struct nx_config_t *nx_configp_t;

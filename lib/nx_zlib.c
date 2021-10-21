@@ -830,7 +830,6 @@ static int print_nx_env(FILE *fp)
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE");
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM");
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE");
-	char *inf_bufsz  = getenv("NX_GZIP_INF_BUF_SIZE");
 	char *logfile    = getenv("NX_GZIP_LOGFILE");
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");
@@ -853,8 +852,6 @@ static int print_nx_env(FILE *fp)
 		fprintf(fp, "NX_GZIP_DEV_NUM: \'%s\'\n", chip_num_s);
 	if (def_bufsz)
 		fprintf(fp, "NX_GZIP_DEF_BUF_SIZE: \'%s\'\n", def_bufsz);
-	if (inf_bufsz)
-		fprintf(fp, "NX_GZIP_INF_BUF_SIZE: \'%s\'\n", inf_bufsz);
 	if (logfile)
 		fprintf(fp, "NX_GZIP_LOGFILE: \'%s\'\n", logfile);
 	if (trace_s)
@@ -885,7 +882,6 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "verbose: %d\n", nx_config.verbose);
 	fprintf(fp, "dev_num: %d\n", nx_gzip_chip_num);
 	fprintf(fp, "page_sz: %ld\n", nx_config.page_sz);
-	fprintf(fp, "inf_buf_size: %u\n", nx_config.strm_inf_bufsz);
 	fprintf(fp, "def_buf_size: %u\n", nx_config.strm_def_bufsz);
 	fprintf(fp, "trace: %d\n", nx_gzip_trace);
 	fprintf(fp, "dht_config: %d\n", nx_dht_config);
@@ -924,7 +920,6 @@ void nx_hw_init(void)
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE"); /* KiB MiB GiB suffix */
-	char *inf_bufsz  = getenv("NX_GZIP_INF_BUF_SIZE"); /* KiB MiB GiB suffix */
 	char *logfile    = getenv("NX_GZIP_LOGFILE");
 	char *trace_s    = getenv("NX_GZIP_TRACE");
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");  /* default 0 is using literals only, odd is lit and lens */
@@ -946,7 +941,6 @@ void nx_hw_init(void)
 	nx_config.max_target_dde_count = MAX_DDE_COUNT;
 	nx_config.per_job_len = (1024 * 1024); /* less than suspend limit */
 	nx_config.strm_def_bufsz = (1024 * 1024); /* affect the deflate fifo_out */
-	nx_config.strm_inf_bufsz = (1<<16); /* affect the inflate fifo_in and fifo_out */
 	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */
 	nx_config.compress_threshold = (10*1024); /* collect as much input */
 	nx_config.deflate_fifo_in_len = 1<<17; /* default 8M, half used */
@@ -971,8 +965,6 @@ void nx_hw_init(void)
 			chip_num_s = nx_get_cfg("dev_num", &cfg_tab);
 		if (!def_bufsz)
 			def_bufsz = nx_get_cfg("dev_buf_size", &cfg_tab);
-		if (!inf_bufsz)
-			inf_bufsz = nx_get_cfg("inf_buf_size", &cfg_tab);
 		if (!logfile)
 			logfile = nx_get_cfg("logfile", &cfg_tab);
 		if (!trace_s)
@@ -1071,16 +1063,6 @@ void nx_hw_init(void)
 		else if (sz < nx_config.page_sz)
 			sz = nx_config.page_sz;
 		nx_config.strm_def_bufsz = (uint32_t) sz;
-	}
-	if (inf_bufsz != NULL) {
-		/* permit 64KB to 1MB */
-		uint64_t sz;
-		sz = str_to_num (inf_bufsz);
-		if (sz > (1ULL<<21))
-			sz = (1ULL<<21);
-		else if (sz < nx_config.page_sz)
-			sz = nx_config.page_sz;
-		nx_config.strm_inf_bufsz = (uint32_t) sz;
 	}
 
 	if (strategy_ovrd != NULL) {

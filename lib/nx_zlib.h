@@ -151,32 +151,32 @@ typedef struct nx_dev_t *nx_devp_t;
 #define NX_DEVICES_MAX 256
 
 /* save recent header bytes for hcrc calculations */
-typedef struct ckbuf_t { char buf[128]; } ckbuf_t; 
+typedef struct ckbuf_t { char buf[128]; } ckbuf_t;
 
 /* z_stream equivalent of NX hardware */
 typedef struct nx_stream_s {
         /* parameters for the supported functions */
-        int             level;          /* compression level */
-        int             method;         /* must be Z_DEFLATED for zlib */
-        int             windowBits;     /* also encodes zlib/gzip/raw */
+	int             level;          /* compression level */
+	int             method;         /* must be Z_DEFLATED for zlib */
+	int             windowBits;     /* also encodes zlib/gzip/raw */
 
-        int             memLevel;       /* 1...9 (default=8) */
-        int             strategy;       /* force compression algorithm */
+	int             memLevel;       /* 1...9 (default=8) */
+	int             strategy;       /* force compression algorithm */
 
-        /* stream data management */
-        unsigned char   *next_in;       /* next input byte */
-        uint32_t        avail_in;       /* # of bytes available at next_in */
-        unsigned long   total_in;       /* total nb of inp read so far */
+	/* stream data management */
+	unsigned char   *next_in;       /* next input byte */
+	uint32_t        avail_in;       /* # of bytes available at next_in */
+	unsigned long   total_in;       /* total nb of inp read so far */
 
-        unsigned char   *next_out;      /* next obyte should be put there */
-        uint32_t        avail_out;      /* remaining free space at next_out*/
-        unsigned long   total_out;      /* total nb of bytes output so far */
+	unsigned char   *next_out;      /* next obyte should be put there */
+	uint32_t        avail_out;      /* remaining free space at next_out*/
+	unsigned long   total_out;      /* total nb of bytes output so far */
 
-        /* private area */
+	/* private area */
 	uint32_t        adler;          /* one of adler32 or crc32 */
 
-        uint32_t        adler32;        /* machine generated */
-        uint32_t        crc32;          /* checksums of bytes
+	uint32_t        adler32;        /* machine generated */
+	uint32_t        crc32;          /* checksums of bytes
                                          * compressed then written to
                                          * the stream out. note that
                                          * this interpretation is
@@ -196,14 +196,14 @@ typedef struct nx_stream_s {
 	int             trailer_len;
 
 	uint64_t        total_time;     /* stream's total time running */
-  
+
 	uint16_t        hcrc16;         /* stored in the gzip header */
 	uint32_t        cksum;          /* running checksum of the header */
 	ckbuf_t         ckbuf;          /* hcrc16 helpers */
 	int             ckidx;
-	
+
 	int             inf_state;
-	int             inf_held;	
+	int             inf_held;
 	int		resuming;
 	int		history_len;
 	int		last_comp_ratio;
@@ -211,7 +211,7 @@ typedef struct nx_stream_s {
 	int		invoke_cnt;  /* the times to invoke nx inflate or nx deflate */
 	void		*dhthandle;
 
-        z_streamp       zstrm;          /* point to the parent  */
+	z_streamp       zstrm;          /* point to the parent  */
 
 	gz_headerp      gzhead;         /* where to save gzip header information */
 	int             gzflags;        /* FLG */
@@ -221,36 +221,39 @@ typedef struct nx_stream_s {
 	int             zlib_flg;
 
 	unsigned int    dict_len;
-	unsigned int    dict_alloc_len;  
+	unsigned int    dict_alloc_len;
 	uint32_t        dict_id;
 	char            *dict;
-	
-	
+
+
 	int             status;         /* stream status */
-	
-        nx_devp_t       nxdevp;         /* nx hardware device */
-        int             wrap;           /* 0 raw, 1 zlib, 2 gzip */
-        long            page_sz;        
+
+	nx_devp_t       nxdevp;         /* nx hardware device */
+	int             wrap;           /* 0 raw, 1 zlib, 2 gzip */
+	long            page_sz;
 
 	int             need_stored_block;
 	long            last_ratio;     /* compression ratio; 500
 					 * means 50% */
 
-        char            *fifo_in;       /** user input collects here */
-        char            *fifo_out;      /** user output overflows here */
+	/* fifo_in is the saved amount from last deflate() call
+	   fifo_out is the overflowed amount from last deflate()
+	   call */
+	char            *fifo_in;       /** user input collects here */
+	char            *fifo_out;      /** user output overflows here */
 
-        int32_t         len_in;         /* fifo_in length */
-        int32_t         used_in;        /* fifo_in used bytes */
-        int32_t         cur_in;         /* fifo_in starting offset */
+	int32_t         len_in;         /* fifo_in length */
+	int32_t         used_in;        /* fifo_in used bytes */
+	int32_t         cur_in;         /* fifo_in starting offset */
 
-        int32_t         len_out;
-        int32_t         used_out;
-        int32_t         cur_out;
+	int32_t         len_out;
+	int32_t         used_out;
+	int32_t         cur_out;
 
-        /* return status */
-        int             nx_cc;          /* nx return codes */
-        uint32_t        nx_ce;          /* completion extension Fig.6-7 */       
-        int             z_rc;           /* libz return codes */
+	/* return status */
+	int             nx_cc;          /* nx return codes */
+	uint32_t        nx_ce;          /* completion extension Fig.6-7 */
+	int             z_rc;           /* libz return codes */
 
 	uint32_t        spbc;
 	/** \brief Target Processed Byte Count
@@ -260,31 +263,24 @@ typedef struct nx_stream_s {
 	uint32_t        tpbc;
 	uint32_t        tebc;
 
-        /* nx commands */
-        /* int             final_block; */
-        int             flush;
+	/* nx commands */
+	int             flush;
 
 	uint32_t        dry_run;        /* compress by this amount
 					 * do not update pointers */
-        
-        /* nx command and parameter block; one command at a time per stream */
-	nx_gzip_crb_cpb_t *nxcmdp;  
-        nx_gzip_crb_cpb_t nxcmd0;      
-	/* nx_gzip_crb_cpb_t nxcmd1;       two cpb blocks to parallelize 
-					   lzcount processing */
-        
-        /* fifo_in is the saved amount from last deflate() call
-           fifo_out is the overflowed amount from last deflate()
-           call */
+
+	/* nx command and parameter block; one command at a time per stream */
+	nx_gzip_crb_cpb_t *nxcmdp;
+	nx_gzip_crb_cpb_t nxcmd0;
 
 	/* base, history, fifo_in first, and last, next_in */
-        nx_dde_t        *ddl_in;        
-        nx_dde_t        dde_in[5]  __attribute__ ((aligned (128)));
+	nx_dde_t        *ddl_in;
+	nx_dde_t        dde_in[5]  __attribute__ ((aligned (128)));
 
-	/* base, next_out, fifo_out */	
-        nx_dde_t        *ddl_out;
-        nx_dde_t        dde_out[4] __attribute__ ((aligned (128)));
-        
+	/* base, next_out, fifo_out */
+	nx_dde_t        *ddl_out;
+	nx_dde_t        dde_out[4] __attribute__ ((aligned (128)));
+
 } nx_stream;
 typedef struct nx_stream_s *nx_streamp;
 
@@ -298,12 +294,12 @@ typedef struct nx_stream_s *nx_streamp;
 /* Fifo buffer management. NX has scatter gather capability.
    We treat the fifo queue in two steps: from current head (or tail) to
    the fifo end referred to as "first" and from 0 to the current tail (or head)
-   referred to as "last". To add sz bytes to the fifo 
+   referred to as "last". To add sz bytes to the fifo
    1. test fifo_free_bytes >= sz
-   2. get fifo_free_first_bytes and fifo_free_last_bytes amounts 
+   2. get fifo_free_first_bytes and fifo_free_last_bytes amounts
    3. get fifo_free_first_offset and fifo_free_last_offset addresses
    4. append to fifo_free_first_offset; increase 'used'
-   5. if any data remaining, append to fifo_free_last_offset 
+   5. if any data remaining, append to fifo_free_last_offset
 
    To remove sz bytes from the fifo
    1. test fifo_used_bytes >= sz
@@ -314,7 +310,7 @@ typedef struct nx_stream_s *nx_streamp;
 */
 #define fifo_used_bytes(used) (used)
 #define fifo_free_bytes(used, len) ((len)-(used))
-// amount of free bytes in the first and last parts	
+// amount of free bytes in the first and last parts
 #define fifo_free_first_bytes(cur, used, len)  ((((cur)+(used))<=(len))? (len)-((cur)+(used)): 0)
 #define fifo_free_last_bytes(cur, used, len)   ((((cur)+(used))<=(len))? (cur): (len)-(used))
 // amount of used bytes in the first and last parts
@@ -325,7 +321,7 @@ typedef struct nx_stream_s *nx_streamp;
 #define fifo_free_last_offset(cur, used, len)  fifo_used_last_bytes(cur, used, len)
 // first and last used parts start here
 #define fifo_used_first_offset(cur)            (cur)
-#define fifo_used_last_offset(cur)             (0)	
+#define fifo_used_last_offset(cur)             (0)
 
 /* for appending bytes in to the stream */
 #define nx_put_byte(s,b)  do { if ((s)->avail_out > 0)			\
@@ -377,12 +373,12 @@ typedef enum {
 	inf_state_zlib_id1,
 	inf_state_zlib_flg,
 	inf_state_zlib_dict,
-	inf_state_zlib_dictid,		
+	inf_state_zlib_dictid,
 	inf_state_inflate, /* 17 */
 	inf_state_data_error,
 	inf_state_mem_error,
 	inf_state_buf_error,
-	inf_state_stream_error,			
+	inf_state_stream_error,
 } inf_state_t;
 
 #define ZLIB_SIZE_SLOTS 256	/* Each slot represents 4KiB, the last
@@ -420,7 +416,7 @@ struct zlib_stats {
 	unsigned long inflatePrime;
 	unsigned long inflateCopy;
 	unsigned long inflateEnd;
-	
+
 	uint64_t deflate_len;
 	uint64_t deflate_time;
 
@@ -429,8 +425,8 @@ struct zlib_stats {
 
 };
 
-extern pthread_mutex_t zlib_stats_mutex; 
-extern struct zlib_stats zlib_stats; 
+extern pthread_mutex_t zlib_stats_mutex;
+extern struct zlib_stats zlib_stats;
 static inline void zlib_stats_inc(unsigned long *count)
 {
         if (!nx_gzip_gather_statistics())

@@ -299,7 +299,7 @@ typedef struct nx_stream_s {
 	/* true means stream can be switched between sw and hw */
 	char            switchable;
 
-	void		*bak_stream;
+	void		*sw_stream;
 
 } nx_stream;
 typedef struct nx_stream_s *nx_streamp;

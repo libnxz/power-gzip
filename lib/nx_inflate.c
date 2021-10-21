@@ -224,7 +224,7 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	strm->state = (void *) s;
 
 	s->switchable = 0;
-	s->bak_stream = NULL;
+	s->sw_stream = NULL;
 
 	ret = nx_inflateReset2(strm, windowBits);
 	if (ret != Z_OK) {
@@ -260,13 +260,13 @@ int nx_inflateEnd(z_streamp strm)
 	s = (nx_streamp) strm->state;
 	if (s == NULL) return Z_STREAM_ERROR;
 
-	if(s->bak_stream){ /*in case call inflateEnd without a inflate call*/
+	if(s->sw_stream){ /*in case call inflateEnd without a inflate call*/
 		temp  = (void *)strm->state;
-		strm->state = s->bak_stream;
+		strm->state = s->sw_stream;
 		rc = s_inflateEnd(strm);
 		prt_info("call s_inflateEnd to release sw resource,rc=%d\n",rc);
 		strm->state = temp;
-		s->bak_stream = NULL;
+		s->sw_stream = NULL;
 	}
 
 	/* TODO add here Z_DATA_ERROR if the stream was freed
@@ -301,8 +301,8 @@ int nx_inflate(z_streamp strm, int flush)
 		/*Use software zlib, switch the sw and hw state*/
 		s = (nx_streamp) strm->state;
 		s->switchable = 0; /* decided to use sw zlib and not switchable */
-		temp  = s->bak_stream;  /* save the sw pointer */
-		s->bak_stream = NULL;
+		temp  = s->sw_stream;  /* save the sw pointer */
+		s->sw_stream = NULL;
 
 		rc = nx_inflateEnd(strm); /* free the hw resource */
 		prt_info("call nx_inflateEnd to clean the hw resource,rc=%d\n",rc);
@@ -311,15 +311,15 @@ int nx_inflate(z_streamp strm, int flush)
 		rc = s_inflate(strm,flush);
 		prt_info("call software inflate, rc=%d\n", rc);
 		return rc;
-	}else if(s->bak_stream){
+	}else if(s->sw_stream){
 		/*decide to use nx here, release the sw resource */
 		temp  = (void *)strm->state;
-		strm->state = s->bak_stream;
+		strm->state = s->sw_stream;
 
 		rc = s_inflateEnd(strm);
 		prt_info("call s_inflateEnd to clean the sw resource,rc=%d\n",rc);
 		strm->state = temp;
-		s->bak_stream = NULL;
+		s->sw_stream = NULL;
 	}
 
 	s->switchable = 0;
@@ -1924,7 +1924,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 
 		if(temp){ /* recorded sw context*/
 			s = (nx_streamp) strm->state;
-			s->bak_stream = temp;
+			s->sw_stream = temp;
 			s->switchable = 1;
 		}
 	}else if(gzip_selector == GZIP_NX){

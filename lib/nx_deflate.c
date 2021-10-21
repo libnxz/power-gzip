@@ -557,13 +557,13 @@ int nx_deflateEnd(z_streamp strm)
 	if (s == NULL)
 		return Z_STREAM_ERROR;
 
-	if(s->bak_stream){ /*in case call deflateEnd without a deflate call*/
+	if(s->sw_stream){ /*in case call deflateEnd without a deflate call*/
 		temp  = (void *)strm->state;
-		strm->state = s->bak_stream;
+		strm->state = s->sw_stream;
 		rc = s_deflateEnd(strm);
 		prt_info("call s_deflateEnd to release sw resource,rc=%d\n",rc);
 		strm->state = temp;
-		s->bak_stream = NULL;
+		s->sw_stream = NULL;
         }
 
 	status = s->status;
@@ -1560,9 +1560,9 @@ int nx_deflate(z_streamp strm, int flush)
 	if( (has_nx_state(strm)) && s->switchable && (0 == use_nx_deflate(strm))){
 		/*Use software zlib, switch the sw and hw state*/
 		s = (nx_streamp) strm->state;
-                s->switchable = 0; /*decided to use sw zlib and not switchable */
-		temp  = s->bak_stream;	/*sw*/
-		s->bak_stream = NULL;
+		s->switchable = 0; /* decided to use sw zlib and not switchable */
+		temp  = s->sw_stream;
+		s->sw_stream = NULL;
 
 		rc = nx_deflateEnd(strm);
 		prt_info("call nx_deflateEnd to clean the hw resource,rc=%d\n",rc);
@@ -1572,15 +1572,15 @@ int nx_deflate(z_streamp strm, int flush)
 		rc = s_deflate(strm,flush);
 		prt_info("call software deflate, rc=%d\n", rc);
 		return rc;
-	}else if(s->bak_stream){
+	}else if(s->sw_stream){
 		/*decide to use nx here, release the sw resource */
 		temp  = (void *)strm->state;
-		strm->state = s->bak_stream;
+		strm->state = s->sw_stream;
 
 		rc = s_deflateEnd(strm);
 		prt_info("call s_deflateEnd to clean the sw resource,rc=%d\n",rc);
 		strm->state = temp;
-		s->bak_stream = NULL;
+		s->sw_stream = NULL;
 	}
 
 	s->switchable = 0;
@@ -1894,9 +1894,9 @@ int nx_deflateSetHeader(z_streamp strm, gz_headerp head)
 	s = (nx_streamp) strm->state;
 	if (s == NULL) return Z_STREAM_ERROR;
 
-	if(s->bak_stream){
+	if(s->sw_stream){
 		temp = (void *)strm->state;
-		strm->state = s->bak_stream;
+		strm->state = s->sw_stream;
 		rc = s_deflateSetHeader(strm, head);
 		prt_info("call s_deflateSetHeader, rc=%d\n",rc);
 
@@ -2193,7 +2193,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 
 		if(temp){ /*record the sw context */
 			s = (nx_streamp) strm->state;
-			s->bak_stream = temp;
+			s->sw_stream = temp;
 			s->switchable = 1;
 		}
 

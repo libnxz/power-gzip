@@ -81,6 +81,7 @@ int main()
 	assert(nx_inflate(&strm, Z_SYNC_FLUSH) == Z_OK);
 
 	/* 1 byte before the sync point */
+	assert(strm.avail_in == 0);
 	assert(nx_inflateSyncPoint(&strm) == 0);
 
 	strm.avail_in = 1;

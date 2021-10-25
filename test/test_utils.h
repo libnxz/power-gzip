@@ -13,11 +13,11 @@ struct f_interval {
   struct timeval end;
 };
 
-extern char ran_data[DATA_MAX_LEN];
+extern Byte ran_data[DATA_MAX_LEN];
 extern void generate_random_data(int len);
-extern char* generate_allocated_random_data(unsigned int len);
+extern Byte* generate_allocated_random_data(unsigned int len);
 extern void generate_all_data(int len, char digit);
-extern int compare_data(char* src, char* dest, int len);
+extern int compare_data(Byte* src, Byte* dest, int len);
 
 int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 		     unsigned int* compr_len, int step,

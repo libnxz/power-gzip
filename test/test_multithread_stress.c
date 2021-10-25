@@ -20,7 +20,7 @@
 #endif
 
 static unsigned int buf_size_array[DATA_NUM] = {4096, 4096, 65536, 65536, 131072, 131072, 262144, 262144, 1048576, 1048576};
-char *data_buf[DATA_NUM] = {NULL};
+Byte *data_buf[DATA_NUM] = {NULL};
 
 int test_interval = 10;
 int test_iterations = 1;
@@ -42,11 +42,11 @@ static float get_time_duration(struct timeval e, struct timeval s)
 	return ((e.tv_sec - s.tv_sec) * 1000 + (e.tv_usec - s.tv_usec)/1000.0);
 }
 
-static char* generate_allocated_random_data(unsigned int len)
+static Byte* generate_allocated_random_data(unsigned int len)
 {
 	assert(len > 0);
 
-	char *data = malloc(len);
+	Byte *data = malloc(len);
 	if (data == NULL) return NULL;
 
 	for (int i = 0; i < len; i++) {
@@ -55,7 +55,7 @@ static char* generate_allocated_random_data(unsigned int len)
 	return data;
 }
 
-static int compare_data(char* src, char* dest, int len)
+static int compare_data(Byte* src, Byte* dest, int len)
 {
 	assert(len > 0);
 	if(0!=memcmp(src, dest, len))
@@ -64,7 +64,7 @@ static int compare_data(char* src, char* dest, int len)
 	return TEST_OK;
 }
 
-static int generate_data_buffer(char **buffer)
+static int generate_data_buffer(Byte **buffer)
 {
 	unsigned int i, size;
 	assert(buffer);
@@ -79,7 +79,7 @@ static int generate_data_buffer(char **buffer)
 	return 0;
 }
 
-static int free_data_buffer(char **buffer)
+static int free_data_buffer(Byte **buffer)
 {
 	unsigned int i;
 	assert(buffer);

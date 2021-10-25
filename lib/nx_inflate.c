@@ -893,6 +893,34 @@ static int nx_amend_history_with_dict(nx_streamp s, int *hlen, int *dlen )
 	return 0;
 }
 
+
+static int copy_data_to_fifo_in(nx_streamp s) {
+	uint32_t free_space, read_sz;
+
+	if (s->fifo_in == NULL) {
+		s->len_in = nx_config.soft_copy_threshold * 2;
+		if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
+			prt_err("nx_alloc_buffer for inflate fifo_in\n");
+			return Z_MEM_ERROR;
+		}
+	}
+
+	/* reset fifo head to reduce unnecessary wrap arounds */
+	s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;
+	fifo_in_len_check(s);
+	free_space = s->len_in - s->cur_in - s->used_in;
+
+	read_sz = NX_MIN(free_space, s->avail_in);
+	if (read_sz > 0) {
+		/* copy from next_in to the offset cur_in + used_in */
+		memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, read_sz);
+		update_stream_in(s, read_sz);
+		s->used_in = s->used_in + read_sz;
+	}
+
+	return Z_OK;
+}
+
 /** \brief Internal implementation of inflate.
  *
  * @param s nx_streamp to be processed.
@@ -901,7 +929,7 @@ static int nx_amend_history_with_dict(nx_streamp s, int *hlen, int *dlen )
 static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
-	uint32_t read_sz, write_sz, free_space, source_sz, target_sz;
+	uint32_t write_sz, source_sz, target_sz;
 	long loop_cnt = 0, loop_max = 0xffff;
 
 	/* inflate benefits from large jobs; memcopies must be amortized */
@@ -1000,29 +1028,10 @@ copy_fifo_out_to_next_out:
 	    && (s->avail_in + s->used_in < nx_config.soft_copy_threshold)
 	    && s->avail_out > 0
 	    && flush != Z_FINISH && flush != Z_SYNC_FLUSH) {
-		if (s->fifo_in == NULL) {
-			s->len_in = nx_config.soft_copy_threshold * 2;
-			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
-				prt_err("nx_alloc_buffer for inflate fifo_in\n");
-				return Z_MEM_ERROR;
-			}
-		}
-		/* reset fifo head to reduce unnecessary wrap arounds */
-		s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;
-		fifo_in_len_check(s);
-		free_space = s->len_in - s->cur_in - s->used_in;
-
-		read_sz = NX_MIN(free_space, s->avail_in);
-		if (read_sz > 0) {
-			/* copy from next_in to the offset cur_in + used_in */
-			memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, read_sz);
-			update_stream_in(s, read_sz);
-			s->used_in = s->used_in + read_sz;
-		}
-		/* We haven't accumulated enough data. Wait for the
-		   application to send more in order to reduce the
-		   amount of requests sent to the accelerator. */
-		return Z_OK;
+		/* We haven't accumulated enough data. Cache any input data
+		   provided and wait for the application to send more in order
+		   to reduce the amount of requests sent to the accelerator. */
+		return copy_data_to_fifo_in(s);
 	}
 	print_dbg_info(s, __LINE__);
 
@@ -1628,24 +1637,28 @@ offsets_state:
 		}
 	}
 
-	if (s->avail_in > 0 && s->avail_out > 0) {
-		goto copy_fifo_out_to_next_out;
-	}
-
 	print_dbg_info(s, __LINE__);
 	prt_info("== %d flush %d is_final %d last_comp_ratio %d\n", __LINE__, s->flush, s->is_final, s->last_comp_ratio);
 
-	if (((s->used_in + s->avail_in) > ((partial_bits + 7) / 8)) &&
-	    (s->avail_out > 0)) {
-		/* if more input is available than the required bits */
-		print_dbg_info(s, __LINE__);
-		goto copy_fifo_out_to_next_out;
+	if (s->avail_out > 0) {
+		if (((s->used_in + s->avail_in) > ((partial_bits + 7) / 8))) {
+			/* if more input is available than the required bits */
+			print_dbg_info(s, __LINE__);
+			goto copy_fifo_out_to_next_out;
+		}
+
+		/* Not enough input to keep going */
+
+		if (s->avail_in > 0) {
+			/* Cache whatever input is left and let the user provide
+			 * more in the next call. */
+			return copy_data_to_fifo_in(s);
+		}
 	}
-	else {
-		/* need more bits from user */
-		print_dbg_info(s, __LINE__);
-		return Z_OK;
-	}
+
+	/* need more bits from user */
+	print_dbg_info(s, __LINE__);
+	return Z_OK;
 
 err5:
 	prt_err("rc %d\n", rc);

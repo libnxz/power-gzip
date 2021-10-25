@@ -47,9 +47,7 @@ err:
 int run_case1()
 {
 	int rc = TEST_OK;
-	/* TODO: Test for i >= 1. The NX GZIP accelerator does not progress when
-		 i < 31, so these values can't be tested at the moment. */
-	for (int i = 31; i <= 100; i++) {
+	for (int i = 1; i <= 100; i++) {
 		for (int j = 1; j <= i; j++) {
 			rc = run(i, j, __func__, Z_NO_FLUSH);
 			if (rc != TEST_OK) {

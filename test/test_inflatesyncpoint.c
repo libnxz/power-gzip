@@ -39,7 +39,7 @@ int main()
 
 	assert(nx_deflateInit(&strm, Z_DEFAULT_COMPRESSION) == Z_OK);
 
-	strm.next_in  = (z_const unsigned char *)src;
+	strm.next_in  = src;
 	strm.next_out = compr;
 
 	/* Compress input data into NCHUNKS chunks, each ending with a sync
@@ -118,7 +118,7 @@ int main()
 	strm.avail_out = uncompr_len - strm.total_out;
 	assert(nx_inflate(&strm, Z_FINISH) == Z_STREAM_END);
 
-	if (compare_data((char *) uncompr, (char *) src, src_len))
+	if (compare_data(uncompr, src, src_len))
 		return TEST_ERROR;
 
 	printf("*** %s passed\n", __FILE__);

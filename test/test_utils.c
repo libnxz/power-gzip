@@ -14,7 +14,7 @@
 #include "test.h"
 #include "test_utils.h"
 
-char ran_data[DATA_MAX_LEN];
+Byte ran_data[DATA_MAX_LEN];
 
 static char dict[] = {
 	'a', 'b', 'c', 'd', 'e', 'f', 'g',
@@ -46,11 +46,11 @@ void generate_random_data(int len)
 	}
 }
 
-char* generate_allocated_random_data(unsigned int len)
+Byte* generate_allocated_random_data(unsigned int len)
 {
 	assert(len > 0);
 
-	char *data = malloc(len);
+	Byte *data = malloc(len);
 	if (data == NULL) return NULL;
 
 	srand(time(NULL));
@@ -61,7 +61,7 @@ char* generate_allocated_random_data(unsigned int len)
 	return data;
 }
 
-int compare_data(char* src, char* dest, int len)
+int compare_data(Byte* src, Byte* dest, int len)
 {
 	for (int i = 0; i < len; i++) {
 		if (src[i] != dest[i]) {
@@ -101,7 +101,7 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 		return TEST_ERROR;
 	}
 
-	c_stream.next_in  = (z_const unsigned char *)src;
+	c_stream.next_in  = src;
 	c_stream.next_out = compr;
 
 	if (time != NULL)
@@ -167,7 +167,7 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 		return TEST_ERROR;
 	}
 
-	c_stream.next_in  = (z_const unsigned char *)src;
+	c_stream.next_in  = src;
 	c_stream.next_out = compr;
 
 	if (time != NULL)
@@ -260,7 +260,7 @@ int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 
 	err = inflateEnd(&d_stream);
 
-	if (compare_data((char *) uncompr, (char *) src, src_len))
+	if (compare_data(uncompr, src, src_len))
 		return TEST_ERROR;
 
 	return TEST_OK;
@@ -317,7 +317,7 @@ int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 
 	err = nx_inflateEnd(&d_stream);
 
-	if (compare_data((char *) uncompr, (char *) src, src_len))
+	if (compare_data(uncompr, src, src_len))
 		return TEST_ERROR;
 
 	return TEST_OK;

@@ -11,7 +11,7 @@ LD = $(shell which ld)
 
 ## Common flags
 FLG    = -std=gnu11
-SFLAGS = -O3 -Wall -Werror -Wno-error=pointer-sign -fPIC
+SFLAGS = -O3 -Wall -Werror -fPIC
 ZLIB   = -DZLIB_API
 ZLIB_PATH ?= libz.so
 

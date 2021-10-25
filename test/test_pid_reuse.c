@@ -112,7 +112,7 @@ void fork_children (int parent_pid) {
 int main(int argc, char **argv)
 {
 	int rc, compLen = 1024;
-	char *compr;
+	Byte *compr;
 	pthread_t thread;
 	void *ret;
 	long iterations;

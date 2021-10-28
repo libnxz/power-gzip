@@ -526,8 +526,6 @@ nx_devp_t nx_open(int nx_id)
 		saved_nx_devp = nx_devp;
 	}
 
-	/* sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid());*/
-
 	return nx_devp;
 }
 
@@ -564,8 +562,6 @@ int nx_close(nx_devp_t nx_devp)
 		saved_pid = 0;
 		saved_nx_devp = NULL;
 	}
-
-	/* sw_trace("%s, pid: %d\n", __FUNCTION__, (int)getpid()); */
 
 	return 0;
 }
@@ -621,7 +617,7 @@ static int nx_enumerate_engines()
 				prt_err("open vas file(%s) failed.\n",vas_file);
 				continue;
 			}
-			/*Must read 4 bytes*/
+			/* Must read 4 bytes */
 			n = fread(buf, 1, 4, f);
 			if (n != 4){
 				prt_err("read vas file(%s) failed.\n",vas_file);
@@ -640,7 +636,7 @@ static int nx_enumerate_engines()
 				continue;
 			}
 
-			/*Must read 4 bytes*/
+			/* Must read 4 bytes */
 			n = fread(buf, 1, 4, f);
 			if (n != 4){
 				prt_err("read vas file(%s) failed.\n",vas_file);
@@ -785,7 +781,6 @@ FILE* open_logfile(char *filename)
 	if ((logfile = fopen(filename, "a+"))) {
 		/* ok, try to chmod so all users can access it.
 		 * the first process creating this file should success, others are expected to fail */
-		//fprintf(stderr, "try chmod: %s\n", filename);
 		chmod(filename, (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
 		return logfile;
 	}
@@ -797,22 +792,17 @@ FILE* open_logfile(char *filename)
 		syslog(LOG_NOTICE, "nx-zlib: cannot open log file: %s, %s\n",
 			filename, strerror(errno));
 		if ((logfile = fopen("/tmp/nx.log", "a+"))) {
-			//fprintf(stderr, "%s not exists, use /tmp/nx.log\n", filename);
-			/* ok, try to chmod so all users can access it. */
-			//fprintf(stderr, "try chmod: /tmp/nx.log\n");
+			/* ok, try to chmod so all users can access it.  */
 			chmod("/tmp/nx.log", (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH));
 			return logfile;
 		}
 	} else {
-		//fprintf(stderr, "cannot access %s\n", filename);
 		syslog(LOG_NOTICE, "nx-zlib: cannot access log file: %s\n", filename);
 		/* file exists, we might have no access right, try to use /tmp/nx.log,
 		 * but this may fail if no right to access /tmp/log */
 		if ((logfile = fopen("/tmp/nx.log", "a+"))) {
-			//fprintf(stderr, "use /tmp/nx.log\n");
 			return logfile;
 		}
-		//fprintf(stderr, "cannot access /tmp/nx.log\n");
 	}
 
 	syslog(LOG_WARNING, "nx-zlib: cannot open %s or /tmp/nx.log, cannot log\n", filename);
@@ -908,7 +898,7 @@ void nx_hw_init(void)
 
 	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB"); /* 0 or 1 */
 	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP"); /* 0 or 1 */
-	char *type_selector    = getenv("NX_GZIP_TYPE_SELECTOR"); /* selector for sw or hw gzip implementation*/
+	char *type_selector    = getenv("NX_GZIP_TYPE_SELECTOR"); /* selector for sw or hw gzip implementation */
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE"); /* KiB MiB GiB suffix */
@@ -978,7 +968,7 @@ void nx_hw_init(void)
 			nx_ratio_s = nx_get_cfg("nx_ratio", &cfg_tab);
 	}
 
-	/* log file should be initialized first*/
+	/* log file should be initialized first */
 	if (!logfile)
 		logfile = "/tmp/nx.log";
 

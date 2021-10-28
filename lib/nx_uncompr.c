@@ -85,8 +85,8 @@ int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *source
 		rc = s_uncompress2(dest, destLen, source, sourceLen);
 	}
 
-	/* statistic*/
-        zlib_stats_inc(&zlib_stats.uncompress);
+	/* statistic */
+	zlib_stats_inc(&zlib_stats.uncompress);
 
 	return rc;
 }
@@ -107,7 +107,7 @@ int uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLe
 		rc = s_uncompress(dest, destLen, source, sourceLen);
 	}
 
-	/* statistic*/
+	/* statistic */
 	zlib_stats_inc(&zlib_stats.uncompress);
 
 	return rc;

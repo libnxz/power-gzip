@@ -99,7 +99,6 @@ do { if ((s)->cur_in > (s)->len_in/2) { \
 #define NXGZIP_TYPE  9  /* 9 for P9 */
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
-//#define ASSERT(X) assert(X)
 
 static inline void print_ret(const char *s, int line) { prt_info("%s:%d\n", s, line); }
 /* #define TRACERET(X) (print_ret(#X,__LINE__),X) */
@@ -275,19 +274,12 @@ static int inline append_partial_flush(unsigned char *buf, uint32_t *tebc, int f
 */
 static int append_spanning_flush(nx_streamp s, int flush, uint32_t tebc, int final)
 {
-	unsigned char tmp[16]; /* issue 106 buffer overran */
+	unsigned char tmp[16];
 	unsigned char *ptr;
 	int  nb, k;
 	uint32_t next_tebc = tebc;
 
 	prt_info("%s flush %d tebc %d final %d\n", __FUNCTION__, flush, tebc, final);
-
-	/* assumes fifo_out is empty */
-	/* ASSERT(s->used_out == 0 && s->cur_out == 0); */
-	/* due to issue 110 we break this assertion rule; test code
-	   uses avail_in==avail_out==1 which overflows sync flush in
-	   to fifo_out in the stored block case, and after the flush
-	   we cannot call nx_compress_block due to assertion */
 
 	if (s->avail_out > 5 && (flush == Z_SYNC_FLUSH || flush == Z_FULL_FLUSH)) {
 		/* directly update the user stream  */
@@ -557,7 +549,8 @@ int nx_deflateEnd(z_streamp strm)
 	if (s == NULL)
 		return Z_STREAM_ERROR;
 
-	if(s->sw_stream){ /*in case call deflateEnd without a deflate call*/
+	/* In case call deflateEnd without a deflate call.  */
+	if(s->sw_stream){
 		temp  = (void *)strm->state;
 		strm->state = s->sw_stream;
 		rc = s_deflateEnd(strm);
@@ -839,14 +832,6 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 {
 	uint32_t avail_out, free_bytes, total = 0;
 
-	/* ASSERT(s->used_out == 0); expect fifo_out to be empty issue 110 */
-	/* due to issue 110 we break this assertion rule; test code
-	   uses avail_in==avail_out==1 which overflows sync flush in
-	   to fifo_out in the stored block case, and after the flush
-	   we cannot call nx_compress_block due to assertion */
-
-	/* s->cur_out = s->used_out = 0; reset fifo_out head */
-
 	/* restrict NX per dde size to 1GB */
 	avail_out = NX_MIN(s->avail_out, nx_config.strm_def_bufsz);
 
@@ -955,7 +940,6 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	   (minus histbytes)
 	   remainder is the amount used from next_in  */
 
-	/* ASSERT(spbc <= s->avail_in); issue 71 do we really require this? */
 	update_stream_in(s, s->spbc);
 	update_stream_in(s->zstrm, s->spbc);
 
@@ -1307,9 +1291,7 @@ restart:
 
 		rc = LIBNX_OK_BIG_TARGET;
 		prt_info("ERR_NX_TPBC_GT_SPBC\n");
-		/* TODO treat as ERR_NX_OK currently; until issue 121 fixed */
-		// nx_compress_block_get_cpb(s, fc);
-		// goto do_no_update;
+		/* TODO treat as ERR_NX_OK currently; */
 
 	case ERR_NX_OK:
 		/* need to adjust strm and fifo offsets on return */
@@ -1556,9 +1538,9 @@ int nx_deflate(z_streamp strm, int flush)
 	if (NULL == (s = (nx_streamp) strm->state))
 		return Z_STREAM_ERROR;
 
-	/* check for sw deflate first*/
+	/* check for sw deflate first */
 	if( (has_nx_state(strm)) && s->switchable && (0 == use_nx_deflate(strm))){
-		/*Use software zlib, switch the sw and hw state*/
+		/* Use software zlib, switch the sw and hw state */
 		s = (nx_streamp) strm->state;
 		s->switchable = 0; /* decided to use sw zlib and not switchable */
 		temp  = s->sw_stream;
@@ -1573,7 +1555,7 @@ int nx_deflate(z_streamp strm, int flush)
 		prt_info("call software deflate, rc=%d\n", rc);
 		return rc;
 	}else if(s->sw_stream){
-		/*decide to use nx here, release the sw resource */
+		/* decide to use nx here, release the sw resource */
 		temp  = (void *)strm->state;
 		strm->state = s->sw_stream;
 
@@ -1654,9 +1636,6 @@ s2:
 	/* fifo_out can be copied out */
 	if (s->avail_out > 0 && s->used_out > 0)
 		goto s1;
-
-	/*  avail_out > 0 and used_out == 0 */
-	// assert(s->avail_out > 0 && s->used_out == 0);
 
 	if ( ((s->used_in + s->avail_in) <= nx_config.compress_threshold) && /* small input */
 		(flush != Z_SYNC_FLUSH)    &&   /* not requesting flush */
@@ -1854,7 +1833,7 @@ unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen)
 
 	zlib_stats_inc(&zlib_stats.deflateBound);
 
-	return (sourceLen*2 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 )); /* TODO until issue 121 fixed */
+	return (sourceLen*2 + NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 )); /* TODO remove this */
 
 
 	if (strm == NULL) {
@@ -2173,25 +2152,25 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	strm->state = NULL;
 	if(gzip_selector == GZIP_MIX){
 
-		/*call sw and nx initialization */
+		/* call sw and nx initialization */
 		rc = s_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 		if(rc != Z_OK)
 			return rc;
 
-		/*If the stream has been initialized by sw*/
+		/* If the stream has been initialized by sw */
 		if(strm->state && (0 == has_nx_state(strm))){
-			temp = (void *)strm->state; /*keep this sw context pointer*/
+			temp = (void *)strm->state; /* keep this sw context pointer */
 			strm->state = NULL;
 			prt_info("this stream has been initialized by sw\n");
 		}
 
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 		if(rc != Z_OK){
-			s_deflateEnd(strm); /*release the sw initializtion*/
+			s_deflateEnd(strm); /* release the sw initializtion */
 			return rc;
 		}
 
-		if(temp){ /*record the sw context */
+		if(temp){ /* record the sw context */
 			s = (nx_streamp) strm->state;
 			s->sw_stream = temp;
 			s->switchable = 1;
@@ -2238,7 +2217,7 @@ int deflateEnd(z_streamp strm)
 {
 	int rc;
 
-	/* statistic*/
+	/* statistic */
 	zlib_stats_inc(&zlib_stats.deflateEnd);
 
 
@@ -2259,7 +2238,7 @@ int deflate(z_streamp strm, int flush)
 	uint64_t t1=0, t2, t_diff;
 	unsigned int avail_in=0, avail_out=0;
 
-	/* statistic*/
+	/* statistic */
 	if (nx_gzip_gather_statistics()) {
 		avail_in = strm->avail_in;
 		avail_out = strm->avail_out;
@@ -2274,7 +2253,7 @@ int deflate(z_streamp strm, int flush)
 		rc = nx_deflate(strm, flush);
 	}
 
-	/* statistic*/
+	/* statistic */
 	if (nx_gzip_gather_statistics() && (rc == Z_OK || rc == Z_STREAM_END)) {
 		avail_in_slot = avail_in / 4096;
 		if (avail_in_slot >= ZLIB_SIZE_SLOTS)

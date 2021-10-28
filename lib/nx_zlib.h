@@ -181,7 +181,7 @@ typedef struct nx_stream_s {
 	unsigned long   total_in;       /* total nb of inp read so far */
 
 	unsigned char   *next_out;      /* next obyte should be put there */
-	uint32_t        avail_out;      /* remaining free space at next_out*/
+	uint32_t        avail_out;      /* remaining free space at next_out */
 	unsigned long   total_out;      /* total nb of bytes output so far */
 
 	/* private area */
@@ -323,13 +323,13 @@ static inline int use_nx_inflate(z_streamp strm)
 	if(gzip_selector == GZIP_NX) return 1;
 	if(gzip_selector == GZIP_SW || gzip_selector == GZIP_MIX2) return 0;
 
-	/* #1 Threshold*/
+	/* #1 Threshold */
 	if(strm->avail_in <= DECOMPRESS_THRESHOLD) return 0;
 
-	/* #2 Percentage*/
+	/* #2 Percentage */
 	rnd = __ppc_get_timebase();
-	if( rnd%100 < nx_ratio){ /*use nx to nx_ratio*/
-		return 1; /*nx*/
+	if( rnd%100 < nx_ratio){ /* use nx to nx_ratio */
+		return 1; /* nx */
 	}else{
 		return 0;
 	}
@@ -567,7 +567,7 @@ extern void dht_end(void *handle);
 extern int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 extern void *dht_copy(void *handle);
 
-/* sw_zlib.c*/
+/* sw_zlib.c */
 extern void sw_zlib_init(void);
 extern void sw_zlib_close(void);
 extern const char *s_zlibVersion(void);

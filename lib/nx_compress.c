@@ -107,7 +107,7 @@ int compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen
 		rc = s_compress2(dest, destLen, source, sourceLen, level);
 	}
 
-	/* statistic*/
+	/* statistic */
 	zlib_stats_inc(&zlib_stats.compress);
 
 	return rc;

@@ -210,7 +210,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	s->page_sz = nx_config.page_sz;
 	s->nxdevp  = h;
 	s->gzhead  = NULL;
-	//s->gzhead  = nx_alloc_buffer(sizeof(gz_header), nx_config.page_sz, 0);
 	s->ddl_in  = s->dde_in;
 	s->ddl_out = s->dde_out;
 	s->sync_point = 0;
@@ -235,8 +234,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	return ret;
 
 reset_err:
-	//if (s->gzhead)
-	//	nx_free_buffer(s->gzhead, 0, 0);
 	if (s)
 		nx_free_buffer(s, 0, 0);
 	strm->state = Z_NULL;
@@ -260,7 +257,8 @@ int nx_inflateEnd(z_streamp strm)
 	s = (nx_streamp) strm->state;
 	if (s == NULL) return Z_STREAM_ERROR;
 
-	if(s->sw_stream){ /*in case call inflateEnd without a inflate call*/
+	/* In case call inflateEnd without a inflate call.  */
+	if(s->sw_stream){
 		temp  = (void *)strm->state;
 		strm->state = s->sw_stream;
 		rc = s_inflateEnd(strm);
@@ -272,14 +270,11 @@ int nx_inflateEnd(z_streamp strm)
 	/* TODO add here Z_DATA_ERROR if the stream was freed
 	   prematurely (when some input or output was discarded). */
 
-	/* nx_inflateReset(strm); issue 111 */
 
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
 	nx_free_buffer(s->dict, s->dict_alloc_len, 0);
 	nx_close(s->nxdevp);
-
-	// if (s->gzhead != NULL) nx_free_buffer(s->gzhead, sizeof(gz_header), 0);
 
 	nx_free_buffer(s, sizeof(*s), nx_config.mlock_nx_crb_csb);
 

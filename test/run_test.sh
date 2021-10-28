@@ -53,6 +53,12 @@ if [ $? -ne 0 ]; then
     echo "test_pid_reuse failed."
     exit 1;
 fi
+echo "running test_zeroinput..."
+$TEST_WRAPPER ./test_zeroinput >> $run_test_log 2>&1
+if [ $? -ne 0 ]; then
+    echo "test_zeroinput failed."
+    exit 1;
+fi
 echo "------------------------------"
 
 grep -E 'run_case|failed' $run_test_log | tee -a $run_test_report

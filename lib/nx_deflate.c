@@ -1637,7 +1637,7 @@ s2:
 	if (s->avail_out > 0 && s->used_out > 0)
 		goto s1;
 
-	if ( ((s->used_in + s->avail_in) <= nx_config.compress_threshold) && /* small input */
+	if ( ((s->used_in + s->avail_in) <= nx_config.cache_threshold) && /* small input */
 		(flush != Z_SYNC_FLUSH)    &&   /* not requesting flush */
 		(flush != Z_PARTIAL_FLUSH) &&
 		(flush != Z_FULL_FLUSH)    &&

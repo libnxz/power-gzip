@@ -39,7 +39,6 @@ static int _test_nx_deflatef(Byte* src, unsigned int src_len, Byte* compr,
 	return TEST_OK;
 }
 
-/* The total src buffer > nx_compress_threshold (10*1024) but avail_in is 1 */
 static int run(unsigned int len, int step, const char* test)
 {
 	Byte *src, *compr, *uncompr;
@@ -76,16 +75,15 @@ err:
 }
 
 /* case prefix is 30 ~ 39 */
-
-/* The total src buffer < nx_compress_threshold (10*1024) */
 int run_case30()
 {
+	/* The total src buffer < default cache_threshold. */
 	return run(5*1024, 1,  __func__);
 }
 
-/* The total src buffer > nx_compress_threshold (10*1024) */
 int run_case31()
 {
+	/* The total src buffer > default cache_threshold. */
 	return run(64*1024, 1, __func__);
 }
 

@@ -893,7 +893,7 @@ static int copy_data_to_fifo_in(nx_streamp s) {
 	uint32_t free_space, read_sz;
 
 	if (s->fifo_in == NULL) {
-		s->len_in = nx_config.soft_copy_threshold * 2;
+		s->len_in = nx_config.cache_threshold * 2;
 		if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
 			prt_err("nx_alloc_buffer for inflate fifo_in\n");
 			return Z_MEM_ERROR;
@@ -1020,7 +1020,7 @@ copy_fifo_out_to_next_out:
 	   by NX because it may refuse to start processing a stream if the input
 	   is not large enough.  */
 	if (s->avail_in > 0
-	    && (s->avail_in + s->used_in < nx_config.soft_copy_threshold)
+	    && (s->avail_in + s->used_in < nx_config.cache_threshold)
 	    && s->avail_out > 0
 	    && flush != Z_FINISH && flush != Z_SYNC_FLUSH) {
 		/* We haven't accumulated enough data. Cache any input data

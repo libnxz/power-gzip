@@ -4,7 +4,6 @@
 #include <time.h>
 #include <pthread.h>
 
-/* The total src buffer > nx_compress_threshold (10*1024) but avail_in is 1 */
 static int run(unsigned int len, int step, const char* test)
 {
 	Byte *src, *compr, *uncompr;

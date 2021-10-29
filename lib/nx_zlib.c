@@ -875,6 +875,7 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "dis_savedevp: %d\n", disable_saved_nx_devp);
 	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
 	fprintf(fp, "soft_copy_threshold: %d\n", nx_config.soft_copy_threshold);
+	fprintf(fp, "cache_threshold: %d\n", nx_config.cache_threshold);
 
 	return 0;
 };
@@ -910,6 +911,7 @@ void nx_hw_init(void)
 	/* number of retries if nx_submit_job() returns ERR_NX_AT_FAULT */
 	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
 	char* soft_copy_threshold = NULL;
+	char* cache_threshold = NULL;
 	char *nx_ratio_s     = getenv("NX_GZIP_RATIO"); /* Select the nxgzip ratio(0-100, default is 100%) */
 
 	/* Init nx_config a default value firstly */
@@ -923,7 +925,8 @@ void nx_hw_init(void)
 	nx_config.per_job_len = (1024 * 1024); /* less than suspend limit */
 	nx_config.strm_def_bufsz = (1024 * 1024); /* affect the deflate fifo_out */
 	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */
-	nx_config.compress_threshold = (10*1024); /* collect as much input */
+	nx_config.cache_threshold = 8 * 1024; /* Cache input before
+					       *  processing */
 	nx_config.deflate_fifo_in_len = 1<<17; /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.verbose = 0;
@@ -962,6 +965,8 @@ void nx_hw_init(void)
 
 		soft_copy_threshold = nx_get_cfg("soft_copy_threshold",
 						   &cfg_tab);
+
+		cache_threshold = nx_get_cfg("cache_threshold", &cfg_tab);
 
 		if (!type_selector)
 			type_selector = nx_get_cfg("nx_selector", &cfg_tab);
@@ -1074,8 +1079,12 @@ void nx_hw_init(void)
 
 	if (soft_copy_threshold) {
 		nx_config.soft_copy_threshold = str_to_num(soft_copy_threshold);
-		nx_config.soft_copy_threshold = NX_MAX(nx_config.soft_copy_threshold, 31);
-		nx_config.soft_copy_threshold = NX_MIN(nx_config.soft_copy_threshold, 8190);
+	}
+
+	if (cache_threshold) {
+		nx_config.cache_threshold = str_to_num(cache_threshold);
+		nx_config.cache_threshold = NX_MIN(nx_config.cache_threshold,
+						   nx_config.page_sz);
 	}
 
 	if (nx_dbg >= 1 && nx_gzip_log) {

@@ -576,7 +576,7 @@ extern int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 extern void *dht_copy(void *handle);
 
 /* sw_zlib.c */
-extern void sw_zlib_init(void);
+extern int sw_zlib_init(void);
 extern void sw_zlib_close(void);
 extern const char *sw_zlibVersion(void);
 extern int sw_deflateInit_(z_streamp strm, int level, const char* version, int stream_size);

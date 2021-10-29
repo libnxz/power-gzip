@@ -1,7 +1,6 @@
 #include "../test_deflate.h"
 #include "../test_utils.h"
 
-/* The total src buffer > nx_compress_threshold (10*1024) but avail_in is 1 */
 static int run(unsigned int len, int step, const char* test)
 {
 	Byte *src, *compr, *uncompr;
@@ -40,19 +39,20 @@ err:
 
 /* case prefix is 2 ~ 9 */
 
-/* The total src buffer < nx_compress_threshold (10*1024) and avail_in is 1 */
 int run_case2()
 {
+	/* The total src buffer < default cache_threshold and avail_in is 1. */
 	return run(5*1024, 1,  __func__);
 }
 
-/* The total src buffer < nx_compress_threshold (10*1024) and 1 < avail_in < total */
 int run_case3()
 {
+	/* The total src buffer < default cache_threshold and
+	   1 < avail_in < total. */
 	return run(5*1000, 100, __func__);
 }
 
-/* The total src buffer < nx_compress_threshold (10*1024) and 1 < avail_in < total
+/* The total src buffer < default cache_threshold and 1 < avail_in < total
  * but avail_in is not aligned with src_len
  * TODO: this is an error case
  */
@@ -62,27 +62,30 @@ int run_case3_1()
 	return 0;
 }
 
-/* The total src buffer < nx_compress_threshold (10*1024) and avail_in is total */
 int run_case4()
 {
+	/* The total src buffer < default cache_threshold and avail_in is
+	   total. */
 	return run(5*1024, 5*1024, __func__);
 }
 
-/* The total src buffer > nx_compress_threshold (10*1024) and avail_in is 1 */
 int run_case5()
 {
+	/* The total src buffer > default cache_threshold and avail_in is 1. */
 	return run(64*1024, 1, __func__);
 }
 
-/* The total src buffer > nx_compress_threshold (10*1024) and 1 < avail_in < 10*1024 */
 int run_case6()
 {
+	/* The total src buffer > default cache_threshold and
+	   1 < avail_in < 10*1024. */
 	return run(64*10000, 10000, __func__);
 }
 
-/* The total src buffer > nx_compress_threshold (10*1024) and avail_in > 10*1024 */
 int run_case7()
 {
+	/* The total src buffer > default cache_threshold and
+	   avail_in > 10*1024. */
 	return run(64*20000, 20000, __func__);
 }
 

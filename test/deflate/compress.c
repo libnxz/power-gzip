@@ -84,15 +84,15 @@ err:
 }
 
 /* case prefix is 10-19 */
-/* The total src buffer < nx_compress_threshold (10*1024) */
 int run_case10()
 {
+	/* The total src buffer < default cache_threshold. */
 	return run(5*1024, 0, 0, __func__);
 }
 
-/* The total src buffer > nx_compress_threshold (10*1024) */
 int run_case11()
 {
+	/* The total src buffer > cache_threshold. */
 	return run(20*1024, 0, 0, __func__);
 }
 

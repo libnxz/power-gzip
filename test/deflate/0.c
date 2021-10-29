@@ -1,7 +1,6 @@
 #include "../test_deflate.h"
 #include "../test_utils.h"
 
-/* The total src buffer > nx_compress_threshold (10*1024) but avail_in is 1 */
 static int run(unsigned int len, int digit, const char* test)
 {
 	Byte *src, *compr, *uncompr;

@@ -282,14 +282,14 @@ uLong sw_compressBound(uLong sourceLen)
 /*
  * Open the zlib dl and Register APIs
  */
-void sw_zlib_init(void)
+int sw_zlib_init(void)
 {
 	char *error;
 
 	sw_handler = dlopen(ZLIB_PATH, RTLD_LAZY);
 	if(sw_handler == NULL) {
 		prt_err(" %s\n", dlerror());
-		return;
+		return Z_ERRNO;
 	}
 
 	register_sym(zlibVersion);
@@ -323,7 +323,7 @@ void sw_zlib_init(void)
 	register_sym(compress2);
 
 	prt_info("software zlib version:%s\n",sw_zlibVersion());
-	return;
+	return Z_OK;
 }
 
 /*

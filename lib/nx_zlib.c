@@ -1038,7 +1038,7 @@ void nx_hw_init(void)
 	if (nx_count == 0) {
 		nx_close_cfg(&cfg_tab);
 		prt_err("NX-gzip accelerators found: %d\n", nx_count);
-		nx_config.gzip_selector = GZIP_SW; /*fallback to use software zlib*/
+		return;
 	}
 
 	prt_info("%d NX GZIP Accelerator Found!\n",nx_count);
@@ -1147,7 +1147,9 @@ static void _nx_hwinit(void) __attribute__((constructor));
 static void _nx_hwinit(void)
 {
 	nx_hw_init();
-	sw_zlib_init();
+	/* Default to nx if zlib load failed.  */
+	if(sw_zlib_init() == Z_ERRNO)
+		nx_config.gzip_selector = GZIP_NX;
 }
 
 void nx_hw_done(void)

@@ -108,8 +108,9 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg);
 #define zlib_version zlibVersion()
 extern const char *zlibVersion OF((void));
 
-extern int gzip_selector;
-extern int nx_ratio;
+extern uint8_t gzip_selector;
+/* ratio from 0 to 100 indicating 0% to 100% of nx over sw */
+extern uint8_t nx_ratio;
 /* common config variables for all streams */
 struct nx_config_t {
 	long     page_sz;
@@ -304,7 +305,7 @@ typedef struct nx_stream_s {
 } nx_stream;
 typedef struct nx_stream_s *nx_streamp;
 
-inline int has_nx_state(z_streamp strm)
+static inline int has_nx_state(z_streamp strm)
 {
 	nx_streamp nx_state;
 

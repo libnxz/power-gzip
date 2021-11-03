@@ -1666,30 +1666,24 @@ s2:
 	/*  avail_out > 0 and used_out == 0 */
 	// assert(s->avail_out > 0 && s->used_out == 0);
 
-	if ( ((s->used_in + s->avail_in) > nx_config.compress_threshold) || /* large input */
-	     (flush == Z_SYNC_FLUSH)    ||      /* or requesting flush */
-	     (flush == Z_PARTIAL_FLUSH) ||
-	     (flush == Z_FULL_FLUSH)    ||
-	     (flush == Z_FINISH)        ||	/* or requesting finish */
-	     (s->level == 0)) {                  /* or raw copy */
-		     goto s3; /* compress */
-	}
-	else {
-		if (s->dict_len == 0) {
-			/* if dictionary present do not buffer small input */
-			if (s->fifo_in == NULL) {
-				s->len_in = nx_config.deflate_fifo_in_len;
-				if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, s->page_sz, 0)))
-					return TRACERET(Z_MEM_ERROR);
-			}
-			/* small input and no request made for flush or finish */
-			small_copy_nxstrm_in_to_fifo_in(s);
-			return TRACERET(Z_OK);
+	if ( ((s->used_in + s->avail_in) <= nx_config.compress_threshold) && /* small input */
+		(flush != Z_SYNC_FLUSH)    &&   /* not requesting flush */
+		(flush != Z_PARTIAL_FLUSH) &&
+		(flush != Z_FULL_FLUSH)    &&
+		(flush != Z_FINISH)        &&   /* not requesting finish */
+		(s->level != 0)            &&   /* not a raw copy */
+		(s->dict_len == 0)) {
+		/* if dictionary present do not buffer small input */
+		if (s->fifo_in == NULL) {
+			s->len_in = nx_config.deflate_fifo_in_len;
+			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, s->page_sz, 0)))
+				return TRACERET(Z_MEM_ERROR);
 		}
-		goto s3; /* compress */
+		/* small input and no request made for flush or finish */
+		small_copy_nxstrm_in_to_fifo_in(s);
+		return TRACERET(Z_OK);
 	}
 
-s3:
 	if (++loop_cnt == loop_max) {
 		prt_err("can not make progress on s3, loop_cnt = %ld\n", loop_cnt);
 		return TRACERET(Z_STREAM_ERROR);

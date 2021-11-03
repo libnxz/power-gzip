@@ -1511,6 +1511,30 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 	prt_info("nx_compress_update_checksum crc32 %08x adler32 %08x\n", s->crc32, s->adler32);
 }
 
+/* Handle stream end */
+static int nx_stream_end(nx_streamp s) {
+	if (s->status == NX_DEFLATE_ST) {
+		prt_info("     change status NX_DEFLATE_ST to NX_BFINAL_ST\n");
+		append_spanning_flush(s, Z_SYNC_FLUSH, 0, 1);
+		s->status = NX_BFINAL_ST;
+	}
+	if (s->status == NX_BFINAL_ST) {
+		prt_info("     change status NX_BFINAL_ST to NX_TRAILER_ST\n");
+		nx_compress_append_trailer(s);
+		s->status = NX_TRAILER_ST;
+	}
+
+	print_dbg_info(s, __LINE__);
+	prt_info("s->zstrm->total_out %ld s->status %ld\n", (long)s->zstrm->total_out, (long)s->status);
+	if (s->used_out == 0 && s->status == NX_TRAILER_ST)
+		return TRACERET(Z_STREAM_END);
+
+	if (s->used_out == 0 && s->flush == Z_FINISH)
+		return TRACERET(Z_STREAM_END);
+
+	return TRACERET(Z_OK);
+}
+
 /* deflate interface */
 int nx_deflate(z_streamp strm, int flush)
 {
@@ -1635,28 +1659,8 @@ s1:
 	}
 
 	/* check if stream end has been reached */
-	if (s->avail_in == 0 && s->used_in == 0 && s->used_out == 0) {
-		if (s->status == NX_DEFLATE_ST) {
-			prt_info("     change status NX_DEFLATE_ST to NX_BFINAL_ST\n");
-			append_spanning_flush(s, Z_SYNC_FLUSH, 0, 1);
-			s->status = NX_BFINAL_ST;
-		}
-		if (s->status == NX_BFINAL_ST) {
-			prt_info("     change status NX_BFINAL_ST to NX_TRAILER_ST\n");
-			nx_compress_append_trailer(s);
-			s->status = NX_TRAILER_ST;
-		}
-
-		print_dbg_info(s, __LINE__);
-		prt_info("s->zstrm->total_out %ld s->status %ld\n", (long)s->zstrm->total_out, (long)s->status);
-		if (s->used_out == 0 && s->status == NX_TRAILER_ST)
-			return TRACERET(Z_STREAM_END);
-
-		if (s->used_out == 0 && s->flush == Z_FINISH)
-			return TRACERET(Z_STREAM_END);
-
-		return TRACERET(Z_OK);
-	}
+	if (s->avail_in == 0 && s->used_in == 0 && s->used_out == 0)
+		return nx_stream_end(s);
 
 s2:
 	/* fifo_out can be copied out */
@@ -1815,11 +1819,10 @@ s3:
 	switch (buffer_state) {
 	case 0b0000: /* no output space and no input data */
 	case 0b1000: /* have output space, no inputs */
-		if (s->flush == Z_FINISH)
-			goto s1; /* we need to append the trailer then return Z_STREAM_END */
-		else
+		if (s->flush != Z_FINISH)
 			return TRACERET(Z_OK); /* more data may come */
-		break;
+
+		return nx_stream_end(s);
 	case 0b0001: /* no output space and various input combinations */
 	case 0b0010:
 	case 0b0011:

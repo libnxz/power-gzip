@@ -119,6 +119,8 @@ int main()
 	strm.avail_out = uncompr_len - strm.total_out;
 	assert(nx_inflate(&strm, Z_FINISH) == Z_STREAM_END);
 
+	assert(nx_inflateEnd(&strm) == Z_OK);
+
 	if (compare_data(uncompr, src, src_len))
 		return TEST_ERROR;
 

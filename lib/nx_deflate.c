@@ -1608,18 +1608,6 @@ int nx_deflate(z_streamp strm, int flush)
 		return TRACERET(Z_BUF_ERROR);
 	}
 
-	/* issue 99 */
-	if (s->avail_out > 0 && s->used_out == 0 && s->avail_in == 0 && s->used_in == 0) {
-		if (s->flush == Z_FINISH) {
-			goto s1;
-		}
-		else if (s->flush == Z_NO_FLUSH) {
-			return TRACERET(Z_BUF_ERROR);
-		}
-		else if (s->flush == Z_PARTIAL_FLUSH || s->flush == Z_SYNC_FLUSH || s->flush == Z_FULL_FLUSH)
-			return TRACERET(Z_OK);
-	}
-
 	/* Generate a header */
 	if ((s->status & (NX_ZLIB_INIT_ST | NX_GZIP_INIT_ST | NX_RAW_INIT_ST)) != 0) {
 		prt_info("nx_deflate_add_header s->flush %d s->status %d \n", s->flush, s->status);
@@ -1655,14 +1643,12 @@ s1:
 		if (!(s->status & (NX_BFINAL_ST | NX_TRAILER_ST))) {
 			if (s->avail_out == 0)
 				return TRACERET(Z_OK); /* need more output space */
-			if ((s->used_out == 0) && (s->avail_in == 0))
-				return TRACERET(Z_OK); /* no input here */
 		}
-	}
-
-	/* check if stream end has been reached */
-	if (s->avail_in == 0 && s->used_in == 0 && s->used_out == 0)
-		return nx_stream_end(s);
+	/* TODO: zlib also compares previous and current flush to avoid
+	 * duplicate consecutive flushes. */
+	/* If no input left, and no flush requested, there's nothing to do. */
+	} else if (s->avail_in == 0 && (flush < Z_PARTIAL_FLUSH || flush > Z_FINISH))
+		return TRACERET(Z_BUF_ERROR);
 
 s2:
 	/* fifo_out can be copied out */

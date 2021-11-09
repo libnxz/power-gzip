@@ -1162,8 +1162,10 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 
 	/* TODO if avail_in=0 used_in=0, either return right away
 	   or go to flushes and final */
-	if (s->avail_in == 0 && s->used_in == 0)
+	if (s->avail_in == 0 && s->used_in == 0) {
+		rc = LIBNX_OK_NO_AVIN;
 		goto do_no_update;
+	}
 
 	/* with no history TODO alignment Section 2.8.1 */
 	resume_len = 0;
@@ -1719,10 +1721,13 @@ s2:
 			if (s->avail_in > 0 || s->used_in > 0 ) {
 				/* copy input to output at most by nx_stored_block_len */
 				rc = nx_compress_block(s, GZIP_FC_WRAP, nbytes_this_iteration);
-				if (rc != LIBNX_OK)
+				if (rc != LIBNX_OK && rc != LIBNX_OK_NO_AVIN)
 					return TRACERET(Z_STREAM_ERROR);
+
 				loop_cnt = 0; /* update when making progress */
-				nx_compress_update_checksum(s, combine_cksum);
+
+				if (rc != LIBNX_OK_NO_AVIN)
+					nx_compress_update_checksum(s, combine_cksum);
 			}
 
 			if (s->avail_in == 0 && s->used_in == 0 && flush == Z_FINISH ) {
@@ -1763,14 +1768,15 @@ s2:
 			goto s1;
 		}
 
-		if (rc != LIBNX_OK) {
+		if (rc != LIBNX_OK && rc != LIBNX_OK_NO_AVIN) {
 			prt_warn("%s:%d nx_compress_block returned %d\n", __FUNCTION__, __LINE__, rc);
 			return TRACERET(Z_STREAM_ERROR);
 		}
 
 		loop_cnt = 0; /* update when making progress */
 
-		nx_compress_update_checksum(s, !combine_cksum);
+		if(rc != LIBNX_OK_NO_AVIN)
+			nx_compress_update_checksum(s, !combine_cksum);
 	}
 	else if (s->strategy == Z_DEFAULT_STRATEGY) { /* dynamic huffman */
 
@@ -1794,14 +1800,15 @@ s2:
 			prt_info("%s:%d Expanded, trying fixed Huffman, spbc %d, tebc %d\n", __FUNCTION__, __LINE__, s->spbc, s->tebc);
 			goto s1;
 		}
-		if (rc != LIBNX_OK) {
+		if (rc != LIBNX_OK && rc != LIBNX_OK_NO_AVIN) {
 			prt_warn("%s:%d nx_compress_block returned %d\n", __FUNCTION__, __LINE__, rc);
 			return TRACERET(Z_STREAM_ERROR);
 		}
 
 		loop_cnt = 0; /* update when making progress */
 
-		nx_compress_update_checksum(s, !combine_cksum);
+		if (rc != LIBNX_OK_NO_AVIN)
+			nx_compress_update_checksum(s, !combine_cksum);
 	}
 
 	print_dbg_info(s, __LINE__);

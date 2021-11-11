@@ -598,6 +598,7 @@ extern int s_inflate(z_streamp strm, int flush);
 extern int s_inflateEnd(z_streamp strm);
 extern int s_inflateCopy(z_streamp dest, z_streamp source);
 extern int s_inflateGetHeader(z_streamp strm, gz_headerp head);
+extern int s_inflateSyncPoint(z_streamp strm);
 extern int s_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 extern int s_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);
 extern uLong s_compressBound(uLong sourceLen);

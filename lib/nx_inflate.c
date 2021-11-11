@@ -2079,7 +2079,14 @@ int inflateGetHeader(z_streamp strm, gz_headerp head)
 
 int inflateSyncPoint(z_streamp strm)
 {
-	return nx_inflateSyncPoint(strm);
+	int rc;
+
+	if (0 == has_nx_state(strm))
+		rc = s_inflateSyncPoint(strm);
+	else
+		rc = nx_inflateSyncPoint(strm);
+
+	return rc;
 }
 
 #endif

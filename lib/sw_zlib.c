@@ -250,6 +250,13 @@ int s_inflateGetHeader(z_streamp strm, gz_headerp head)
 	return (* p_inflateGetHeader)(strm, head);
 }
 
+static int (* p_inflateSyncPoint)(z_streamp strm);
+int s_inflateSyncPoint(z_streamp strm)
+{
+	check_sym(p_inflateSyncPoint, Z_STREAM_ERROR);
+	return (* p_inflateSyncPoint)(strm);
+}
+
 static int (* p_compress)(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 int s_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
 {

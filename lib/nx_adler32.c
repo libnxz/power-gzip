@@ -176,36 +176,20 @@ unsigned long nx_adler32_combine(adler1, adler2, len2)
 /* ========================================================================= */
 
 #ifdef ZLIB_API
-unsigned long adler32_combine(adler1, adler2, len2)
-    unsigned long adler1;
-    unsigned long adler2;
-    z_off_t len2;
-{
-    return nx_adler32_combine(adler1, adler2, len2);
-}
 
-unsigned long adler32_combine64(adler1, adler2, len2)
-    unsigned long adler1;
-    unsigned long adler2;
-    z_off64_t len2;
-{
-    return nx_adler32_combine(adler1, adler2, len2);
-}
+unsigned long adler32_combine(unsigned long adler1, unsigned long adler2,
+			      z_off_t len2)
+	      __attribute__((alias("nx_adler32_combine")));
 
-unsigned long adler32(adler, buf, len)
-    unsigned long adler;
-    const char *buf;
-    unsigned int len;
-{
-    return nx_adler32_z(adler, buf, len);
-}
+unsigned long adler32_combine64(unsigned long adler1, unsigned long adler2,
+			      z_off_t len2)
+	      __attribute__((alias("nx_adler32_combine")));
 
-unsigned long adler32_z(adler, buf, len)
-    unsigned long adler;
-    const char *buf;
-    z_size_t len;
-{
-    return nx_adler32_z(adler, buf, len);
-}
+unsigned long adler32(unsigned long adler, const char * buf, unsigned int len)
+	      __attribute__((alias("nx_adler32_z")));
+
+unsigned long adler32_z(unsigned long adler, const char * buf, z_size_t len)
+	      __attribute__((alias("nx_adler32_z")));
+
 #endif
 

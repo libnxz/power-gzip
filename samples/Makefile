@@ -10,7 +10,10 @@ NXFLAGS = #-DNXDBG  #-DNXDBG -DNX_MMAP
 
 all:
 
-bench: $(TESTS) zpipe gzm nx_gzip
+bench: $(TESTS) zpipe gzm nx_gzip bench_initend
+
+bench_initend: bench_initend.c
+	$(CC) $(CFLAGS) -I$(INC) -o $@ $< -lz
 
 gzip_nxfht.o:	gzip_nxfht.c
 	$(CC) $(CFLAGS) $(NXFLAGS) -I$(INC) -c gzip_nxfht.c
@@ -69,4 +72,5 @@ nx_gzip: nx_gzip.c
 
 clean:
 	rm -f $(TESTS) *.o *.c~ *.h~ Makefile~ zpipe compdecomp compdecomp_th makedata \
-	zpipe_dict_nx zpipe_dict_zlib crc_perf_test_zlib crc_perf_test_vmx gzm nx_gzip
+	zpipe_dict_nx zpipe_dict_zlib crc_perf_test_zlib crc_perf_test_vmx gzm nx_gzip \
+	bench_initend

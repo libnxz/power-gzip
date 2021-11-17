@@ -121,6 +121,7 @@ struct nx_config_t {
 	uint32_t max_byte_count_current;
 	uint32_t max_source_dde_count;
 	uint32_t max_target_dde_count;
+	uint32_t max_vas_reuse_count;
 	uint32_t per_job_len;          /* less than suspend limit */
 	uint32_t strm_def_bufsz;
 	uint32_t soft_copy_threshold;  /* choose memcpy or hwcopy */
@@ -139,11 +140,13 @@ extern int nx_dht_config;
 
 /* NX device handle */
 struct nx_dev_t {
-	int lock;       /* crb serializer */
+	int lock;          /* crb serializer */
 	int nx_errno;
-	int socket_id;  /* one NX-gzip per cpu socket */
-	int nx_id;      /* unique */
-	int open_cnt;
+	int socket_id;     /* one NX-gzip per cpu socket */
+	int nx_id;         /* unique */
+	int open_cnt;      /* number of active users */
+	int use_cnt;       /* total number of users */
+	pid_t creator_pid; /* PID of the process that allocated this handle */
 
 	/* https://github.com/sukadev/linux/blob/vas-kern-v8.1/tools/testing/selftests/powerpc/user-nx842/compress.c#L514 */
 	struct {

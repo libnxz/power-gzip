@@ -67,13 +67,39 @@
 struct nx_config_t nx_config;
 static struct nx_dev_t nx_devices[NX_DEVICES_MAX];
 static int nx_dev_count = 0;
-static int nx_ref_count = 0;
 static int nx_init_done = 0;
 
-static int pid_is_saved = 0;
-static pid_t saved_pid = 0;
-static nx_devp_t saved_nx_devp = NULL;
-static int disable_saved_nx_devp = 1;
+/* These variables control nx_devp reutilization, which is useful to reduce the
+   overhead of creating/destroying VAS windows on every init/end call. An
+   nx_devp can be reused if:
+
+     1. Current process has the same PID as the one that created the saved
+        handle;
+
+     2. Handle uses (use_cnt) has not hit limit (max_vas_reuse_count).  This is
+        important to amortize the impact of process migration to other cores,
+        allowing them to re-allocate a window at a closer NX engine after some
+        time.
+
+   If all conditions above are met, nx_open will reuse the currently saved
+   device, otherwise a new one will be allocated and saved for later reuse. The
+   currently saved handle is reused at most max_vas_reuse_count times. After
+   that, a new handle is created, but the old one might be kept alive if there
+   are active users.
+
+   A handle is deleted in three different cases:
+
+     1. When it has reached the max number of uses and a new one must be
+        created. If the old handle had no active users, then it's deleted;
+
+     2. Otherwise, the last user will delete it.
+
+     3. A library destructor will delete the current saved handle.
+
+   In all cases, access to the variables controlling the saved handle are
+   protected by a mutex to ensure mutual exclusion between threads. */
+static nx_devp_t saved_nx_devp = NULL; /* saved handle for reuse */
+static pthread_mutex_t saved_nx_devp_mutex;   /* mutex to protect vars above */
 
 int nx_dbg = 0;
 uint8_t gzip_selector = GZIP_NX;
@@ -468,38 +494,55 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 	return cc;
 }
 
+static inline void nx_device_free(nx_devp_t nx_devp) {
+	nx_function_end(nx_devp->vas_handle);
+	free(nx_devp);
+}
+
 nx_devp_t nx_open(int nx_id)
 {
-	nx_devp_t nx_devp;
+	nx_devp_t nx_devp, saved;
 	void *vas_handle;
 	pid_t my_pid;
-	int ocount;
-
-	if (disable_saved_nx_devp == 0) {
-		/* sharing a nx handle in this process */
-		ocount = __atomic_fetch_add(&nx_ref_count, 1, __ATOMIC_RELAXED);
-		if (ocount > 0) {
-			/* vas is already open; threads will reuse it */
-			volatile void *vh;
-			/* TODO; hack poll while the other thread is doing nx_function_begin */
-			while( NULL == (vh = __atomic_load_n(&saved_nx_devp, __ATOMIC_RELAXED) ) ){;};
-		}
-	}
 
 	my_pid = getpid();
 
-	prt_info("%s pid %d saved nx_devp %p\n", __FUNCTION__, my_pid, saved_nx_devp);
+	/* check if we can reuse a saved nx handle */
+	if (nx_config.max_vas_reuse_count > 0) {
+		pthread_mutex_lock(&saved_nx_devp_mutex);
 
-	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid && disable_saved_nx_devp == 0) {
-		/* appears we were not forked therefore return the
-		   saved device pointer */
-		assert(!!saved_nx_devp);
-		return saved_nx_devp;
+		if(saved_nx_devp != NULL &&
+		   saved_nx_devp->use_cnt <= nx_config.max_vas_reuse_count &&
+		   my_pid > 0 && saved_nx_devp->creator_pid == my_pid) {
+			saved_nx_devp->use_cnt++;
+
+			/* Save reference to saved device and end critical
+			   section as early as possible */
+			saved = saved_nx_devp;
+			saved->open_cnt++;
+
+			pthread_mutex_unlock(&saved_nx_devp_mutex);
+
+			/* appears we were not forked therefore return the
+			   saved device pointer */
+			assert(!!saved);
+			return saved;
+		}
 	}
+
+	/* There are three ways to get here:
+	 *   1. No currently saved window
+	 *   2. There is a saved window, but it has reached max number of reuses
+	 *   3. There is a saved window, but from another PID
+	 *
+	 * In any of these cases, we must allocate a new window for the current
+	 * request. We also update the saved window to allow reuse later. */
 
 	nx_devp = malloc(sizeof(*nx_devp));
 
 	if (nx_devp == NULL) {
+		if (nx_config.max_vas_reuse_count > 0)
+			pthread_mutex_unlock(&saved_nx_devp_mutex);
 		prt_err("malloc failed\n");
 		errno = ENOMEM;
 		return NULL;
@@ -512,19 +555,32 @@ nx_devp_t nx_open(int nx_id)
 	vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, nx_id);
 
 	if (!vas_handle) {
+		if (nx_config.max_vas_reuse_count > 0)
+			pthread_mutex_unlock(&saved_nx_devp_mutex);
 		prt_err("nx_function_begin failed, errno %d\n", errno);
 		free(nx_devp);
+
 		return NULL;
 	}
 
 	nx_devp->vas_handle = vas_handle;
-	nx_devp->open_cnt++;
 
-	if (disable_saved_nx_devp == 0) {
+	if (nx_config.max_vas_reuse_count > 0) {
+		nx_devp->open_cnt = 1;  /* newly allocated nx_devp, so single
+					   user */
+		nx_devp->creator_pid = my_pid;
+		nx_devp->use_cnt = 1; 	/* New device, so reset the counter so
+					   we know when it's time to stop
+					   reusing it. */
+
+		/* We are about to replace the saved handle, so make sure to
+		   free the existing one if there are no active users. */
+		if (saved_nx_devp != NULL && saved_nx_devp->open_cnt == 0)
+			nx_device_free(saved_nx_devp);
+
 		/* we will reuse this handle */
-		pid_is_saved = 1;
-		saved_pid = my_pid;
 		saved_nx_devp = nx_devp;
+		pthread_mutex_unlock(&saved_nx_devp_mutex);
 	}
 
 	return nx_devp;
@@ -532,38 +588,29 @@ nx_devp_t nx_open(int nx_id)
 
 int nx_close(nx_devp_t nx_devp)
 {
-	pid_t my_pid;
-	int ocount;
-
 	if (!nx_devp || !nx_devp->vas_handle) {
 		prt_err("nx_close got a NULL handle\n");
 		return -1;
 	}
 
-	if (disable_saved_nx_devp == 0) {
-		ocount = __atomic_fetch_sub(&nx_ref_count, 1, __ATOMIC_RELAXED);
-		/* the shared handle is in use */
-		if (ocount > 0)
-			return 0;
+	if (nx_config.max_vas_reuse_count == 0) {
+		nx_device_free(nx_devp);
+		return 0;
 	}
 
-	my_pid = getpid();
+	pthread_mutex_lock(&saved_nx_devp_mutex);
+	nx_devp->open_cnt--;
 
-	prt_info("%s pid %d saved nx_devp %p\n", __FUNCTION__, my_pid, saved_nx_devp);
-
-	nx_function_end(nx_devp->vas_handle);
-
-	nx_devp->open_cnt--; /* for future */
-
-	free(nx_devp);
-
-	if (disable_saved_nx_devp == 0) {
-		/* unsave the handle */
-		pid_is_saved = 0;
-		saved_pid = 0;
-		saved_nx_devp = NULL;
+	if (nx_devp->open_cnt == 0 &&   /* handle is not being reused */
+	    nx_devp != saved_nx_devp) { /* not the current reusable handle */
+		/* This must be an old handle and this is its last user,
+		   so let's free it. */
+		nx_device_free(nx_devp);
 	}
 
+	/* Otherwise, leave it open */
+
+	pthread_mutex_unlock(&saved_nx_devp_mutex);
 	return 0;
 }
 
@@ -571,13 +618,11 @@ static void nx_close_all()
 {
 	pid_t my_pid = getpid();
 
-	if (pid_is_saved && my_pid != 0 && saved_pid == my_pid) {
-		if (saved_nx_devp != NULL) {
-			nx_close(saved_nx_devp);
+	if (my_pid > 0) {
+		if (saved_nx_devp != NULL && saved_nx_devp->creator_pid == my_pid) {
+			nx_device_free(saved_nx_devp);
 			saved_nx_devp = NULL;
 		}
-		pid_is_saved = 0;
-		saved_pid = 0;
 	}
 
 	return;
@@ -817,7 +862,6 @@ static int print_nx_env(FILE *fp)
 
 	char *cfg_file_s = getenv("NX_GZIP_CONFIG");
 	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB");
-	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP");
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE");
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM");
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE");
@@ -833,8 +877,6 @@ static int print_nx_env(FILE *fp)
 		fprintf(fp, "NX_GZIP_CONFIG: \'%s\'\n", cfg_file_s);
 	if (mlock_csb)
 		fprintf(fp, "NX_GZIP_MLOCK_CSB: \'%s'\n", mlock_csb);
-	if (dis_savdev)
-		fprintf(fp, "NX_GZIP_DIS_SAVDEVP: \'%s\'\n", dis_savdev);
 	if (verbo_s)
 		fprintf(fp, "NX_GZIP_VERBOSE: \'%s\'\n", verbo_s);
 	if (chip_num_s)
@@ -872,7 +914,6 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "dht_config: %d\n", nx_dht_config);
 	fprintf(fp, "strategy: %d\n", nx_strategy_override);
 	fprintf(fp, "mlock_csb: %d\n", nx_config.mlock_nx_crb_csb);
-	fprintf(fp, "dis_savedevp: %d\n", disable_saved_nx_devp);
 	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
 	fprintf(fp, "soft_copy_threshold: %d\n", nx_config.soft_copy_threshold);
 	fprintf(fp, "cache_threshold: %d\n", nx_config.cache_threshold);
@@ -897,9 +938,9 @@ void nx_hw_init(void)
 
 	pthread_mutex_init (&mutex_log, NULL);
 	pthread_mutex_init (&nx_devices_mutex, NULL);
+	pthread_mutex_init (&saved_nx_devp_mutex, NULL);
 
 	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB"); /* 0 or 1 */
-	char *dis_savdev = getenv("NX_GZIP_DIS_SAVDEVP"); /* 0 or 1 */
 	char *type_selector    = getenv("NX_GZIP_TYPE_SELECTOR"); /* selector for sw or hw gzip implementation */
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
@@ -913,6 +954,7 @@ void nx_hw_init(void)
 	char* soft_copy_threshold = NULL;
 	char* cache_threshold = NULL;
 	char *nx_ratio_s     = getenv("NX_GZIP_RATIO"); /* Select the nxgzip ratio(0-100, default is 100%) */
+	char* max_vas_reuse_count = NULL;
 
 	/* Init nx_config a default value firstly */
 	nx_config.page_sz = NX_MIN( sysconf(_SC_PAGESIZE), 1<<16 );
@@ -922,6 +964,7 @@ void nx_hw_init(void)
 	nx_config.max_byte_count_current = (1UL<<30);
 	nx_config.max_source_dde_count = MAX_DDE_COUNT;
 	nx_config.max_target_dde_count = MAX_DDE_COUNT;
+	nx_config.max_vas_reuse_count = 100;
 	nx_config.per_job_len = (1024 * 1024); /* less than suspend limit */
 	nx_config.strm_def_bufsz = (1024 * 1024); /* affect the deflate fifo_out */
 	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */
@@ -957,8 +1000,6 @@ void nx_hw_init(void)
 			strategy_ovrd = nx_get_cfg("strategy", &cfg_tab);
 		if (!mlock_csb)
 			mlock_csb = nx_get_cfg("mlock_csb", &cfg_tab);
-		if (!dis_savdev)
-			dis_savdev = nx_get_cfg("dis_savedevp", &cfg_tab);
 		if (!timeout_pgfaults)
 			timeout_pgfaults = nx_get_cfg("timeout_pgfaults",
 							&cfg_tab);
@@ -967,6 +1008,9 @@ void nx_hw_init(void)
 						   &cfg_tab);
 
 		cache_threshold = nx_get_cfg("cache_threshold", &cfg_tab);
+
+		max_vas_reuse_count = nx_get_cfg("max_vas_reuse_count",
+						   &cfg_tab);
 
 		if (!type_selector)
 			type_selector = nx_get_cfg("nx_selector", &cfg_tab);
@@ -1030,10 +1074,6 @@ void nx_hw_init(void)
 		nx_lib_debug(z);
 	}
 
-	if (dis_savdev != NULL) {
-		disable_saved_nx_devp = str_to_num(dis_savdev);
-	}
-
 	if (mlock_csb != NULL) {
 		nx_config.mlock_nx_crb_csb = str_to_num(mlock_csb);
 	}
@@ -1087,6 +1127,10 @@ void nx_hw_init(void)
 						   nx_config.page_sz);
 	}
 
+	if (max_vas_reuse_count) {
+		nx_config.max_vas_reuse_count = str_to_num(max_vas_reuse_count);
+	}
+
 	if (nx_dbg >= 1 && nx_gzip_log) {
 		fprintf(nx_gzip_log, "nx-zlib log file: %s\n", logfile);
 		fprintf(nx_gzip_log, "nx-zlib config file: %s\n", cfg_file_s);
@@ -1119,6 +1163,7 @@ void nx_hw_done(void)
 		fclose(nx_gzip_log);
 		nx_gzip_log = NULL;
 	}
+	pthread_mutex_destroy(&saved_nx_devp_mutex);
 }
 
 static void _nx_hwdone(void) __attribute__((destructor));

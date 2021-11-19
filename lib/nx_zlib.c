@@ -82,7 +82,7 @@ uint8_t nx_ratio = 100;
 int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x0;
-FILE *nx_gzip_log = NULL;		/* default is stderr, unless overwritten */
+FILE *nx_gzip_log = NULL;		/* default is /tmp/nx.log, unless overwritten */
 int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 
 pthread_mutex_t mutex_log;
@@ -1106,7 +1106,7 @@ void nx_hw_done(void)
 	if (!!nx_gzip_log) fflush(nx_gzip_log);
 	fflush(stderr);
 
-	if (nx_gzip_log != stderr) {
+	if (nx_gzip_log != NULL && nx_gzip_log != stderr) {
 		fclose(nx_gzip_log);
 		nx_gzip_log = NULL;
 	}

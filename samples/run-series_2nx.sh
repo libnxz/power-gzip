@@ -2,6 +2,7 @@
 
 plotfn=log_2nx.log
 
+nodes=`numastat | head -1`
 for th in 1 8 32 64 80
 do
     for a in `seq 0 20`  # size
@@ -14,8 +15,11 @@ do
 	rm -f junk2
 	head -c $nbyte $1 > junk2;
 	ls -l junk2;
-	numactl -N 0 ./compdecomp_th junk2 $th $rpt &
-	numactl -N 8 ./compdecomp_th junk2 $th $rpt &
+	for i in $nodes
+	do
+		node=`echo $i | cut -c 5`
+		numactl -N $node ./compdecomp_th junk2 $th $rpt &
+	done
 	wait
     done
 done  > $plotfn 2>&1

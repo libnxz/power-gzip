@@ -20,15 +20,15 @@ do
     cat $FN > /dev/null
 done
 
+nodes=`numastat | head -1`
 for S in `seq 1 $C`
 do
 	FN=$S.$1    
-	if [ $(( $S % 2)) -eq 1 ]
-	then
-		numactl -N 0 ./gunzip_nx_test $FN  &
-	else
-		numactl -N 8 ./gunzip_nx_test $FN  &
-	fi
+	for i in $nodes
+	do
+		node=`echo $i | cut -c 5`
+		numactl -N $node ./gunzip_nx_test $FN  &
+	done
 done
 
 wait

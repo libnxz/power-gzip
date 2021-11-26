@@ -2,6 +2,7 @@
 
 plotfn=log.log
 
+node=`numastat | head -1 | sed -e "s/ //g" | cut -c5`
 for th in 1 2 4 8 16 32 64 80
 do
     for a in `seq 0 20`  # size
@@ -14,7 +15,7 @@ do
 	rm -f junk2
 	head -c $nbyte $1 > junk2;
 	ls -l junk2;
-	numactl -N 0 ./compdecomp_th junk2 $th $rpt
+	numactl -N $node ./compdecomp_th junk2 $th $rpt
     done
 done  > $plotfn 2>&1
 

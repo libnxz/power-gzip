@@ -13,9 +13,10 @@ IFN=$1 #supply an input file
 # warmup file system cache
 cat $IFN > /dev/null
 
+node=`numastat | head -1 | sed -e "s/ //g" | cut -c5`
 echo running nx-gzip
 OFN=$OPATH/$(basename $IFN).nx.gz
-time numactl -N 0 ./zpipe < $IFN > $OFN
+time numactl -N $node ./zpipe < $IFN > $OFN
 ls -l $IFN $OFN
 echo
 echo
@@ -27,7 +28,7 @@ echo
 #do
 #    OFN=$OPATH/$(basename $IFN).$a.gz
 #    rm -f $OPATH/*
-#    time numactl -N 0 gzip -$a $IFN -c > $OFN
+#    time numactl -N $node gzip -$a $IFN -c > $OFN
 #    ls -l $IFN $OFN
 #    echo
 #    echo
@@ -41,13 +42,13 @@ OFN=$OPATH/source.gz
 ./gzm < $IFN > $OFN
 
 echo running nx uncompress
-time numactl -N 0 ./gzm -d < $OFN > /dev/null
+time numactl -N $node ./gzm -d < $OFN > /dev/null
 ls -l $IFN $OFN
 echo
 echo
 
 echo running gunzip
-time numactl -N 0 gunzip $OFN -c > /dev/null
+time numactl -N $node gunzip $OFN -c > /dev/null
 ls -l $IFN $OFN
 echo
 

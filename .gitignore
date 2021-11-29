@@ -7,3 +7,7 @@
 *.so.*
 *.so
 *~
+config.status
+configure.scan
+autom4te.cache
+config.mk

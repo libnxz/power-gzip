@@ -9,7 +9,8 @@ exploit the NX GZIP accelerator available on POWER9 and newer processors.
 - If want to use nxzlib to substitute zlib, following the steps as below:
 1. Build libnxz.so
 ```
-make clean; make
+./configure
+make
 ```
 2. Use libnxz.so to substitute libz.so (replace 0.0 with the version being used)
 ```
@@ -32,7 +33,8 @@ make clean; make
 ## How to Run Test
 ```
 cd test
-make clean; make
+./configure
+make
 make check
 ```
 

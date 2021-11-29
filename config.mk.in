@@ -1,0 +1,16 @@
+PREFIX := @prefix@
+exec_prefix := @exec_prefix@
+LIBDIR := @libdir@
+
+CC = @CC@
+AR = @AR@
+
+## Common flags
+FLG    = -std=gnu11
+ZLIB   = -DZLIB_API
+ZLIB_PATH ?= libz.so
+
+CFLAGS = $(FLG) $(ZLIB) -DZLIB_PATH=\"$(ZLIB_PATH)\" @CFLAGS@
+
+VERSION = @PACKAGE_VERSION@
+PACKAGENAME = @PACKAGE_NAME@

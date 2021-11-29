@@ -971,9 +971,6 @@ static int nx_inflate_(nx_streamp s, int flush)
 
 	print_dbg_info(s, __LINE__);
 
-	if ((flush == Z_FINISH) && (s->avail_in == 0) && (s->used_out == 0))
-		return Z_STREAM_END;
-
 	if (s->avail_in == 0 && s->used_in == 0 && s->avail_out == 0 && s->used_out == 0)
 		return Z_STREAM_END;
 

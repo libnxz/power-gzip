@@ -3,7 +3,7 @@
 libnxz implements a zlib-compatible API for Linux userspace programs that
 exploit the NX GZIP accelerator available on POWER9 and newer processors.
 
-[TOC]
+[![Packaging status](https://repology.org/badge/vertical-allrepos/libnxz.svg)](https://repology.org/project/libnxz/versions)
 
 ## How to Use
 - If want to use nxzlib to substitute zlib, following the steps as below:

@@ -42,7 +42,7 @@ files = $(source_files) \
         zero4k zero13M
 uncomp_files = $(addsuffix .uncompressed,$(files))
 
-test_types = gzip
+test_types = deflate gzip
 levels = 1 2 3 4 5 6 7 8 9
 compress_tests = $(foreach t,$(test_types),\
                    $(foreach f,$(files),$(f).6.compress.$(t)))
@@ -81,6 +81,13 @@ compdecomp: $(addsuffix .test-result,$(compdecomp_tests))
 .PHONY: download
 download: $(uncomp_files)
 
+minideflate.c:
+	@wget https://raw.githubusercontent.com/zlib-ng/zlib-ng/develop/test/$@
+
+minideflate: minideflate.c
+	@sed -i 's/^#include.*zbuild\.h.*$$//g' $<
+	$(CC) -O3 -Wall -DZLIB_COMPAT -D'PREFIX(x)=x' -D'PREFIX3(x)=z_##x' -o $@ $< -lz
+
 .PRECIOUS: %.uncompressed
 empty.uncompressed:
 	dd if=/dev/null bs=1k count=1 of=$@
@@ -108,6 +115,16 @@ zero13M.uncompressed:
 %.uncompressed: %.source
 	./download.sh $*
 
+.PRECIOUS: %.compress.deflate %.decompress.deflate %.compdecomp.deflate
+%.compress.deflate: generate-test.sh config.sh minideflate
+	./generate-test.sh $@
+
+%.decompress.deflate: generate-test.sh config.sh minideflate
+	./generate-test.sh $@
+
+%.compdecomp.deflate: generate-test.sh config.sh minideflate
+	./generate-test.sh $@
+
 .PRECIOUS: %.compress.gzip %.decompress.gzip %.compdecomp.gzip
 %.compress.gzip: generate-test.sh config.sh
 	./generate-test.sh $@
@@ -133,6 +150,7 @@ clean:
 
 clean-all:
 	rm $(uncomp_files)
+	rm -f minideflate*
 
 .SECONDEXPANSION:
 %.test-result: % $$(shell echo -n % | cut -f1 -d.).checksum

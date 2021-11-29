@@ -8,10 +8,19 @@ type=$(echo ${1} | cut -d . -f4)
 
 . config.sh
 
-case ${action} in
-  "compress") test="${LIBNXZ} -c | ${GZIP} -cd -";;
-  "decompress") test="${GZIP} -${level} -c - | ${LIBNXZ} -c -d";;
-  "compdecomp") test="${LIBNXZ} -c | ${LIBNXZ} -c -d";;
+case ${type} in
+    "deflate")
+        case ${action} in
+            "compress") test="${LIBNXZ} ${DEFLATE} -c | ${DEFLATE} -c -d ";;
+            "decompress") test="${DEFLATE} -${level} -c | ${LIBNXZ} ${DEFLATE} -c -d";;
+            "compdecomp") test="${LIBNXZ} ${DEFLATE} -c | ${LIBNXZ} ${DEFLATE} -c -d";;
+        esac;;
+    "gzip")
+        case ${action} in
+            "compress") test="${LIBNXZ} ${MINIGZ} -c | ${GZIP} -c -d ";;
+            "decompress") test="${GZIP} -${level} -c | ${LIBNXZ} ${MINIGZ} -c -d";;
+            "compdecomp") test="${LIBNXZ} ${MINIGZ} -c | ${LIBNXZ} ${MINIGZ} -c -d";;
+        esac;;
 esac
 
 cat - >${1} <<EOF

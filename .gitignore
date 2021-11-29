@@ -1,5 +1,9 @@
 *.o
 *.a
 *.d
+*.diff
+*.log
+*.patch
 *.so.*
 *.so
+*~

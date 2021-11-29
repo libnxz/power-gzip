@@ -943,6 +943,30 @@ static int nx_inflate_(nx_streamp s, int flush)
 	 */
 	int nx_history_len;
 
+	/**
+	 * \dot inflate() machine state
+	 * digraph state {
+	 * error_check [shape=box];
+	 * copy_fifo_out_to_next_out [shape=box];
+	 * restart_nx [shape=box];
+	 * ok_cc3 [shape=box];
+	 * offsets_state [shape=box];
+	 * start -> error_check;
+	 * error_check -> copy_fifo_out_to_next_out;
+	 * error_check -> error;
+	 * copy_fifo_out_to_next_out -> restart_nx;
+	 * restart_nx -> restart_nx [label="cc == ERR_NX_AT_FAULT\
+	 *  || cc == ERR_NX_TARGET_SPACE" fontsize=8];
+	 * restart_nx -> offsets_state [label="cc == ERR_NX_OK"];
+	 * restart_nx -> ok_cc3;
+	 * restart_nx -> error;
+	 * ok_cc3 -> offsets_state;
+	 * offsets_state -> copy_fifo_out_to_next_out;
+	 * offsets_state -> return [label="Needs more data"];
+	 * }
+	 * \enddot
+	 */
+
 	timeout_pgfaults = nx_config.timeout_pgfaults;
 
 	print_dbg_info(s, __LINE__);

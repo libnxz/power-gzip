@@ -31,6 +31,7 @@ clean:
 			$(MAKE) -C $$dir $@ || exit 1;	\
 		fi					\
 	done
+	rm -f config.log config.status
 
 install:
 	$(MAKE) -C lib $@

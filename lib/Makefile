@@ -4,9 +4,7 @@ OBJS = nx_inflate.o nx_deflate.o nx_zlib.o nx_crc.o nx_dht.o nx_dhtgen.o \
        nx_dht_builtin.o nx_adler32.o gzip_vas.o nx_compress.o nx_uncompr.o \
        crc32_ppc.o crc32_ppc_asm.o nx_utils.o sw_zlib.o
 
-VERSION ?= $(shell git describe --tags | cut -d - -f 1,2 | tr - . | cut -c 2-)
 SOVERSION = $(shell echo $(VERSION) | cut -d . -f 1)
-PACKAGENAME = libnxz
 STATICLIB = $(PACKAGENAME).a
 SHAREDSONAMELIB = $(PACKAGENAME).so.$(SOVERSION)
 SHAREDLIB = $(PACKAGENAME).so.$(VERSION)

@@ -1,4 +1,4 @@
-include Makeconfig
+include config.mk
 
 TIMEOUT = 300s
 

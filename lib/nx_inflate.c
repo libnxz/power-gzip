@@ -283,7 +283,7 @@ int nx_inflateEnd(z_streamp strm)
 
 int nx_inflate(z_streamp strm, int flush)
 {
-	int rc = Z_OK;
+	int rc = Z_OK, in, out;
 	nx_streamp s;
 	void *temp = NULL;
 
@@ -341,6 +341,10 @@ int nx_inflate(z_streamp strm, int flush)
 	/* copy in from user stream to internal structures */
 	copy_stream_in(s, s->zstrm);
 	copy_stream_out(s, s->zstrm);
+
+	/* Account for progress */
+	in = s->avail_in;
+	out = s->avail_out;
 
 inf_forever:
 	/* inflate state machine */
@@ -752,6 +756,14 @@ inf_return:
 	copy_stream_in(s->zstrm, s);
 	copy_stream_out(s->zstrm, s);
 
+	/* Following zlib behaviour. If there is no progress Z_BUF_ERROR
+	 * is returned. */
+	in -= s->avail_in;
+	out -= s->avail_out;
+	if (in == 0 && out == 0 && rc == Z_OK) return Z_BUF_ERROR;
+
+	/* if flush is Z_FINISH we cannot return Z_OK. */
+	if (flush == Z_FINISH && rc == Z_OK) return Z_BUF_ERROR;
 	return rc;
 }
 

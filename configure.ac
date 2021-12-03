@@ -18,7 +18,7 @@ AC_CONFIG_MACRO_DIR([m4])
 # Defines host_cpu, host_vendor, and host_os variables.
 AC_CANONICAL_HOST
 
-: ${CFLAGS="-O3 -Wall -Werror -fPIC"}
+: ${CFLAGS="-O3 -Wall -Werror -g"}
 
 # Checks for programs.
 AC_CHECK_TARGET_TOOL([AR], [ar], [:])

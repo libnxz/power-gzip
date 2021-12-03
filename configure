@@ -2450,7 +2450,7 @@ case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
 
 
-: ${CFLAGS="-O3 -Wall -Werror -fPIC"}
+: ${CFLAGS="-O3 -Wall -Werror -g"}
 
 # Checks for programs.
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking target system type" >&5

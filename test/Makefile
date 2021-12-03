@@ -1,6 +1,5 @@
 include ../config.mk
 
-CFLAGS = $(FLG) $(SFLAGS)
 INC = -I../lib -I../inc_nx
 LIB = -L../lib -L/usr/lib/
 

@@ -11,6 +11,9 @@ SHAREDLIB = $(PACKAGENAME).so.$(VERSION)
 LIBLINK = $(PACKAGENAME).so
 
 CFLAGS += -I../inc_nx
+# Generate all object files as PIC because we use them both in the static and
+# shared libraries.
+CFLAGS += -fPIC
 
 all: $(OBJS) $(STATICLIB) $(SHAREDLIB)
 

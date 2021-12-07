@@ -17,8 +17,10 @@ do
 	ls -l junk2;
 	for i in $nodes
 	do
-		node=`echo $i | cut -c 5`
-		numactl -N $node ./compdecomp_th junk2 $th $rpt &
+		node=`echo $i | sed -e "s/node//g"`
+		if [ "$node" -lt "16" ]; then
+			numactl -N $node ./compdecomp_th junk2 $th $rpt &
+		fi
 	done
 	wait
     done

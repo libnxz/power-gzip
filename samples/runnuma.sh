@@ -26,8 +26,10 @@ do
 	FN=$S.$1    
 	for i in $nodes
 	do
-		node=`echo $i | cut -c 5`
-		numactl -N $node ./gunzip_nx_test $FN  &
+		node=`echo $i | sed -e "s/node//g"`
+		if [ "$node" -lt "16" ]; then
+			numactl -N $node ./gunzip_nx_test $FN  &
+		fi
 	done
 done
 

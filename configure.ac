@@ -34,6 +34,7 @@ AC_PROG_SED
 AX_WITH_PROG(BASH, bash)
 AX_WITH_PROG(GZIP, gzip)
 AX_WITH_PROG(SHA256SUM, sha256sum)
+AX_WITH_PROG(VALGRIND, valgrind, valgrind)
 AX_WITH_PROG(WGET, wget)
 
 # Checks for header files.

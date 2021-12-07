@@ -17,7 +17,7 @@ check:  $(subdirs)
 	$(MAKE) -C test $@
 
 valgrind-check:  $(subdirs)
-	$(MAKE) -C test check TEST_WRAPPER="valgrind --leak-check=full --suppressions=valgrind.supp --error-exitcode=1"
+	$(MAKE) -C test check TEST_WRAPPER="${VALGRIND} --leak-check=full --suppressions=valgrind.supp --error-exitcode=1"
 
 doc: doc/libnxz.doxy
 	doxygen $<

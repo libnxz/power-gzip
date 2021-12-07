@@ -631,6 +631,7 @@ acx_pthread_config
 LIBOBJS
 EGREP
 WGET
+VALGRIND
 SHA256SUM
 GZIP
 BASH
@@ -709,6 +710,7 @@ enable_option_checking
 with_bash
 with_gzip
 with_sha256sum
+with_valgrind
 with_wget
 '
       ac_precious_vars='build_alias
@@ -723,6 +725,7 @@ CPP
 BASH
 GZIP
 SHA256SUM
+VALGRIND
 WGET'
 
 
@@ -1352,6 +1355,8 @@ Optional Packages:
   --with-gzip=[PATH]    absolute path to gzip executable
   --with-sha256sum=[PATH]
                           absolute path to sha256sum executable
+  --with-valgrind=[PATH]
+                          absolute path to valgrind executable
   --with-wget=[PATH]    absolute path to wget executable
 
 Some influential environment variables:
@@ -1366,6 +1371,7 @@ Some influential environment variables:
   BASH        Absolute path to bash executable
   GZIP        Absolute path to gzip executable
   SHA256SUM   Absolute path to sha256sum executable
+  VALGRIND    Absolute path to valgrind executable
   WGET        Absolute path to wget executable
 
 Use these variables to override the choices made by `configure' or to help
@@ -4280,6 +4286,139 @@ SHA256SUM=$ac_cv_path_SHA256SUM
 if test -n "$SHA256SUM"; then
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: $SHA256SUM" >&5
 $as_echo "$SHA256SUM" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+
+fi
+
+
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if test -z "$VALGRIND"; then :
+
+        { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether valgrind executable path has been provided" >&5
+$as_echo_n "checking whether valgrind executable path has been provided... " >&6; }
+
+# Check whether --with-valgrind was given.
+if test "${with_valgrind+set}" = set; then :
+  withval=$with_valgrind;
+            if test "$withval" != yes && test "$withval" != no; then :
+
+                VALGRIND="$withval"
+                { $as_echo "$as_me:${as_lineno-$LINENO}: result: $VALGRIND" >&5
+$as_echo "$VALGRIND" >&6; }
+
+else
+
+                VALGRIND=""
+                { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+                if test "$withval" != no; then :
+
+                  # Extract the first word of "valgrind", so it can be a program name with args.
+set dummy valgrind; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_path_VALGRIND+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  case $VALGRIND in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_VALGRIND="$VALGRIND" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_path_VALGRIND="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_path_VALGRIND" && ac_cv_path_VALGRIND="valgrind"
+  ;;
+esac
+fi
+VALGRIND=$ac_cv_path_VALGRIND
+if test -n "$VALGRIND"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $VALGRIND" >&5
+$as_echo "$VALGRIND" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+
+fi
+
+fi
+
+else
+
+            { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+            # Extract the first word of "valgrind", so it can be a program name with args.
+set dummy valgrind; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_path_VALGRIND+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  case $VALGRIND in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_VALGRIND="$VALGRIND" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_path_VALGRIND="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_path_VALGRIND" && ac_cv_path_VALGRIND="valgrind"
+  ;;
+esac
+fi
+VALGRIND=$ac_cv_path_VALGRIND
+if test -n "$VALGRIND"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $VALGRIND" >&5
+$as_echo "$VALGRIND" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }

@@ -134,6 +134,9 @@ struct nx_config_t {
 	int      dht;
 	uint8_t  nx_ratio; /** ratio from 0 to 100 indicating 0% to 100% of nx
 			    * over sw */
+	int      strategy_override; /** Force use of an specific deflate
+				     * strategy.  0 is fixed huffman, 1 is
+				     * dynamic huffman */
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;

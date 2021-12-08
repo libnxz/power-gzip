@@ -49,6 +49,7 @@
 #include <endian.h>
 #include "nxu.h"
 #include "nx_dht.h"
+#include "nx_zlib.h"
 
 /* If cache keys are too many then dhtgen overhead increases; if cache
    keys are too few then compression ratio suffers.
@@ -88,8 +89,6 @@ typedef struct top_sym_t {
 #define llns 0
 
 extern dht_entry_t *get_builtin_table();
-
-int nx_dht_config = 0;
 
 /* One time setup of the tables. Returns a handle.  ifile ofile
    unused */
@@ -175,7 +174,7 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 	top_sym_t top[1];
 
 	/* where to look for the top search keys */
-	if ( (nx_dht_config & 0x1) == 0x1 )
+	if ( (nx_config.dht & 0x1) == 0x1 )
 		llscan = LLSZ;   /* scan literals and lengths */
 	else
 		llscan = NUMLIT; /* scan literals only */

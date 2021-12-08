@@ -31,8 +31,6 @@ LIBNXZ_0.61.0 {
     nx_crc32_combine;
     nx_crc32_combine64;
   local:
-    nx_function_begin;
-    nx_function_end;
     nxu_run_job;
     crc32_ppc;
     dht_begin;
@@ -42,24 +40,10 @@ LIBNXZ_0.61.0 {
     dhtgen;
     dht_copy;
     dht_end;
-    nx_open;
-    nx_close;
-    nx_copy;
-    nx_submit_job;
-    nx_hw_init;
-    nx_hw_done;
-    nx_get_cfg;
-    nx_read_cfg;
-    nx_close_cfg;
-    nx_dump_cfg;
-    nx_lib_debug;
-    nx_alloc_buffer;
-    nx_free_buffer;
-    nx_touch_pages;
-    nx_touch_pages_dde;
-    nx_append_dde;
-    nx_print_dde;
-    nx_wait_ticks;
+    mutex_log;
+    tb_freq;
+    zlib_stats;
+    zlib_stats_mutex;
     gzip_header_blank;
     fill_zero_lzcounts;
     fill_zero_len_dist;
@@ -67,8 +51,14 @@ LIBNXZ_0.61.0 {
     sigsegv_handler;
     str_to_num;
     open_logfile;
+    nx_*;
+    sw_*;
     _*;
 };
+
+LIBNXZ_0.63.0 {
+    nx_inflateSyncPoint;
+} LIBNXZ_0.61.0;
 
 ZLIB_1.2.0 {
     compressBound;

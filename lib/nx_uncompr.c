@@ -78,11 +78,11 @@ int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *source
 	int rc;
 
 	if(nx_config.gzip_selector == GZIP_MIX){
-		rc = s_uncompress2(dest, destLen, source, sourceLen);
+		rc = sw_uncompress2(dest, destLen, source, sourceLen);
 	}else if(nx_config.gzip_selector == GZIP_NX){
 		rc = nx_uncompress2(dest, destLen, source, sourceLen);
 	}else{
-		rc = s_uncompress2(dest, destLen, source, sourceLen);
+		rc = sw_uncompress2(dest, destLen, source, sourceLen);
 	}
 
 	/* statistic */
@@ -100,11 +100,11 @@ int uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLe
 	int rc=0;
 
 	if(nx_config.gzip_selector == GZIP_MIX){
-		rc = s_uncompress(dest, destLen, source, sourceLen);
+		rc = sw_uncompress(dest, destLen, source, sourceLen);
 	}else if(nx_config.gzip_selector == GZIP_NX){
 		rc = nx_uncompress(dest, destLen, source, sourceLen);
 	}else{
-		rc = s_uncompress(dest, destLen, source, sourceLen);
+		rc = sw_uncompress(dest, destLen, source, sourceLen);
 	}
 
 	/* statistic */
@@ -115,4 +115,3 @@ int uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLe
 }
 
 #endif
-

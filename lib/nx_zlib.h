@@ -576,37 +576,37 @@ extern void *dht_copy(void *handle);
 /* sw_zlib.c */
 extern void sw_zlib_init(void);
 extern void sw_zlib_close(void);
-extern const char *s_zlibVersion(void);
-extern int s_deflateInit_(z_streamp strm, int level, const char* version, int stream_size);
-extern int s_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
+extern const char *sw_zlibVersion(void);
+extern int sw_deflateInit_(z_streamp strm, int level, const char* version, int stream_size);
+extern int sw_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 			int memLevel, int strategy,    const char *version, int stream_size);
-extern int s_deflate(z_streamp strm, int flush);
-extern int s_deflateEnd(z_streamp strm);
-extern int s_deflateReset(z_streamp strm);
-extern int s_deflateResetKeep(z_streamp strm);
-extern int s_deflateSetHeader(z_streamp strm, gz_headerp head);
-extern uLong s_deflateBound(z_streamp strm, uLong sourceLen);
-extern int s_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
-extern int s_deflateCopy(z_streamp dest, z_streamp source);
-extern int s_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+extern int sw_deflate(z_streamp strm, int flush);
+extern int sw_deflateEnd(z_streamp strm);
+extern int sw_deflateReset(z_streamp strm);
+extern int sw_deflateResetKeep(z_streamp strm);
+extern int sw_deflateSetHeader(z_streamp strm, gz_headerp head);
+extern uLong sw_deflateBound(z_streamp strm, uLong sourceLen);
+extern int sw_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
+extern int sw_deflateCopy(z_streamp dest, z_streamp source);
+extern int sw_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
 #if ZLIB_VERNUM >= 0x1290
-extern int s_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
+extern int sw_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
 #endif
 
-extern int s_inflateInit_(z_streamp strm, const char *version, int stream_size);
-extern int s_inflateInit2_(z_streamp strm, int  windowBits, const char *version, int stream_size);
-extern int s_inflateReset(z_streamp strm);
-extern int s_inflateReset2(z_streamp strm, int windowBits);
-extern int s_inflateResetKeep(z_streamp strm);
-extern int s_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
-extern int s_inflate(z_streamp strm, int flush);
-extern int s_inflateEnd(z_streamp strm);
-extern int s_inflateCopy(z_streamp dest, z_streamp source);
-extern int s_inflateGetHeader(z_streamp strm, gz_headerp head);
-extern int s_inflateSyncPoint(z_streamp strm);
-extern int s_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
-extern int s_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);
-extern uLong s_compressBound(uLong sourceLen);
+extern int sw_inflateInit_(z_streamp strm, const char *version, int stream_size);
+extern int sw_inflateInit2_(z_streamp strm, int  windowBits, const char *version, int stream_size);
+extern int sw_inflateReset(z_streamp strm);
+extern int sw_inflateReset2(z_streamp strm, int windowBits);
+extern int sw_inflateResetKeep(z_streamp strm);
+extern int sw_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
+extern int sw_inflate(z_streamp strm, int flush);
+extern int sw_inflateEnd(z_streamp strm);
+extern int sw_inflateCopy(z_streamp dest, z_streamp source);
+extern int sw_inflateGetHeader(z_streamp strm, gz_headerp head);
+extern int sw_inflateSyncPoint(z_streamp strm);
+extern int sw_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
+extern int sw_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);
+extern uLong sw_compressBound(uLong sourceLen);
 
 
 

@@ -79,14 +79,14 @@ typedef void * __attribute__ ((__may_alias__)) pvoid_t;
 	} while (0)
 
 static const char * (* p_zlibVersion)(void);
-const char *s_zlibVersion(void)
+const char *sw_zlibVersion(void)
 {
 	check_sym(p_zlibVersion, NULL);
 	return (* p_zlibVersion)();
 }
 
 static int (* p_deflateInit_)(z_streamp strm, int level, const char* version, int stream_size);
-int s_deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
+int sw_deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
 {
 	check_sym(p_deflateInit_, Z_STREAM_ERROR);
 	return (* p_deflateInit_)(strm, level, version, stream_size);
@@ -95,7 +95,7 @@ int s_deflateInit_(z_streamp strm, int level, const char* version, int stream_si
 static int (* p_deflateInit2_)(z_streamp strm, int level, int method,
 			int windowBits, int memLevel, int strategy,
 			const char *version, int stream_size);
-int s_deflateInit2_(z_streamp strm, int level, int method,
+int sw_deflateInit2_(z_streamp strm, int level, int method,
 		int windowBits, int memLevel, int strategy,
 		const char *version, int stream_size)
 {
@@ -105,21 +105,21 @@ int s_deflateInit2_(z_streamp strm, int level, int method,
 }
 
 static uLong (* p_deflateBound)(z_streamp strm, uLong sourceLen);
-uLong s_deflateBound(z_streamp strm, uLong sourceLen)
+uLong sw_deflateBound(z_streamp strm, uLong sourceLen)
 {
 	check_sym(p_deflateBound, Z_STREAM_ERROR);
 	return (* p_deflateBound)(strm, sourceLen);
 }
 
 static int (* p_deflateReset)(z_streamp strm);
-int s_deflateReset(z_streamp strm)
+int sw_deflateReset(z_streamp strm)
 {
 	check_sym(p_deflateReset, Z_STREAM_ERROR);
 	return (* p_deflateReset)(strm);
 }
 
 static int (* p_deflateResetKeep)(z_streamp strm);
-int s_deflateResetKeep(z_streamp strm)
+int sw_deflateResetKeep(z_streamp strm)
 {
 	check_sym(p_deflateResetKeep, Z_STREAM_ERROR);
 	return (* p_deflateResetKeep)(strm);
@@ -127,7 +127,7 @@ int s_deflateResetKeep(z_streamp strm)
 
 static int (* p_deflateSetDictionary)(z_streamp strm, const Bytef *dictionary,
 				uInt dictLength);
-int s_deflateSetDictionary(z_streamp strm, const Bytef *dictionary,
+int sw_deflateSetDictionary(z_streamp strm, const Bytef *dictionary,
 			uInt dictLength)
 {
 	check_sym(p_deflateSetDictionary, Z_STREAM_ERROR);
@@ -135,49 +135,49 @@ int s_deflateSetDictionary(z_streamp strm, const Bytef *dictionary,
 }
 
 static int (* p_deflateSetHeader)(z_streamp strm, gz_headerp head);
-int s_deflateSetHeader(z_streamp strm, gz_headerp head)
+int sw_deflateSetHeader(z_streamp strm, gz_headerp head)
 {
 	check_sym(p_deflateSetHeader, Z_STREAM_ERROR);
 	return p_deflateSetHeader(strm, head);
 }
 
 static int (* p_deflate)(z_streamp strm, int flush);
-int s_deflate(z_streamp strm, int flush)
+int sw_deflate(z_streamp strm, int flush)
 {
 	check_sym(p_deflate, Z_STREAM_ERROR);
 	return (* p_deflate)(strm, flush);
 }
 
 static int (* p_deflateEnd)(z_streamp strm);
-int s_deflateEnd(z_streamp strm)
+int sw_deflateEnd(z_streamp strm)
 {
 	check_sym(p_deflateEnd, Z_STREAM_ERROR);
 	return (* p_deflateEnd)(strm);
 }
 
 static int (* p_deflateCopy)(z_streamp dest, z_streamp source);
-int s_deflateCopy(z_streamp dest, z_streamp source)
+int sw_deflateCopy(z_streamp dest, z_streamp source)
 {
 	check_sym(p_deflateCopy, Z_STREAM_ERROR);
 	return (* p_deflateCopy)(dest, source);
 }
 
 static int (* p_uncompress)(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
-int s_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
+int sw_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
 {
 	check_sym(p_uncompress, Z_STREAM_ERROR);
 	return (* p_uncompress)(dest, destLen, source, sourceLen);
 }
 
 static int (* p_uncompress2)(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
-int s_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen)
+int sw_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen)
 {
 	check_sym(p_uncompress2, Z_STREAM_ERROR);
 	return (* p_uncompress2)(dest, destLen, source, sourceLen);
 }
 
 static int (* p_inflateInit_)(z_streamp strm, const char *version, int stream_size);
-int s_inflateInit_(z_streamp strm, const char *version, int stream_size)
+int sw_inflateInit_(z_streamp strm, const char *version, int stream_size)
 {
 	check_sym(p_inflateInit_, Z_STREAM_ERROR);
 	return (* p_inflateInit_)(strm, version, stream_size);
@@ -185,7 +185,7 @@ int s_inflateInit_(z_streamp strm, const char *version, int stream_size)
 
 static int (* p_inflateInit2_)(z_streamp strm, int windowBits,
 			const char *version, int stream_size);
-int s_inflateInit2_(z_streamp strm, int windowBits, const char *version,
+int sw_inflateInit2_(z_streamp strm, int windowBits, const char *version,
 		int stream_size)
 {
 	check_sym(p_inflateInit2_, Z_STREAM_ERROR);
@@ -193,21 +193,21 @@ int s_inflateInit2_(z_streamp strm, int windowBits, const char *version,
 }
 
 static int (* p_inflateReset)(z_streamp strm);
-int s_inflateReset(z_streamp strm)
+int sw_inflateReset(z_streamp strm)
 {
 	check_sym(p_inflateReset, Z_STREAM_ERROR);
 	return (* p_inflateReset)(strm);
 }
 
 static int (* p_inflateReset2)(z_streamp strm, int windowBits);
-int s_inflateReset2(z_streamp strm, int windowBits)
+int sw_inflateReset2(z_streamp strm, int windowBits)
 {
 	check_sym(p_inflateReset2, Z_STREAM_ERROR);
 	return (* p_inflateReset2)(strm, windowBits);
 }
 
 static int (*p_inflateResetKeep)(z_streamp strm);
-int s_inflateResetKeep(z_streamp strm)
+int sw_inflateResetKeep(z_streamp strm)
 {
 	check_sym(p_inflateResetKeep, Z_STREAM_ERROR);
 	return (* p_inflateResetKeep)(strm);
@@ -215,7 +215,7 @@ int s_inflateResetKeep(z_streamp strm)
 
 static int (* p_inflateSetDictionary)(z_streamp strm, const Bytef *dictionary,
 				 uInt dictLength);
-int s_inflateSetDictionary(z_streamp strm, const Bytef *dictionary,
+int sw_inflateSetDictionary(z_streamp strm, const Bytef *dictionary,
 			uInt dictLength)
 {
 	check_sym(p_inflateSetDictionary, Z_STREAM_ERROR);
@@ -223,56 +223,56 @@ int s_inflateSetDictionary(z_streamp strm, const Bytef *dictionary,
 }
 
 static int (* p_inflate)(z_streamp strm, int flush);
-int s_inflate(z_streamp strm, int flush)
+int sw_inflate(z_streamp strm, int flush)
 {
 	check_sym(p_inflate, Z_STREAM_ERROR);
 	return (* p_inflate)(strm, flush);
 }
 
 static int (* p_inflateEnd)(z_streamp strm);
-int s_inflateEnd(z_streamp strm)
+int sw_inflateEnd(z_streamp strm)
 {
 	check_sym(p_inflateEnd, Z_STREAM_ERROR);
 	return (* p_inflateEnd)(strm);
 }
 
 static int (* p_inflateCopy)(z_streamp dest, z_streamp source);
-int s_inflateCopy(z_streamp dest, z_streamp source)
+int sw_inflateCopy(z_streamp dest, z_streamp source)
 {
 	check_sym(p_inflateCopy, Z_STREAM_ERROR);
 	return (* p_inflateCopy)(dest, source);
 }
 
 static int (* p_inflateGetHeader)(z_streamp strm, gz_headerp head);
-int s_inflateGetHeader(z_streamp strm, gz_headerp head)
+int sw_inflateGetHeader(z_streamp strm, gz_headerp head)
 {
 	check_sym(p_inflateGetHeader, Z_STREAM_ERROR);
 	return (* p_inflateGetHeader)(strm, head);
 }
 
 static int (* p_inflateSyncPoint)(z_streamp strm);
-int s_inflateSyncPoint(z_streamp strm)
+int sw_inflateSyncPoint(z_streamp strm)
 {
 	check_sym(p_inflateSyncPoint, Z_STREAM_ERROR);
 	return (* p_inflateSyncPoint)(strm);
 }
 
 static int (* p_compress)(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);
-int s_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
+int sw_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
 {
 	check_sym(p_compress, Z_STREAM_ERROR);
 	return (* p_compress)(dest, destLen, source, sourceLen);
 }
 
 static int (* p_compress2)(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);
-int s_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level)
+int sw_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level)
 {
 	check_sym(p_compress2, Z_STREAM_ERROR);
 	return (* p_compress2)(dest, destLen, source, sourceLen, level);
 }
 
 static int (* p_compressBound)(uLong sourceLen);
-uLong s_compressBound(uLong sourceLen)
+uLong sw_compressBound(uLong sourceLen)
 {
 	check_sym(p_compressBound, Z_STREAM_ERROR);
 	return (* p_compressBound)(sourceLen);
@@ -322,7 +322,7 @@ void sw_zlib_init(void)
 	register_sym(compress);
 	register_sym(compress2);
 
-	prt_info("software zlib version:%s\n",s_zlibVersion());
+	prt_info("software zlib version:%s\n",sw_zlibVersion());
 	return;
 }
 

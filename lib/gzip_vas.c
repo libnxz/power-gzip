@@ -90,7 +90,7 @@
 void *nx_fault_storage_address;
 uint64_t tb_freq=0;
 
-const uint64_t timeout_seconds = 60;
+static const uint64_t timeout_seconds = 60;
 
 struct nx_handle {
 	int fd;

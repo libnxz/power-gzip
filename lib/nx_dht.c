@@ -85,8 +85,7 @@ typedef struct top_sym_t {
 	} sorted[3];
 } top_sym_t;
 
-const int llns = 0;
-const int dsts = 1;
+#define llns 0
 
 extern dht_entry_t *get_builtin_table();
 
@@ -185,7 +184,6 @@ static int dht_sort4(nx_gzip_crb_cpb_t *cmdp, top_sym_t *t)
 	top[llns].sorted[0].lzcnt = 0;
 	top[llns].sorted[0].sym = -1;
 	top[llns].sorted[2] = top[llns].sorted[1] = top[llns].sorted[0];
-	/* top[dsts] = top[llns]; */
 
 	lzcount = (uint32_t *)cmdp->cpb.out_lzcount;
 

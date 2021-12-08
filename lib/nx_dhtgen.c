@@ -71,12 +71,12 @@
 #include <time.h>
 #include <limits.h>
 
-FILE *dhtgen_log;
+static FILE *dhtgen_log;
 
 #define DHTG_INFO 0x01
 #define DHTG_TRC  0x02
 
-int dhtgen_verbose = 0; /* DHTG_INFO | DHTG_TRC; */
+static int dhtgen_verbose = 0; /* DHTG_INFO | DHTG_TRC; */
 
 #define dhtg_info  (dhtgen_verbose & DHTG_INFO )
 #define dhtg_trace (dhtgen_verbose & DHTG_TRC )

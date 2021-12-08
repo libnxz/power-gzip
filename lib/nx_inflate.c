@@ -1935,7 +1935,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 	zlib_stats_inc(&zlib_stats.inflateInit);
 
 	strm->state = NULL;
-	if(gzip_selector == GZIP_MIX){
+	if(nx_config.gzip_selector == GZIP_MIX){
 		rc = s_inflateInit2_(strm, windowBits, version, stream_size);
 		if(rc != Z_OK) return rc;
 
@@ -1957,7 +1957,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 			s->sw_stream = temp;
 			s->switchable = 1;
 		}
-	}else if(gzip_selector == GZIP_NX){
+	}else if(nx_config.gzip_selector == GZIP_NX){
 		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
 	}else{
 		rc = s_inflateInit2_(strm, windowBits, version, stream_size);

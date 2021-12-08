@@ -108,8 +108,6 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg);
 #define zlib_version zlibVersion()
 extern const char *zlibVersion OF((void));
 
-extern uint8_t gzip_selector;
-
 /* common config variables for all streams */
 struct nx_config_t {
 	long     page_sz;
@@ -137,6 +135,7 @@ struct nx_config_t {
 	int      strategy_override; /** Force use of an specific deflate
 				     * strategy.  0 is fixed huffman, 1 is
 				     * dynamic huffman */
+	uint8_t  gzip_selector;
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;
@@ -327,8 +326,8 @@ static inline int use_nx_inflate(z_streamp strm)
 	uint64_t rnd;
 	assert(strm != NULL);
 
-	if(gzip_selector == GZIP_NX) return 1;
-	if(gzip_selector == GZIP_SW || gzip_selector == GZIP_MIX2) return 0;
+	if(nx_config.gzip_selector == GZIP_NX) return 1;
+	if(nx_config.gzip_selector == GZIP_SW || nx_config.gzip_selector == GZIP_MIX2) return 0;
 
 	/* #1 Threshold */
 	if(strm->avail_in <= DECOMPRESS_THRESHOLD) return 0;
@@ -346,8 +345,8 @@ static inline int use_nx_deflate(z_streamp strm)
 {
 	assert(strm != NULL);
 
-        if(gzip_selector == GZIP_NX || gzip_selector == GZIP_MIX2) return 1;
-        if(gzip_selector == GZIP_SW) return 0;
+        if(nx_config.gzip_selector == GZIP_NX || nx_config.gzip_selector == GZIP_MIX2) return 1;
+        if(nx_config.gzip_selector == GZIP_SW) return 0;
 
 	/* #1 Threshold */
 	if(strm->avail_in <= COMPRESS_THRESHOLD) return 0;

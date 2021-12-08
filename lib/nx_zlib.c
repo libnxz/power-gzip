@@ -102,7 +102,6 @@ static nx_devp_t saved_nx_devp = NULL; /* saved handle for reuse */
 static pthread_mutex_t saved_nx_devp_mutex;   /* mutex to protect vars above */
 
 int nx_dbg = 0;
-uint8_t gzip_selector = GZIP_NX;
 static int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x0;
@@ -972,6 +971,7 @@ void nx_hw_init(void)
 	nx_config.dht = 0; /* default is literals only */
 	nx_config.nx_ratio = 100; /* default is 100% NX */
 	nx_config.strategy_override = 1; /* default is dynamic huffman */
+	nx_config.gzip_selector = GZIP_NX; /* default is to use NX only */
 
 	if (!cfg_file_s)
 		cfg_file_s = "./nx-zlib.conf";
@@ -1024,11 +1024,11 @@ void nx_hw_init(void)
 	/* log file pointer may be NULL, the worst case is we log nothing */
 
 	if(type_selector != NULL){
-		gzip_selector = str_to_num(type_selector);
-		prt("gzip_selector: %d (1-SW;2-NX;3/4-MIX)\n", gzip_selector);
-		if(gzip_selector == 0 || gzip_selector > 4) {
+		nx_config.gzip_selector = str_to_num(type_selector);
+		prt("gzip_selector: %d (1-SW;2-NX;3/4-MIX)\n", nx_config.gzip_selector);
+		if(nx_config.gzip_selector == 0 || nx_config.gzip_selector > 4) {
 			prt("Unrecognized option, defaulting to NX.\n");
-			gzip_selector = GZIP_NX;
+			nx_config.gzip_selector = GZIP_NX;
 		}
 	}
 
@@ -1037,7 +1037,7 @@ void nx_hw_init(void)
 	if (nx_count == 0) {
 		nx_close_cfg(&cfg_tab);
 		prt_err("NX-gzip accelerators found: %d\n", nx_count);
-		gzip_selector = GZIP_SW; /*fallback to use software zlib*/
+		nx_config.gzip_selector = GZIP_SW; /*fallback to use software zlib*/
 	}
 
 	prt_info("%d NX GZIP Accelerator Found!\n",nx_count);

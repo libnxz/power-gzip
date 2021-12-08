@@ -99,9 +99,9 @@ int compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen
 {
 	int rc=0;
 
-	if(gzip_selector == GZIP_MIX){
+	if(nx_config.gzip_selector == GZIP_MIX){
 		rc = s_compress2(dest, destLen, source, sourceLen, level);
-	}else if(gzip_selector == GZIP_NX){
+	}else if(nx_config.gzip_selector == GZIP_NX){
 		rc = nx_compress2(dest, destLen, source, sourceLen, level);
 	}else{
 		rc = s_compress2(dest, destLen, source, sourceLen, level);

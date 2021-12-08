@@ -21,6 +21,7 @@ run() {
     fi
 }
 
+run ./test_abi ../lib/libnxz.so
 run ./test_deflate
 run ./test_inflate
 run ./test_inflatesyncpoint

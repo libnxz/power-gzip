@@ -8,6 +8,7 @@
  */
 
 #include <stdint.h>
+#include <sys/types.h>
 
 #define BASE 65521U     /* largest prime smaller than 65536 */
 #define MOD(a) a %= BASE
@@ -17,7 +18,7 @@
 unsigned long nx_adler32_combine(adler1, adler2, len2)
     unsigned long adler1;
     unsigned long adler2;
-    uint64_t len2; /* z_off64_t len2; */
+    off_t len2;
 {
     unsigned long sum1;
     unsigned long sum2;

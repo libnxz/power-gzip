@@ -46,6 +46,9 @@
 #ifndef _LIBNXZ_H
 #define _LIBNXZ_H
 
+/* This must be kept in sync with zlib.h */
+typedef unsigned int uInt;
+
 /* zlib crc32.c and adler32.c */
 extern ulong nx_adler32(ulong adler, const char *buf, uint len);
 extern ulong nx_adler32_z(ulong adler, const char *buf, size_t len);
@@ -158,7 +161,7 @@ extern ulong adler32_combine(ulong adler1, ulong adler2, off_t len2);
 extern ulong adler32_combine64(ulong adler1, ulong adler2, off_t len2);
 extern ulong adler32(ulong adler, const char *buf, uint len);
 extern ulong adler32_z(ulong adler, const char *buf, size_t len);
-extern ulong crc32(ulong crc, const unsigned char *buf, unsigned int len);
+extern ulong crc32(ulong crc, const unsigned char *buf, uInt len);
 extern ulong crc32_combine(ulong crc1, ulong crc2, uint64_t len2);
 extern ulong crc32_combine64(ulong crc1, ulong crc2, uint64_t len2);
 extern int compress(unsigned char *dest, ulong *destLen,

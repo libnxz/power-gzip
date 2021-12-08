@@ -28,6 +28,9 @@ EXE = test_inflate test_deflate test_stress test_crc32 test_adler32 \
 	test_zeroinput test_buf_error
 UNSAFE = test_stress
 
+ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
+    --no-comp-dir-path --no-show-locs
+
 all:
 
 check: $(EXE)
@@ -38,6 +41,12 @@ unsafe-check: $(UNSAFE)
 
 $(TEST_OBJS): %.o : %.c
 	$(CC) $(CFLAGS) $(INC) -c $^ -o $@
+
+regen-abi:
+	@rm -f libnxz.abi
+	abidw $(ABIDW_FLAGS) ../lib/libnxz.so > libnxz.abi
+	@echo "To regenerate libz.abi, build zlib or find system's libz.so and do:"
+	@echo "    abidw $(ABIDW_FLAGS) /path/to/libz.so > libz.abi"
 
 clean:
 	/bin/rm -f *.o deflate/*.o inflate/*.o $(EXE) $(UNSAFE) *.log

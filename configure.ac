@@ -21,6 +21,9 @@ AC_CANONICAL_HOST
 : ${CFLAGS="-O3 -Wall -Werror -g"}
 
 # Checks for programs.
+AC_CHECK_PROG(ABIDIFF, abidiff, abidiff, no)
+AS_IF([test "x$ABIDIFF" = xno],
+      [AC_MSG_ERROR([Please install abidiff (tool from libabigail).])])
 AC_CHECK_TARGET_TOOL([AR], [ar], [:])
 AC_PROG_AWK
 AC_PROG_CC

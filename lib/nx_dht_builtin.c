@@ -101,7 +101,7 @@
 */
 
 /* index is where the struct was found in the cache */
-dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
+static dht_entry_t builtin1[DHT_NUM_BUILTIN] = {
 {
 	/* cksum */ 0,
 	/* valid */ 1,

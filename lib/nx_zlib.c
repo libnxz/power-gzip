@@ -105,7 +105,7 @@ int nx_dbg = 0;
 uint8_t gzip_selector = GZIP_NX;
 /* default is 100% nx */
 uint8_t nx_ratio = 100;
-int nx_gzip_chip_num = -1;
+static int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x0;
 FILE *nx_gzip_log = NULL;		/* default is /tmp/nx.log, unless overwritten */
@@ -113,10 +113,8 @@ int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huff
 
 pthread_mutex_t mutex_log;
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
-pthread_mutex_t nx_devices_mutex; /* mutex to protect global stats */
 struct zlib_stats zlib_stats;	/* global statistics */
 
-struct sigaction act;
 /* **************************************************************** */
 
 /*
@@ -937,7 +935,6 @@ void nx_hw_init(void)
 	struct nx_cfg_tab cfg_tab;
 
 	pthread_mutex_init (&mutex_log, NULL);
-	pthread_mutex_init (&nx_devices_mutex, NULL);
 	pthread_mutex_init (&saved_nx_devp_mutex, NULL);
 
 	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB"); /* 0 or 1 */

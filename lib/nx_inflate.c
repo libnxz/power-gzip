@@ -261,8 +261,8 @@ int nx_inflateEnd(z_streamp strm)
 	if(s->sw_stream){
 		temp  = (void *)strm->state;
 		strm->state = s->sw_stream;
-		rc = s_inflateEnd(strm);
-		prt_info("call s_inflateEnd to release sw resource,rc=%d\n",rc);
+		rc = sw_inflateEnd(strm);
+		prt_info("call sw_inflateEnd to release sw resource,rc=%d\n",rc);
 		strm->state = temp;
 		s->sw_stream = NULL;
 	}
@@ -303,7 +303,7 @@ int nx_inflate(z_streamp strm, int flush)
 		prt_info("call nx_inflateEnd to clean the hw resource,rc=%d\n",rc);
 		strm->state = temp;  /* restore the sw pointer */
 		prt_info("call software inflate,len=%d\n", strm->avail_in);
-		rc = s_inflate(strm,flush);
+		rc = sw_inflate(strm,flush);
 		prt_info("call software inflate, rc=%d\n", rc);
 		return rc;
 	}else if(s->sw_stream){
@@ -311,8 +311,8 @@ int nx_inflate(z_streamp strm, int flush)
 		temp  = (void *)strm->state;
 		strm->state = s->sw_stream;
 
-		rc = s_inflateEnd(strm);
-		prt_info("call s_inflateEnd to clean the sw resource,rc=%d\n",rc);
+		rc = sw_inflateEnd(strm);
+		prt_info("call sw_inflateEnd to clean the sw resource,rc=%d\n",rc);
 		strm->state = temp;
 		s->sw_stream = NULL;
 	}
@@ -1936,7 +1936,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 
 	strm->state = NULL;
 	if(nx_config.gzip_selector == GZIP_MIX){
-		rc = s_inflateInit2_(strm, windowBits, version, stream_size);
+		rc = sw_inflateInit2_(strm, windowBits, version, stream_size);
 		if(rc != Z_OK) return rc;
 
 		/*If the stream has been initialized by sw*/
@@ -1948,7 +1948,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 
 		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
 		if(rc != Z_OK){
-			s_inflateEnd(strm);
+			sw_inflateEnd(strm);
 			return rc;
 		}
 
@@ -1960,7 +1960,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 	}else if(nx_config.gzip_selector == GZIP_NX){
 		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
 	}else{
-		rc = s_inflateInit2_(strm, windowBits, version, stream_size);
+		rc = sw_inflateInit2_(strm, windowBits, version, stream_size);
 	}
 	return rc;
 }
@@ -1969,7 +1969,7 @@ int inflateReset(z_streamp strm)
 	int rc;
 
 	if (0 == has_nx_state(strm)){
-		rc = s_inflateReset(strm);
+		rc = sw_inflateReset(strm);
 	}else{
 		rc = nx_inflateReset(strm);
 	}
@@ -1982,7 +1982,7 @@ int inflateReset2(z_streamp strm, int windowBits)
 	int rc;
 
 	if (0 == has_nx_state(strm)){
-		rc = s_inflateReset2(strm,windowBits);
+		rc = sw_inflateReset2(strm,windowBits);
 	}else{
 		rc = nx_inflateReset2(strm,windowBits);
 	}
@@ -1995,7 +1995,7 @@ int inflateResetKeep(z_streamp strm)
 	int rc;
 
 	if (0 == has_nx_state(strm)){
-		rc = s_inflateResetKeep(strm);
+		rc = sw_inflateResetKeep(strm);
 	}else{
 		rc = nx_inflateResetKeep(strm);
 	}
@@ -2012,7 +2012,7 @@ int inflateEnd(z_streamp strm)
 	zlib_stats_inc(&zlib_stats.inflateEnd);
 
 	if (0 == has_nx_state(strm)){
-		rc = s_inflateEnd(strm);
+		rc = sw_inflateEnd(strm);
 	}else{
 		rc =nx_inflateEnd(strm);
 	}
@@ -2037,9 +2037,9 @@ int inflate(z_streamp strm, int flush)
 
 
 	if (0 == has_nx_state(strm)){
-		prt_info("call s_inflate,len=%d\n", strm->avail_in);
-		rc = s_inflate(strm, flush);
-		prt_info("call s_inflate,rc=%d\n", rc);
+		prt_info("call sw_inflate,len=%d\n", strm->avail_in);
+		rc = sw_inflate(strm, flush);
+		prt_info("call sw_inflate,rc=%d\n", rc);
 	}else{
 		rc = nx_inflate(strm, flush);
 	}
@@ -2078,7 +2078,7 @@ int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLengt
 	int rc;
 
 	if (0 == has_nx_state(strm)){
-		rc = s_inflateSetDictionary(strm, dictionary, dictLength);
+		rc = sw_inflateSetDictionary(strm, dictionary, dictLength);
 	}else{
 		rc = nx_inflateSetDictionary(strm, dictionary, dictLength);
 	}
@@ -2091,7 +2091,7 @@ int inflateCopy(z_streamp dest, z_streamp source)
 	int rc;
 
 	if (0 == has_nx_state(source)){
-		rc = s_inflateCopy(dest, source);
+		rc = sw_inflateCopy(dest, source);
 	}else{
 		rc = nx_inflateCopy(dest, source);
 	}
@@ -2104,7 +2104,7 @@ int inflateGetHeader(z_streamp strm, gz_headerp head)
 	int rc;
 
 	if (0 == has_nx_state(strm)){
-		rc = s_inflateGetHeader(strm, head);
+		rc = sw_inflateGetHeader(strm, head);
 	}else{
 		rc = nx_inflateGetHeader(strm, head);
 	}
@@ -2117,7 +2117,7 @@ int inflateSyncPoint(z_streamp strm)
 	int rc;
 
 	if (0 == has_nx_state(strm))
-		rc = s_inflateSyncPoint(strm);
+		rc = sw_inflateSyncPoint(strm);
 	else
 		rc = nx_inflateSyncPoint(strm);
 

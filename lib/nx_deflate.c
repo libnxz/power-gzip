@@ -542,8 +542,8 @@ int nx_deflateEnd(z_streamp strm)
 	if(s->sw_stream){
 		temp  = (void *)strm->state;
 		strm->state = s->sw_stream;
-		rc = s_deflateEnd(strm);
-		prt_info("call s_deflateEnd to release sw resource,rc=%d\n",rc);
+		rc = sw_deflateEnd(strm);
+		prt_info("call sw_deflateEnd to release sw resource,rc=%d\n",rc);
 		strm->state = temp;
 		s->sw_stream = NULL;
         }
@@ -1543,7 +1543,7 @@ int nx_deflate(z_streamp strm, int flush)
 
 		strm->state = temp;
 		prt_info("call software deflate,len=%d\n", strm->avail_in);
-		rc = s_deflate(strm,flush);
+		rc = sw_deflate(strm,flush);
 		prt_info("call software deflate, rc=%d\n", rc);
 		return rc;
 	}else if(s->sw_stream){
@@ -1551,8 +1551,8 @@ int nx_deflate(z_streamp strm, int flush)
 		temp  = (void *)strm->state;
 		strm->state = s->sw_stream;
 
-		rc = s_deflateEnd(strm);
-		prt_info("call s_deflateEnd to clean the sw resource,rc=%d\n",rc);
+		rc = sw_deflateEnd(strm);
+		prt_info("call sw_deflateEnd to clean the sw resource,rc=%d\n",rc);
 		strm->state = temp;
 		s->sw_stream = NULL;
 	}
@@ -1868,8 +1868,8 @@ int nx_deflateSetHeader(z_streamp strm, gz_headerp head)
 	if(s->sw_stream){
 		temp = (void *)strm->state;
 		strm->state = s->sw_stream;
-		rc = s_deflateSetHeader(strm, head);
-		prt_info("call s_deflateSetHeader, rc=%d\n",rc);
+		rc = sw_deflateSetHeader(strm, head);
+		prt_info("call sw_deflateSetHeader, rc=%d\n",rc);
 
 		strm->state = temp;
 	}
@@ -2145,7 +2145,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	if(nx_config.gzip_selector == GZIP_MIX){
 
 		/* call sw and nx initialization */
-		rc = s_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 		if(rc != Z_OK)
 			return rc;
 
@@ -2158,7 +2158,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 		if(rc != Z_OK){
-			s_deflateEnd(strm); /* release the sw initializtion */
+			sw_deflateEnd(strm); /* release the sw initializtion */
 			return rc;
 		}
 
@@ -2172,7 +2172,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	}else if(nx_config.gzip_selector == GZIP_NX || nx_config.gzip_selector == GZIP_MIX2){
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 	}else{
-		rc = s_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 	}
 
 	return rc;
@@ -2183,7 +2183,7 @@ int deflateReset(z_streamp strm)
 	int rc;
 
 	if (0 == has_nx_state(strm)){
-		rc = s_deflateReset(strm);
+		rc = sw_deflateReset(strm);
 	}else{
 		rc = nx_deflateReset(strm);
 	}
@@ -2196,7 +2196,7 @@ int deflateResetKeep(z_streamp strm)
 	int rc;
 
 	if (0 == has_nx_state(strm)){
-		rc = s_deflateResetKeep(strm);
+		rc = sw_deflateResetKeep(strm);
 	}else{
 		rc = nx_deflateResetKeep(strm);
 	}
@@ -2214,8 +2214,8 @@ int deflateEnd(z_streamp strm)
 
 
 	if (0 == has_nx_state(strm)){
-		rc = s_deflateEnd(strm);
-		prt_info("call s_deflateEnd,rc=%d\n", rc);
+		rc = sw_deflateEnd(strm);
+		prt_info("call sw_deflateEnd,rc=%d\n", rc);
 	}else{
 		rc = nx_deflateEnd(strm);
 	}
@@ -2238,9 +2238,9 @@ int deflate(z_streamp strm, int flush)
 	}
 
 	if (0 == has_nx_state(strm)){
-		prt_info("call s_deflate,len=%d\n", strm->avail_in);
-		rc = s_deflate(strm, flush);
-		prt_info("call s_deflate,rc=%d\n", rc);
+		prt_info("call sw_deflate,len=%d\n", strm->avail_in);
+		rc = sw_deflate(strm, flush);
+		prt_info("call sw_deflate,rc=%d\n", rc);
 	}else{
 		rc = nx_deflate(strm, flush);
 	}
@@ -2282,11 +2282,11 @@ unsigned long deflateBound(z_streamp strm, unsigned long sourceLen)
 
 	if (strm == NULL) {
 		return NX_MAX(nx_deflateBound(NULL, sourceLen),
-		           s_deflateBound(NULL, sourceLen));
+		           sw_deflateBound(NULL, sourceLen));
 	}
 
 	if (0 == has_nx_state(strm)){
-		rc = s_deflateBound(strm, sourceLen);
+		rc = sw_deflateBound(strm, sourceLen);
 	}else{
 		rc = nx_deflateBound(strm, sourceLen);
 	}
@@ -2299,7 +2299,7 @@ int deflateSetHeader(z_streamp strm, gz_headerp head)
 	int rc;
 
 	if (0 == has_nx_state(strm)){
-		rc = s_deflateSetHeader(strm, head);
+		rc = sw_deflateSetHeader(strm, head);
 	}else{
 		rc = nx_deflateSetHeader(strm, head);
 	}
@@ -2312,7 +2312,7 @@ int deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLeng
 	int rc;
 
 	if (0 == has_nx_state(strm)){
-		rc = s_deflateSetDictionary(strm, dictionary, dictLength);
+		rc = sw_deflateSetDictionary(strm, dictionary, dictLength);
 	}else{
 		rc = nx_deflateSetDictionary(strm, dictionary, dictLength);
 	}
@@ -2325,7 +2325,7 @@ int deflateCopy(z_streamp dest, z_streamp source)
 	int rc;
 
 	if (0 == has_nx_state(source)){
-		rc = s_deflateCopy(dest, source);
+		rc = sw_deflateCopy(dest, source);
 	}else{
 		rc = nx_deflateCopy(dest, source);
 	}

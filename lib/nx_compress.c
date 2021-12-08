@@ -100,11 +100,11 @@ int compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen
 	int rc=0;
 
 	if(nx_config.gzip_selector == GZIP_MIX){
-		rc = s_compress2(dest, destLen, source, sourceLen, level);
+		rc = sw_compress2(dest, destLen, source, sourceLen, level);
 	}else if(nx_config.gzip_selector == GZIP_NX){
 		rc = nx_compress2(dest, destLen, source, sourceLen, level);
 	}else{
-		rc = s_compress2(dest, destLen, source, sourceLen, level);
+		rc = sw_compress2(dest, destLen, source, sourceLen, level);
 	}
 
 	/* statistic */
@@ -116,8 +116,7 @@ int compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen
 uLong compressBound(uLong sourceLen)
 {
 	return	NX_MAX(nx_deflateBound(NULL, sourceLen),
-                   s_deflateBound(NULL, sourceLen));
+                   sw_deflateBound(NULL, sourceLen));
 }
 
 #endif
-

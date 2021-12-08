@@ -107,7 +107,6 @@ static int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x0;
 FILE *nx_gzip_log = NULL;		/* default is /tmp/nx.log, unless overwritten */
-int nx_strategy_override = 1;           /* 0 is fixed huffman, 1 is dynamic huffman */
 
 pthread_mutex_t mutex_log;
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
@@ -908,7 +907,7 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "def_buf_size: %u\n", nx_config.strm_def_bufsz);
 	fprintf(fp, "trace: %d\n", nx_gzip_trace);
 	fprintf(fp, "dht: %d\n", nx_config.dht);
-	fprintf(fp, "strategy: %d\n", nx_strategy_override);
+	fprintf(fp, "strategy: %d\n", nx_config.strategy_override);
 	fprintf(fp, "mlock_csb: %d\n", nx_config.mlock_nx_crb_csb);
 	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
 	fprintf(fp, "soft_copy_threshold: %d\n", nx_config.soft_copy_threshold);
@@ -972,6 +971,7 @@ void nx_hw_init(void)
 	nx_config.timeout_pgfaults = 300; /* seconds */
 	nx_config.dht = 0; /* default is literals only */
 	nx_config.nx_ratio = 100; /* default is 100% NX */
+	nx_config.strategy_override = 1; /* default is dynamic huffman */
 
 	if (!cfg_file_s)
 		cfg_file_s = "./nx-zlib.conf";
@@ -1087,10 +1087,10 @@ void nx_hw_init(void)
 	}
 
 	if (strategy_ovrd != NULL) {
-		nx_strategy_override = str_to_num(strategy_ovrd);
-		if (nx_strategy_override != 0 && nx_strategy_override != 1) {
+		nx_config.strategy_override = str_to_num(strategy_ovrd);
+		if (nx_config.strategy_override != 0 && nx_config.strategy_override != 1) {
 			prt_err("Invalid NX_GZIP_DEFLATE, use default value\n");
-			nx_strategy_override = 0;
+			nx_config.strategy_override = 0;
 		}
 	}
 

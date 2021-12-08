@@ -114,8 +114,6 @@ typedef int retlibnx_t;
 typedef int retz_t;
 typedef int retnx_t;
 
-extern int nx_strategy_override;
-
 /* **************************************************************** */
 #define LIBNX_OK              0x00
 #define LIBNX_OK_SUSPEND      0x01
@@ -638,7 +636,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->method     = method;
 
 	s->strategy   = strategy;
-	if (s->strategy == Z_FIXED || nx_strategy_override == 0)
+	if (s->strategy == Z_FIXED || nx_config.strategy_override == 0)
 		s->strategy = Z_FIXED;
 	else
 		s->strategy = Z_DEFAULT_STRATEGY;

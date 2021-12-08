@@ -909,7 +909,7 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "page_sz: %ld\n", nx_config.page_sz);
 	fprintf(fp, "def_buf_size: %u\n", nx_config.strm_def_bufsz);
 	fprintf(fp, "trace: %d\n", nx_gzip_trace);
-	fprintf(fp, "dht_config: %d\n", nx_dht_config);
+	fprintf(fp, "dht: %d\n", nx_config.dht);
 	fprintf(fp, "strategy: %d\n", nx_strategy_override);
 	fprintf(fp, "mlock_csb: %d\n", nx_config.mlock_nx_crb_csb);
 	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
@@ -972,6 +972,7 @@ void nx_hw_init(void)
 	nx_config.verbose = 0;
 	nx_config.mlock_nx_crb_csb = 0;
 	nx_config.timeout_pgfaults = 300; /* seconds */
+	nx_config.dht = 0; /* default is literals only */
 
 	if (!cfg_file_s)
 		cfg_file_s = "./nx-zlib.conf";
@@ -1095,8 +1096,8 @@ void nx_hw_init(void)
 	}
 
 	if (dht_config != NULL) {
-		nx_dht_config = str_to_num(dht_config);
-		prt_info("DHT config set to 0x%x\n", nx_dht_config);
+		nx_config.dht = str_to_num(dht_config);
+		prt_info("DHT config set to 0x%x\n", nx_config.dht);
 	}
 
 	/* If user is asking for a specific accelerator. Otherwise we

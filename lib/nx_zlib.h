@@ -109,8 +109,7 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg);
 extern const char *zlibVersion OF((void));
 
 extern uint8_t gzip_selector;
-/* ratio from 0 to 100 indicating 0% to 100% of nx over sw */
-extern uint8_t nx_ratio;
+
 /* common config variables for all streams */
 struct nx_config_t {
 	long     page_sz;
@@ -133,6 +132,8 @@ struct nx_config_t {
 	int      verbose;
 	int      mlock_nx_crb_csb;
 	int      dht;
+	uint8_t  nx_ratio; /** ratio from 0 to 100 indicating 0% to 100% of nx
+			    * over sw */
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;
@@ -331,7 +332,7 @@ static inline int use_nx_inflate(z_streamp strm)
 
 	/* #2 Percentage */
 	rnd = __ppc_get_timebase();
-	if( rnd%100 < nx_ratio){ /* use nx to nx_ratio */
+	if( rnd%100 < nx_config.nx_ratio){ /* use nx to nx_ratio */
 		return 1; /* nx */
 	}else{
 		return 0;

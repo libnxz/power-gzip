@@ -103,8 +103,6 @@ static pthread_mutex_t saved_nx_devp_mutex;   /* mutex to protect vars above */
 
 int nx_dbg = 0;
 uint8_t gzip_selector = GZIP_NX;
-/* default is 100% nx */
-uint8_t nx_ratio = 100;
 static int nx_gzip_chip_num = -1;
 
 int nx_gzip_trace = 0x0;
@@ -973,6 +971,7 @@ void nx_hw_init(void)
 	nx_config.mlock_nx_crb_csb = 0;
 	nx_config.timeout_pgfaults = 300; /* seconds */
 	nx_config.dht = 0; /* default is literals only */
+	nx_config.nx_ratio = 100; /* default is 100% NX */
 
 	if (!cfg_file_s)
 		cfg_file_s = "./nx-zlib.conf";
@@ -1044,12 +1043,12 @@ void nx_hw_init(void)
 	prt_info("%d NX GZIP Accelerator Found!\n",nx_count);
 
 	if (nx_ratio_s != NULL) {
-		nx_ratio = str_to_num(nx_ratio_s);
-		if (nx_ratio > 100){
+		nx_config.nx_ratio = str_to_num(nx_ratio_s);
+		if (nx_config.nx_ratio > 100){
 			prt_err("NXGZIP Ratio is out of range(0,100), use default 100.\n");
-			nx_ratio = 100;
+			nx_config.nx_ratio = 100;
 		}
-		prt("Use NX Ratio: %d %% \n", nx_ratio);
+		prt("Use NX Ratio: %d %% \n", nx_config.nx_ratio);
 	}
 
 	if (trace_s != NULL)

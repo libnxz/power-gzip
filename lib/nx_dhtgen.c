@@ -35,7 +35,7 @@
  */
 
 
-/* 
+/*
    Usage: feed the lzcounts in the P9 cpbout memory buffer to dhtgen()
    and get back a dynamic huffman table (DHT) that you can feed to P9
    in the second pass compress.  Optionally, you can manipulate the
@@ -46,7 +46,7 @@
    unit test
      gcc dhtgen.c -o dhtgen -D_DHTGEN_TEST
    library
-     gcc -c dhtgen.c 
+     gcc -c dhtgen.c
    regression
      gcc dhtgen.c mtree.c -o dhtgen -D_DHTGEN_TEST -D_RANDOM_TEST
      and run it as ./dhtgen <seed>; see test2.sh as a regression example
@@ -90,11 +90,11 @@ int  dhtgen (
     int num_lhist,
     uint32_t *dhist,
     int num_dhist,
-    char *dht,     /* dht returned here; caller is responsible for alloc/free of min 300 bytes */    
+    char *dht,     /* dht returned here; caller is responsible for alloc/free of min 300 bytes */
     int  *dht_num_bytes,     /* number of valid bytes in *dht */
-    int  *dht_num_valid_bits,     /* valid bits in the LAST byte; note the value of 0 is encoded as 8 bits */    
+    int  *dht_num_valid_bits,     /* valid bits in the LAST byte; note the value of 0 is encoded as 8 bits */
     int  cpb_header        /* set nonzero if prepending the 16 byte P9 compliant cpbin header with the bit length of dht */
-    ); 
+    );
 
 #define outf       stdout
 
@@ -160,7 +160,7 @@ typedef struct _q
     void *arr;
 } q_t;
 
-/* ***************************************************************** 
+/* *****************************************************************
  * Queuing routines
  * Written as macros to serve different struct types
  * ***************************************************************** */
@@ -178,8 +178,8 @@ typedef struct _q
 	(qp)->tail = ((qp)->tail + 1) % (qp)->num_elts;			\
 	++ (qp)->count; })
 
-/* remove eltp from queue and copy in to elt; 
-   return the number queued elements before delete; 0 is empty and 
+/* remove eltp from queue and copy in to elt;
+   return the number queued elements before delete; 0 is empty and
    and *eltp is invalid) */
 #define del_q( qp, type, eltp ) \
     ({ int rc;								\
@@ -210,7 +210,7 @@ typedef struct _q
 	      pr_trace ("%3d : %d\n",			\
 			((type *)(listp))[i].symbol,	\
 			((type *)(listp))[i].count );	\
-	    }} pr_trace("\n");} while(0)				
+	    }} pr_trace("\n");} while(0)
 
 static void print_lzcounts(uint32_t *hist, int num, char *kind )
 {
@@ -225,11 +225,11 @@ static void print_lzcounts(uint32_t *hist, int num, char *kind )
     pr_info ("\n\n");
 }
 
-/* 
+/*
    Initialize zero lzcounts to a val.  If DHT will be used once set
    val=0 If DHT will be used repeatedly for different input set val=1
    Setting val != 0 ensures that the DHT contains a symbol for all
-   possible symbols at the expense of DHTs being larger 
+   possible symbols at the expense of DHTs being larger
 */
 
 void fill_zero_lzcounts(uint32_t *llhist, uint32_t *dhist, uint32_t val)
@@ -249,9 +249,9 @@ void fill_zero_lzcounts(uint32_t *llhist, uint32_t *dhist, uint32_t val)
 	}
 }
 
-/* 
+/*
    Handles the nx uninitialized hash table quirk: changes length
-   and distance counts to non-zero;  literal counts unchanged 
+   and distance counts to non-zero;  literal counts unchanged
 */
 void fill_zero_len_dist(uint32_t *llhist, uint32_t *dhist, uint32_t val)
 {
@@ -268,12 +268,12 @@ void fill_zero_len_dist(uint32_t *llhist, uint32_t *dhist, uint32_t val)
     }
 }
 
-/* ***************************************************************** 
+/* *****************************************************************
  * Huffman logic
  * ***************************************************************** */
 
-/* 
-   returns count of symbols with non-zero count 
+/*
+   returns count of symbols with non-zero count
 */
 static int copy_hist_to_leaf_node(leaf_node_t *t, uint32_t *hist, int nsym )
 {
@@ -287,9 +287,9 @@ static int copy_hist_to_leaf_node(leaf_node_t *t, uint32_t *hist, int nsym )
     return sum;
 }
 
-/* 
+/*
    Normalize the counts that the sum of counts is less than or equal to
-   the limit argument. It sets the max depth to log2(limit) for 
+   the limit argument. It sets the max depth to log2(limit) for
    most count distributions (although not a guaranteed upper bound)
 */
 static int length_limit(uint32_t *hist, int nsym, int limit)
@@ -303,11 +303,11 @@ static int length_limit(uint32_t *hist, int nsym, int limit)
 	sum += hist[i];
     }
 
-    divisor = ( sum + limit - 1 ) / limit; 
+    divisor = ( sum + limit - 1 ) / limit;
 
     /* all non-zero values will remain non-zero */
     for(i=0; i<nsym; i++) {
-	hist[i] = (hist[i] + divisor - 1) / divisor; 
+	hist[i] = (hist[i] + divisor - 1) / divisor;
 	sum2 += hist[i];
     }
     pr_trace ("sum2 %ld sum %ld %d %ld\n", sum2, sum, nsym, divisor);
@@ -315,7 +315,7 @@ static int length_limit(uint32_t *hist, int nsym, int limit)
     return sum2;
 }
 
-/* 
+/*
    Sort by count; argument is 1 if ascending sort; -1 if descending
    sort.  if qsort_r() is not available, then implement two flavors of
    cmp_count one for ascending and one of descending
@@ -331,7 +331,7 @@ static int cmp_count_r(const void *p1, const void *p2, void *arg)
     if( ascending ) {
 	/* treat zero counts as infinite to eliminate them during sort */
 	p1_count = (p1_count) ? p1_count : INT_MAX;
-	p2_count = (p2_count) ? p2_count : INT_MAX;	
+	p2_count = (p2_count) ? p2_count : INT_MAX;
     }
 
     if( p1_count < p2_count ) {
@@ -354,7 +354,7 @@ static int cmp_count(const void *p1, const void *p2)
     return cmp_count_r( p1, p2, &ascending);
 }
 
-/* 
+/*
    extract the depth of each symbol
 */
 static void tree_walk( huff_tree_t *htree, u9 node, int depth )
@@ -365,13 +365,13 @@ static void tree_walk( huff_tree_t *htree, u9 node, int depth )
     /* saturate at 31 */
     depth_plus = ( depth < 31 ) ? depth+1 : 31;
 
-    left = htree->tree[node].child[0]; 
+    left = htree->tree[node].child[0];
     rite = htree->tree[node].child[1];
 
     if (depth > htree->max_len) htree->max_len = depth;
 
     ASSERT( left < NLEN && rite < NLEN );
-    
+
     pr_trace ("tree walk %d count %d left %d right %d\n",
 	     htree->tree[node].sc.symbol, htree->tree[node].sc.count, left, rite);
 
@@ -383,7 +383,7 @@ static void tree_walk( huff_tree_t *htree, u9 node, int depth )
 	htree->sym_len[ left ] = depth;
 	pr_trace ("  left child %d, depth %d\n", left, depth );
     }
-    
+
     if( ! htree->tree[node].is_leaf[1] ) {
 	/* an internal node node */
 	tree_walk( htree, rite, depth_plus );
@@ -394,23 +394,23 @@ static void tree_walk( huff_tree_t *htree, u9 node, int depth )
     }
 }
 
-/* 
+/*
    Symbol code lengths assigned by the huffman algorithm
 */
 static void print_sym_len(u5 *sym_len, int nsym )
 {
     int i;
     ASSERT( sym_len );
-    pr_info ("SYMLENS\n" );    
+    pr_info ("SYMLENS\n" );
     for(i=0; i<nsym; i++) {
 	if( !!sym_len[i] ) {
-	    pr_info ("%3d : %d\n", i, sym_len[i] ); 
+	    pr_info ("%3d : %d\n", i, sym_len[i] );
 	}
     }
     pr_info ("\n\n");
 }
 
-/* 
+/*
    Hist are the counts of LZ symbols 0 to len-1.  nz_len is the number
    of nonzero counts in hist; TODO do I really need nz_len?  returns
    the maximum depth found in the huffman tree
@@ -433,20 +433,20 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 
     /* 2. Enqueue all leaf nodes into the first queue (by probability
        in increasing order so that the least likely item is in the
-       head of the queue). */    
+       head of the queue). */
     qsort( (void *)leafarr, nsym, sizeof(leaf_node_t), cmp_count );
     DBG( print_symbol_list( leafarr, leaf_node_t, nsym ) );
 
     /* Leaf contains sorted symbols in ascending order, except the 0
        count symbols are pushed to the back (therefore queue is nz_nsym
        long) */
-    
+
     /* Setup the leaf queue */
     init_q( &leaf_q, leaf_node_t, nz_nsym );
     leaf_q.arr = leafarr;
     leaf_q.tail = nz_nsym;
-    leaf_q.count = nz_nsym;    
-    
+    leaf_q.count = nz_nsym;
+
     /* Setup the tree nodes queue Note: don't need NLEN queue elements
        in principle because there can be at most ceil( NLEN/2 )
        elements in the queue at once.  (imagine all leaf nodes are
@@ -461,7 +461,7 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
     node_q.arr = nodearr;
     node_q.tail = 0;
     node_q.count = 0;
-    
+
     /* 3. While there is more than one node in the queues: */
     while( (countof_q( &leaf_q ) + countof_q( &node_q )) > 1 ) {
 	leaf_node_t leaf_node;
@@ -487,13 +487,13 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 		    is_leaf[idx] = 1;
 		    ++ idx;
 		    del_q( &leaf_q, leaf_node_t, NULL );
-		    
+
 		}
 		else {
 		    /* remove from tree node queue */
 		    node[idx] = tree_node;
-		    is_leaf[idx] = 0;		    
-		    ++ idx;		    
+		    is_leaf[idx] = 0;
+		    ++ idx;
 		    del_q( &node_q, tree_node_t, NULL );
 		}
 	    }
@@ -502,14 +502,14 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 		/* node queue is empty */
 		node[idx].sc = leaf_node;
 		is_leaf[idx] = 1;
-		++ idx;		
+		++ idx;
 		del_q( &leaf_q, leaf_node_t, NULL );
 	    }
 
 	    else if( num_leaf == 0 && num_node > 0 ) {
 		/* symbol queue is empty */
 		node[idx] = tree_node;
-		is_leaf[idx] = 0;		
+		is_leaf[idx] = 0;
 		++ idx;
 		del_q( &node_q, tree_node_t, NULL );
 	    }
@@ -536,7 +536,7 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 	new_node.child[0] = node[0].sc.symbol;
 	new_node.child[1] = node[1].sc.symbol;
 	new_node.is_leaf[0] = is_leaf[0];
-	new_node.is_leaf[1] = is_leaf[1];  
+	new_node.is_leaf[1] = is_leaf[1];
 
 	/*  3.3 Enqueue the new node into the tail of the second
 	 *  queue. */
@@ -547,14 +547,14 @@ static int huffman_tree(uint32_t *hist, int nsym, huff_tree_t *htree)
 		  new_node.sc.count,
 		  new_node.child[0], /* left */
 		  new_node.child[1] ); /* right */
-	
+
     }
 
     /* The remaining node is the root node; the tree has now been
      * generated. */
     ASSERT( countof_q( &leaf_q ) == 0 );
     int num_remaining = headof_q( &node_q, tree_node_t, &remaining_node );
-    ASSERT( num_remaining == 1 ); 
+    ASSERT( num_remaining == 1 );
 
     pr_trace ("node %d count %d left %d right %d\n",
 		 remaining_node.sc.symbol,
@@ -594,33 +594,33 @@ static void huffmanize( uint32_t *hist, int num_hist, huff_tree_t *tree )
     } while ( max_depth > 15 ); /* if code length exceeds 15 re-run length_limit() */
 }
 
-/* 
+/*
    Hclen codes and their lengths are returned in hclen_tab;
    The .count field is unused in this implementation
-   
+
    In theory we should run the huffman algorithm on the hclen codes as
    well.  But I will hard code the table here because it is small,
    usually around ~100 bytes which doesn't make a big difference in
    the compressed data size. The hclen lengths I chose are typical for
    many compressed data that I looked at (they jibe with the
    hclen order, except for 16,17,18)
-   
+
 */
 
 static int encode_hclen(hclen_t *hclen_tab, u5 *sym_len, int num_lsym, int num_dsym )
 {
     int i;
-    /* Spec says: 
+    /* Spec says:
        (HCLEN + 4) x 3 bits: code lengths for the code length
        alphabet given just above, in the order: 16, 17, 18,
-       0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 
+       0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
 
-       Hard coded hclen lengths 
-       3 bit 7 8 9 10 
-       4 bit 5 6 11 14 
-       5 bit 0 3 4 12 13 17 
-       6 bit 2 16 18 
-       7 bit 1 15  
+       Hard coded hclen lengths
+       3 bit 7 8 9 10
+       4 bit 5 6 11 14
+       5 bit 0 3 4 12 13 17
+       6 bit 2 16 18
+       7 bit 1 15
 
        Huffman codes have MS bit on the right; so I will reverse bits
        in the hex representation
@@ -660,8 +660,8 @@ static void print_hclen(hclen_t *hclen_tab)
 }
 
 
-/* 
-   macros for writing bits in to the DHT 
+/*
+   macros for writing bits in to the DHT
 */
 #define append_bits( data, nbits ) do {		\
 	bitbuf |= ((data) << bitptr);		\
@@ -676,7 +676,7 @@ static void print_hclen(hclen_t *hclen_tab)
 	    bitbuf = bitbuf >> 8;		\
 	}                                       \
     } while(0)
-	    
+
 #define flush_bits(x) do {			\
 	if ( bitptr > 0 ) {			\
 	    /* the byte is not empty */		\
@@ -685,7 +685,7 @@ static void print_hclen(hclen_t *hclen_tab)
 	}					\
     } while(0)
 
-/* 
+/*
    RFC 1951 Section 3.2.7
 
    0 - 15: Represent code lengths of 0 - 15
@@ -701,10 +701,10 @@ static void print_hclen(hclen_t *hclen_tab)
    18: Repeat the length 0 for 11 - 138 times
    (7 bits of repeat value)
    For example, 7 sequential 0's
-   may be encoded as 17(7), and 138 sequential 
+   may be encoded as 17(7), and 138 sequential
    zeros may be encoded as 18(138)
 
-   Returns the number of bits in *dht 
+   Returns the number of bits in *dht
 */
 static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 {
@@ -718,15 +718,15 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
     uint32_t bittotal;
     int nhclen, nhlit, nhdist;
     int horder[19] = { 16, 17, 18,  0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
-    
+
     bittotal = 0;
     bitbuf = 0;
     bitptr = 0;
-    
+
     nhclen = encode_hclen( hclen, sym_len, num_lsym, num_dsym );
 
-    /* 
-       write HLIT, HDIST, HCLEN fields in the DHT, Deflate section 3.2.7 
+    /*
+       write HLIT, HDIST, HCLEN fields in the DHT, Deflate section 3.2.7
        You may have fewer than 257 HLIT symbols but you must still encode
        the first 257 lit/len symbols, and at least 1 dist symbol
     */
@@ -739,7 +739,7 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
        fprintf(outf, "\n" );  */
 
     pr_trace ("hlit hdist hclen %d %d %d\n", nhlit, nhdist, nhclen );
-    pr_trace ("hlit hdist hclen %d %d %d encoded\n", nhlit-257, nhdist-1, nhclen-4 );    
+    pr_trace ("hlit hdist hclen %d %d %d encoded\n", nhlit-257, nhdist-1, nhclen-4 );
 
     *dht = 0;
     append_bits( nhlit-257, 5 );
@@ -747,7 +747,7 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
     append_bits( nhclen-4, 4 );
 
     /* write hclen symbol's number of bits per Deflate 3.2.7 */
-    for(i=0; i<19; i++) 
+    for(i=0; i<19; i++)
 	append_bits( hclen[ horder[i] ].nbits, 3 );
 
     /* encode the symbols using hclen codes */
@@ -760,7 +760,7 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 	if ( i == num_sym_len )
 	    new_len = UINT32_MAX;  /* pushes out the last symbol */
 	else
-	    new_len = sym_len[i]; 
+	    new_len = sym_len[i];
 
 	switch( state ) {
 
@@ -775,7 +775,7 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 		pr_trace ( "%2d %d\n", cur_len, cur_idx) ;
 		append_bits( hclen[ cur_len ].code, hclen[ cur_len ].nbits );
 		next_len = new_len;
-		next_state = 1;		
+		next_state = 1;
 	    }
 	    else {
 		/* cur_len == new_len; repeating symbol len */
@@ -791,7 +791,7 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 		    /* new_len == 0 */
 		    /* repeating zero len */
 		    next_state = 17;
-		    count = 2;	    
+		    count = 2;
 		}
 	    }
 	    break;
@@ -800,7 +800,7 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 	    if( new_len != cur_len) {
 		/* repeats stopped early */
 		if ( count < 3 ) {
-		    /* output symbol cur_len count times individually; 
+		    /* output symbol cur_len count times individually;
 		       16 didn't work because needs a minimum three 0's  */
 		    for(j=1; j<=count; j++) {
 			pr_trace ("%2d %d\n",  cur_len, cur_idx-count+j);
@@ -813,10 +813,10 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 		    pr_trace ("16 rpt(%d)\n", count);
 		    /* first the encoded symbol 16, then it's repeat count argument */
 		    append_bits( hclen[ 16 ].code, hclen[ 16 ].nbits );
-		    append_bits( count - 3, 2 ); 
+		    append_bits( count - 3, 2 );
 		}
 		next_state = 1;
-		next_len = new_len;		
+		next_len = new_len;
 	    }
 	    else {
 		/* cur_len continues */
@@ -830,7 +830,7 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 		    count = 1;
 		}
 		else {
-		    count = count + 1;		    		    
+		    count = count + 1;
 		}
 		next_state = 16; /* to continue with cur_len */
 		next_len = new_len;
@@ -847,7 +847,7 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 		    for(j=1; j<=count; j++) {
 			pr_trace ( "%2d %d\n",  0, cur_idx-count+j);
 			append_bits( hclen[ 0 ].code, hclen[ 0 ].nbits );
-		    }		    
+		    }
 		}
 		else {
 		    /* output 17 with count (3 to 10 times) */
@@ -894,12 +894,12 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 		    append_bits( count - 11, 7 );
 		    next_state = 17; /* to continue with zeros */
 		    next_len = new_len;
-		    count = 1;		    
+		    count = 1;
 		}
 		else {
 		    next_state = 18;
 		    next_len = new_len;
-		    count = count + 1;		    		    
+		    count = count + 1;
 		}
 	    }
 	    break;
@@ -915,7 +915,7 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
 }
 
 
-/* 
+/*
    In the first 16 bytes of the dht buffer, the dht bit length must be
    declared per P9 spec
 */
@@ -928,7 +928,7 @@ static int add_cpb_header(char *dht, int dht_num_bytes, int dht_num_valid_bits)
     /* Handle valid bits in the last byte; note that the
        dht_num_valid_bits=0 is encoded as 8 valid bits.  Why?  Because
        it doesn't make sense to have 0 valid bits in the last valid byte
-       therefore 0==8 saves 1 bit in the hardware data format. 
+       therefore 0==8 saves 1 bit in the hardware data format.
     */
     invalid_bits = ( dht_num_valid_bits ) ? 8 - dht_num_valid_bits : 0 ;
     dht_bits = 8 * dht_num_bytes - invalid_bits;
@@ -939,7 +939,7 @@ static int add_cpb_header(char *dht, int dht_num_bytes, int dht_num_valid_bits)
 }
 
 
-/* 
+/*
    The main library routine producing a DHT in the manner of Deflate
 */
 int dhtgen (
@@ -959,16 +959,16 @@ int dhtgen (
     uint32_t total_bits;
 
     pr_trace ("num lhist %d dhist %d\n", num_lhist, num_dhist );
-    
+
     if( cpb_header )
 	dhtbuf = dht + CPB_HDR_SZ; /* make room for a header */
     else
 	dhtbuf = dht;
-    
+
     /* Symbol length array to be produced by the Deflate huffman algorithm. */
     memset(lens, 0, sizeof(u5)*(NLEN+NDIS) );
-    
-    /* Have 2 separate trees for Length/Literals and Distances 
+
+    /* Have 2 separate trees for Length/Literals and Distances
        The two len arrays must be adjacent for the convenience of our coding */
     ll_htree.sym_len = lens;
     /* dis_htree.sym_len = &(lens[num_lhist]); */
@@ -977,7 +977,7 @@ int dhtgen (
     print_lzcounts( lhist, num_lhist, "LL" );
     /* The Literal/Length array */
     huffmanize( lhist, num_lhist, &ll_htree );
-    print_lzcounts( lhist, num_lhist, "LL Normalized" );    
+    print_lzcounts( lhist, num_lhist, "LL Normalized" );
     print_sym_len( ll_htree.sym_len, num_lhist );
 
     print_lzcounts( dhist, num_dhist, "DIST" );
@@ -991,9 +991,9 @@ int dhtgen (
 	/* if no distances then code length = 0 and num dist = 1
 	   if one distance then code length = 1 and num dist = 1 */
 	/* dis_htree.sym_len[0] = num_dhist ? 1 : 0; */
-	dis_htree.sym_len[0] = 1;	
+	dis_htree.sym_len[0] = 1;
 	num_dhist = 1;
-	/* Note: when no distances are in the counts, it's all literals. 
+	/* Note: when no distances are in the counts, it's all literals.
 	   Deflate says the following: "If only one distance code is
 	   used, it is encoded using one bit, not zero bits; in this
 	   case there is a single code length of one, with one unused
@@ -1001,18 +1001,18 @@ int dhtgen (
 	   no distance codes used at all (the data is all literals)."
 	*/
 	dhist[0] = 1;
-	pr_trace ( "1 distance with length 1; num dhist=%d\n", num_dhist);	
+	pr_trace ( "1 distance with length 1; num dhist=%d\n", num_dhist);
 #else
 	/* force a pair of distances when num distances = 1 */
 	num_dhist = 2;
-	dis_htree.sym_len[0] = 1;	
+	dis_htree.sym_len[0] = 1;
 	dis_htree.sym_len[1] = 1;
 	dhist[0] = 1;
 	dhist[1] = 1;
-	pr_trace ( "2 distance with length 1; num dhist=%d\n", num_dhist);		
+	pr_trace ( "2 distance with length 1; num dhist=%d\n", num_dhist);
 #endif
     }
-    print_lzcounts( dhist, num_dhist, "DIST Normalized" );    
+    print_lzcounts( dhist, num_dhist, "DIST Normalized" );
     print_sym_len( dis_htree.sym_len, num_dhist );
 
     /* Now LL and Dist lengths are compacted first then encoded with HCLEN codes  */
@@ -1022,26 +1022,26 @@ int dhtgen (
     /* placeholders */
     *dht_num_bytes = (total_bits + 7) / 8 ;
     *dht_num_valid_bits = total_bits % 8;
-    
+
     /* add a P9 cpbin header indicating the number of dht bits */
     if( cpb_header ) {
 	*dht_num_bytes = add_cpb_header( dht, *dht_num_bytes, *dht_num_valid_bits );
     }
 
     pr_info( "dht bytes: %d (including cpb hdr), valid bits: %d\n", *dht_num_bytes, *dht_num_valid_bits );
-    
+
     return 0;
 }
 
 
 #ifdef _DHTGEN_TEST
 
-/* ***************************************************************** 
+/* *****************************************************************
  * Unit test utilities  */
 
-/* 
+/*
    p9 nx has 24 bit saturating counts; ensures that the counts do not
-   exceed 2^24 simulating nx like result 
+   exceed 2^24 simulating nx like result
 */
 
 static void normalize24(uint32_t *hist, int nsym)
@@ -1065,7 +1065,7 @@ static void normalize24(uint32_t *hist, int nsym)
 	    }
 	}
     }
-}    
+}
 
 
 #ifdef _RANDOM_TEST  /* for regression only, supplies random lzcounts and computes dht */
@@ -1073,18 +1073,18 @@ static void normalize24(uint32_t *hist, int nsym)
 /* make random lz history for testing */
 extern void make_lzcount(int num_sym, uint32_t *hist, int *num_hist, int *num_nz, unsigned int seed);
 
-/* 
+/*
    unit test and usage example
 */
 int main(int argc, char **argv)
 {
     unsigned int i, ret;
     uint32_t lhist[NLEN];
-    uint32_t dhist[NDIS];    
+    uint32_t dhist[NDIS];
     int num_nz_lhist;
     int num_nz_dhist;
     int num_lhist;
-    int num_dhist;        
+    int num_dhist;
     int fill;
     int cpb_num_bytes;
     char dht[512];
@@ -1093,7 +1093,7 @@ int main(int argc, char **argv)
     char fname[] = "./dht.bin";
 
     dhtgen_log = stdout;
-    
+
     /*random seed from command line argument */
     srand( atoi( argv[1] )  );
 
@@ -1103,34 +1103,34 @@ int main(int argc, char **argv)
 
     /* Simulate P9nx cpbout */
     normalize24( lhist, num_lhist );
-    normalize24( dhist, num_dhist );    
+    normalize24( dhist, num_dhist );
 
     /* You may change zero counts to cover all symbols or all length
        and distances.  Canned DHTs which will be reused should change
        **all** counts to non-zero.  Changing only len_dist is needed
        if you want to avoid the occasional symbol not found error in
-       the 2nd pass. Depends on your use case and algorithms 
+       the 2nd pass. Depends on your use case and algorithms
     */
     fill = rand() % 3;  /* simulate */
     switch ( fill ) {
     case 0:
 	fill_zero_lzcounts (lhist, dhist, 1) ;
 	num_lhist = NLEN;
-	num_dhist = NDIS;	
+	num_dhist = NDIS;
 	break;
     case 1:
 	fill_zero_len_dist (lhist, dhist, 1);
 	num_lhist = NLEN;
-	num_dhist = NDIS;	
+	num_dhist = NDIS;
 	break;
     case 2: /* don't mess with the zero counts */; break;
     }
 
-    /* 
+    /*
        Usage example for dhtgen.  You should copy the buffer "dht" to
        your CPBinput next.
     */
-    
+
     ret = dhtgen (
 	lhist,                     /* lz counts; caller is responsible for alloc/free */
 	num_lhist,
@@ -1154,7 +1154,7 @@ int main(int argc, char **argv)
 	}
 	fclose( fp );
     }
-	
+
     return 0;
 }
 
@@ -1173,11 +1173,11 @@ int print_usage(int argc, char **argv)
     fprintf( stderr, "   The optional -g changes Lengths 257-285 and all Distances with 0 counts to 1.\n");
     fprintf( stderr, "   The optional -s seed chooses a verification scenario.\n");
     fprintf( stderr, "   Human readable output is printed to stdout.\n");
-    fprintf( stderr, "   Binary output is dumped to <dht.bin>.\n");	    
+    fprintf( stderr, "   Binary output is dumped to <dht.bin>.\n");
     return -1;
 }
 
-/* 
+/*
    read lzcounts from the file fname and write them to the int arrays
    llhist and dhist for Lit/Len and Distance respectively.
    File format is "%d : %d" per line where the 1st value is the LZ symbol
@@ -1206,7 +1206,7 @@ int get_lzcounts(char *fname, uint32_t *llhist, uint32_t *dhist, uint32_t *num_l
     nz_dist=0;
     *num_llhist = 0;
     *num_dhist = 0;
-    
+
     while( NULL != fgets( buf, 1023, lzf ) ) {
 	sscanf( buf, "%d : %d", &lz, &count );
 	if( prev_lz > lz ) { /* detect LL to D transition in the file */
@@ -1221,8 +1221,8 @@ int get_lzcounts(char *fname, uint32_t *llhist, uint32_t *dhist, uint32_t *num_l
 	}
 	else {
 	    dhist[ lz ] = count;
-	    if( count > 0 ) 
-	      *num_dhist = lz + 1; /* assumes counts are ordered ascending */	    
+	    if( count > 0 )
+	      *num_dhist = lz + 1; /* assumes counts are ordered ascending */
 	}
     }
     if( llhist[256] == 0 )   /* The EOB symbol is always present */
@@ -1235,8 +1235,8 @@ int get_lzcounts(char *fname, uint32_t *llhist, uint32_t *dhist, uint32_t *num_l
 }
 
 
-/* 
-   test by reading from a file 
+/*
+   test by reading from a file
 */
 int main(int argc, char **argv)
 {
@@ -1256,9 +1256,9 @@ int main(int argc, char **argv)
 
     FILE *fp;
     char fname[] = "./dht.bin";
-    
+
     dhtgen_log = stdout;
-    
+
     while ((c = getopt(argc, argv, "fgs:")) != -1) {
 	/* parse command line switches */
 	switch(c) {
@@ -1277,13 +1277,13 @@ int main(int argc, char **argv)
 	    break;
 	}
     }
-    
+
     while (optind < argc && fidx < 2) {
 	/* Save the two file names on the command line */
 	if (fidx==0) lzcount_fn = argv[optind];
-	if (fidx==1) dhtbin_fn = argv[optind];	
+	if (fidx==1) dhtbin_fn = argv[optind];
 	++fidx;
-	++optind; 
+	++optind;
     };
 
     if (errflag || (fflag && gflag) || !lzcount_fn || !dhtbin_fn) {
@@ -1291,7 +1291,7 @@ int main(int argc, char **argv)
 	print_usage (argc, argv);
 	return -1;
     }
-    
+
     fprintf (dhtgen_log, "fflag: %d gflag: %d sflag: %d in: %s out: %s\n", fflag, gflag, sflag, lzcount_fn, dhtbin_fn);
 
     if (get_lzcounts (lzcount_fn, lhist, dhist, &num_lhist, &num_dhist)) {
@@ -1303,22 +1303,22 @@ int main(int argc, char **argv)
 	/* change all zero counts to one */
 	fill_zero_lzcounts (lhist, dhist, 1);
 	num_lhist = NLEN;
-	num_dhist = NDIS;	
+	num_dhist = NDIS;
     }
-    
+
     if (gflag) {
 	/* change only the len and dist zero counts to one */
 	fill_zero_len_dist (lhist, dhist, 1);
 	num_lhist = NLEN;
-	num_dhist = NDIS;		
+	num_dhist = NDIS;
     }
 
 
-    /* 
+    /*
        Usage example for dhtgen.  You should copy the buffer "dht" to
        your CPBinput next.
     */
-    
+
     ret = dhtgen (
 	lhist,                     /* lz counts; caller is responsible for alloc/free */
 	num_lhist,
@@ -1327,7 +1327,7 @@ int main(int argc, char **argv)
 	dht,                       /* dht returned in this buffer; caller responsible for alloc/free min 316 bytes */
 	&dht_num_bytes,            /* number of bytes in the dht return buffer, starting at dht+16 */
 	&dht_num_valid_bits,       /* valid bits in the LAST byte; note the value 0 is encoded as 8 bits */
-	1                          /* =1 if prepending the 16byte cpb header that contains the bit length of dht */ 
+	1                          /* =1 if prepending the 16byte cpb header that contains the bit length of dht */
 	);
 
     if( fname ) {
@@ -1341,17 +1341,15 @@ int main(int argc, char **argv)
 	}
 	fclose( fp );
     }
-    
+
     fprintf(dhtgen_log,"bytes: %d valid bits: %d\n", dht_num_bytes, dht_num_valid_bits );
     /* fflush(stderr); */
     /* prints cpbtxt to stdout; to be redirected to a file as needed */
     /* fputs (cpbtxt, stdout); */
-    
+
     return ret;
 }
 #endif /* _RANDOM_TEST */
 
 
 #endif /* _DHTGEN_TEST */
-
-

@@ -885,7 +885,8 @@ static void nx_compress_block_get_cpb(nx_streamp s, int fc)
 /* updates stream offsets and also sets the block final bit */
 static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 {
-	uint32_t copy_bytes, histbytes, overflow;
+	uint32_t copy_bytes, overflow;
+	volatile uint32_t histbytes;
 
 	prt_info("%s:%d fc %d\n", __FUNCTION__, __LINE__, fc);
 
@@ -1463,7 +1464,7 @@ static inline void nx_compress_update_checksum(nx_streamp s, int combine)
 		   checksums explicitly here (2) Do not "combine" the
 		   very first wrap output checksum because nx already
 		   assumes that the checksums are initialized */
-		uint32_t cksum;
+		volatile uint32_t cksum;
 		cksum = get32(nxcmdp->cpb, out_adler);
 		s->adler32 = nx_adler32_combine(s->adler32, cksum, s->spbc);
 

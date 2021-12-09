@@ -204,8 +204,8 @@ typedef struct nx_stream_s {
 	/* private area */
 	uint32_t        adler;          /* one of adler32 or crc32 */
 
-	uint32_t        adler32;        /* machine generated */
-	uint32_t        crc32;          /* checksums of bytes
+	volatile uint32_t        adler32;        /* machine generated */
+	volatile uint32_t        crc32;          /* checksums of bytes
                                          * compressed then written to
                                          * the stream out. note that
                                          * this interpretation is
@@ -285,13 +285,13 @@ typedef struct nx_stream_s {
 	uint32_t        nx_ce;          /* completion extension Fig.6-7 */
 	int             z_rc;           /* libz return codes */
 
-	uint32_t        spbc;
+	volatile uint32_t        spbc;
 	/** \brief Target Processed Byte Count
 	 * \details Amount of target data bytes an accelerator has written in
 	 * processing this CRB.
 	 */
-	uint32_t        tpbc;
-	uint32_t        tebc;
+	volatile uint32_t        tpbc;
+	volatile uint32_t        tebc;
 
 	/* nx commands */
 	int             flush;

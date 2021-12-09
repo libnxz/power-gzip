@@ -479,7 +479,7 @@ static int dht_search_cache(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab, top_sym
 
 static int dht_use_last(nx_gzip_crb_cpb_t *cmdp, dht_tab_t *dht_tab)
 {
-	long source_bytes;
+	volatile long source_bytes;
 	uint32_t fc, histlen;
 	dht_entry_t *dht_entry = dht_atomic_load( &dht_tab->last_used_entry );
 

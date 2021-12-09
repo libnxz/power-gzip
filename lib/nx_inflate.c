@@ -935,14 +935,16 @@ static int copy_data_to_fifo_in(nx_streamp s) {
 static int nx_inflate_(nx_streamp s, int flush)
 {
 	/* queuing, file ops, byte counting */
-	uint32_t write_sz, source_sz, target_sz;
+	uint32_t write_sz, target_sz;
+	volatile uint32_t source_sz;
 	long loop_cnt = 0, loop_max = 0xffff;
 
 	/* inflate benefits from large jobs; memcopies must be amortized */
 	uint32_t inflate_per_job_len = 64 * nx_config.per_job_len;
 
 	/* nx hardware */
-	uint32_t sfbt = 0, subc = 0, spbc, tpbc, nx_ce, fc;
+	volatile uint32_t sfbt = 0, subc = 0, spbc, tpbc, nx_ce;
+	uint32_t fc;
 
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 	nx_dde_t *ddl_in = s->ddl_in;
@@ -1391,7 +1393,7 @@ ok_cc3:
 	*/
 	switch (sfbt) {
 		char* last_byte;
-		int dhtlen;
+		volatile int dhtlen;
 
 	case 0b0000: /* Deflate final EOB received */
 

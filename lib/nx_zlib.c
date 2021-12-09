@@ -269,8 +269,7 @@ void nx_free_buffer(void *buf, uint32_t len, int unlock)
 */
 int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 {
-	uint32_t ddecnt;
-	uint32_t bytes;
+	volatile uint32_t ddecnt, bytes;
 
 	if (addr == NULL || len == 0) {
 		return 0;
@@ -334,10 +333,9 @@ int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 */
 int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 {
-	uint32_t indirect_count;
-	uint32_t buf_len;
+	volatile uint32_t indirect_count, buf_len;
 	long total;
-	uint64_t buf_addr;
+	volatile uint64_t buf_addr;
 	nx_dde_t *dde_list;
 	int i;
 
@@ -399,9 +397,9 @@ int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 void nx_print_dde(nx_dde_t *ddep, const char *msg)
 {
 	uint32_t indirect_count;
-	uint32_t buf_len;
-	uint64_t buf_addr;
-	nx_dde_t *dde_list;
+	volatile uint32_t buf_len;
+	volatile uint64_t buf_addr;
+	volatile nx_dde_t *dde_list;
 	int i;
 
 	ASSERT(!!ddep);
@@ -448,7 +446,7 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
  */
 int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *handle)
 {
-	int cc;
+	volatile int cc;
 	uint64_t csbaddr;
 
 	memset( (void *)&cmdp->crb.csb, 0, sizeof(cmdp->crb.csb) );
@@ -1185,11 +1183,12 @@ static void _nx_hwdone(void)
    checksum values only because GZIP_FC_WRAP doesn't take any initial
    values.
 */
-static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp)
+static inline int __nx_copy(char *dst, char *src, uint32_t len, uint32_t *_crc, uint32_t *_adler, nx_devp_t nxdevp)
 {
 	nx_gzip_crb_cpb_t cmd;
 	int cc, timeout_pgfaults;
 	uint64_t ticks_total = 0;
+	volatile uint32_t *crc = _crc, *adler = _adler;
 
 	timeout_pgfaults = nx_config.timeout_pgfaults;
 

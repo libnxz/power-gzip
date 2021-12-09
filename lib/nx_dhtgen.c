@@ -753,12 +753,12 @@ static int encode_lengths( char *dht, u5 *sym_len, int num_lsym, int num_dsym )
     /* encode the symbols using hclen codes */
     count = 0;
     new_len = next_len = 0;
-    cur_len = -1;
+    cur_len = UINT32_MAX;
     cur_idx = -1;
     for(i=0; i <= num_sym_len; i++) {
 
 	if ( i == num_sym_len )
-	    new_len = -1;  /* pushes out the last symbol */
+	    new_len = UINT32_MAX;  /* pushes out the last symbol */
 	else
 	    new_len = sym_len[i]; 
 

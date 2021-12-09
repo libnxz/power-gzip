@@ -69,7 +69,7 @@
 #include "nx_zlib.h"
 
 #define barrier()
-#define hwsync()    asm volatile("hwsync" ::: "memory")
+#define hwsync()    asm volatile("sync" ::: "memory")
 
 #ifndef NX_NO_CPU_PRI
 /**

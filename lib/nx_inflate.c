@@ -772,7 +772,7 @@ static inline void nx_inflate_update_checksum(nx_streamp s)
 static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 {
 	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
-	char *tail;
+	unsigned char *tail;
 	uint32_t cksum, isize;
 
 	if (copy > 0) {
@@ -835,7 +835,8 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 	else if (s->wrap == HEADER_ZLIB) {
 		if (s->trailer_len == 4) {
 			/* adler32 is present; compare checksums */
-			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16 | tail[3]<<24);
+			cksum = (tail[0] | tail[1]<<8 | tail[2]<<16
+				 | ((uint32_t) tail[3])<<24);
 
 			prt_info("computed checksum %08x\n", cmdp->cpb.out_adler);
 			prt_info("stored   checksum %08x\n", cksum);

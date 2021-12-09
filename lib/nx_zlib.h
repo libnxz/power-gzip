@@ -208,7 +208,7 @@ typedef struct nx_stream_s {
 
 	int             header_len;
 
-	char            trailer[9];     /* temp storage for tail bytes */
+	unsigned char   trailer[9];     /* temp storage for tail bytes */
 	int             trailer_len;
 
 	uint64_t        total_time;     /* stream's total time running */

@@ -1160,7 +1160,8 @@ copy_fifo_out_to_next_out:
 	 * NX source buffers
 	 */
 	/* buffered user input is next */
-	nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
+	if (s->fifo_in != NULL)
+		nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
 	/* then current user input */
 	nx_append_dde(ddl_in, s->next_in, s->avail_in);
 	source_sz = getp32(ddl_in, ddebc); /* total bytes going in to engine */

@@ -802,7 +802,10 @@ static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, char *resume_buf, uin
 	if (resume_buf != NULL && resume_len != 0)
 		total = nx_append_dde(s->ddl_in, resume_buf, resume_len);
 
-	total = nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in, s->used_in);
+	if (s->fifo_in != NULL)
+		total = nx_append_dde(s->ddl_in,
+				      s->fifo_in + s->cur_in,
+				      s->used_in);
 
 	if (avail_in > 0)
 		total = nx_append_dde(s->ddl_in, s->next_in, avail_in);

@@ -466,7 +466,7 @@ uLong nx_crc32_combine64(crc1, crc2, len2)
 unsigned long crc32(crc, buf, len)
     unsigned long crc;
     const unsigned char FAR *buf;
-    uint64_t len;
+    uInt len;
 {
     return crc32_ppc(crc, (unsigned char *)buf, len);
 }
@@ -478,4 +478,3 @@ uLong crc32_combine64(uLong crc1, uLong crc2, uint64_t len2)
       __attribute__((alias("nx_crc32_combine64")));
 
 #endif
-

@@ -49,7 +49,7 @@
 /* zlib crc32.c and adler32.c */
 extern ulong nx_adler32(ulong adler, const char *buf, uint len);
 extern ulong nx_adler32_z(ulong adler, const char *buf, size_t len);
-extern ulong nx_adler32_combine(ulong adler1, ulong adler2, uint64_t len2);
+extern ulong nx_adler32_combine(ulong adler1, ulong adler2, off_t len2);
 extern ulong nx_crc32(ulong crc, const unsigned char *buf, uint64_t len);
 extern ulong nx_crc32_combine(ulong crc1, ulong crc2, uint64_t len2);
 extern ulong nx_crc32_combine64(ulong crc1, ulong crc2, uint64_t len2);
@@ -154,11 +154,11 @@ extern int inflateSetDictionary(void *strm, const unsigned char *dictionary,
 extern int inflateCopy(void *dest, void *source);
 extern int inflateGetHeader(void *strm, void *head);
 extern int inflateSyncPoint(void *strm);
-extern ulong adler32_combine(ulong adler1, ulong adler2, uint64_t len2);
-extern ulong adler32_combine64(ulong adler1, ulong adler2, uint64_t len2);
+extern ulong adler32_combine(ulong adler1, ulong adler2, off_t len2);
+extern ulong adler32_combine64(ulong adler1, ulong adler2, off_t len2);
 extern ulong adler32(ulong adler, const char *buf, uint len);
 extern ulong adler32_z(ulong adler, const char *buf, size_t len);
-extern ulong crc32(ulong crc, const unsigned char *buf, uint64_t len);
+extern ulong crc32(ulong crc, const unsigned char *buf, unsigned int len);
 extern ulong crc32_combine(ulong crc1, ulong crc2, uint64_t len2);
 extern ulong crc32_combine64(ulong crc1, ulong crc2, uint64_t len2);
 extern int compress(unsigned char *dest, ulong *destLen,

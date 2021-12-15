@@ -203,8 +203,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
 
-	s->magic1  = MAGIC1;
-	s->magic2  = MAGIC2;
 	s->zstrm   = strm;
 	s->nxcmdp  = &s->nxcmd0;
 	s->page_sz = nx_config.page_sz;

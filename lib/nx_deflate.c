@@ -68,7 +68,10 @@
 #define DEF_MAX_EXPANSION_LEN (2 * DEF_MIN_INPUT_LEN)
 
 /* deflateSetDictionary constants */
-#define DEF_MAX_DICT_LEN   ((1L<<15)-272)
+#define DEF_MAX_DICT_LEN   (1L<<15) /* Even though zlib.h says that at most
+				     * window size minus 262 bytes of the
+				     * dictionary will be used, the code seems
+				     * to use the entire window size. */
 #define DEF_DICT_THRESHOLD (1<<8) /* TODO make this config variable */
 
 #define fifo_out_len_check(s) \
@@ -1146,7 +1149,14 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 
 	if (s->dict_len > 0) {
 		resume_len = NX_MIN(s->dict_len, DEF_MAX_DICT_LEN);
-		/* round down to 16 byte multiple */
+		/* round down to 16 byte multiple. We can't round it up because
+		   the generated deflate stream could contain references to the
+		   padding bytes added, which won't be present in the window if
+		   the same dictionary is given to a zlib decompressor, which
+		   knows nothing about this 16 byte requirement. So it's better
+		   to throw away a few bytes of the dictionary instead, so zlib
+		   can correctly decompress the stream later if given the same
+		   dictionary.  */
 		resume_len = (resume_len / sizeof(nx_qw_t)) * sizeof(nx_qw_t);
 		/* use the last ~32KB of the dictionary */
 		resume_buf = s->dict + (s->dict_len - resume_len);
@@ -1885,8 +1895,6 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	uint32_t adler;
 	int cc;
 
-	return Z_STREAM_ERROR; /* TODO untested */
-
 	if (dictionary == NULL || strm == NULL)
 		return Z_STREAM_ERROR;
 
@@ -1938,7 +1946,14 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 		}
 	}
 
-	if (s->dict == NULL) {
+	do {
+		if (s->dict != NULL) {
+			if(dictLength > s->dict_alloc_len) /* need to resize? */
+				nx_free_buffer(s->dict, s->dict_alloc_len, 0);
+			else
+				break; /* Skip allocation */
+		}
+
 		/* one time allocation until deflateEnd() */
 		s->dict_alloc_len = NX_MAX( DEF_MAX_DICT_LEN, dictLength);
 		/* we don't need larger than DEF_MAX_DICT_LEN in
@@ -1950,19 +1965,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 		}
 		s->dict_len = 0;
 		s->dict_id = 0;
-	}
-	else {
-		if (dictLength > s->dict_alloc_len) { /* resize */
-			nx_free_buffer(s->dict, s->dict_alloc_len, 0);
-			s->dict_alloc_len = NX_MAX( DEF_MAX_DICT_LEN, dictLength);
-			if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
-				s->dict_alloc_len = 0;
-				return Z_MEM_ERROR;
-			}
-		}
-		s->dict_len = 0;
-		s->dict_id = 0;
-	}
+	} while(0);
 
 	adler = INIT_ADLER;
 	cc = nx_copy(s->dict, (char *)dictionary, dictLength, NULL, &adler, s->nxdevp);
@@ -1971,11 +1974,14 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 		return Z_STREAM_ERROR;
 	}
 
-	/* Non-zero dict_len indicates to downstream code that a
-	   dictionary is present; deflate() will insert dict_id in the
-	   zlib format header; raw format doesn't use an ID */
+	/* Non-zero dict_len indicates to downstream code that a dictionary is
+	   present; deflate() will insert dict_id in the zlib format header; raw
+	   format doesn't use an ID */
 	s->dict_len = dictLength;
 	s->dict_id = adler;
+
+	/* Mimic zlib behavior */
+	s->zstrm->total_in += NX_MIN(dictLength, DEF_MAX_DICT_LEN);
 
 	/* copy dictionary id back to the caller of setDictionary */
 	strm->adler = adler;

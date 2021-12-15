@@ -569,6 +569,8 @@ extern int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBit
 extern int nx_deflate(z_streamp strm, int flush);
 extern int nx_deflateEnd(z_streamp strm);
 extern unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen);
+extern int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary,
+				uint dictLength);
 
 /* nx_inflate.c */
 extern int nx_inflateInit_(z_streamp strm, const char *version, int stream_size);
@@ -579,6 +581,8 @@ extern int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version,
 extern int nx_inflate(z_streamp strm, int flush);
 extern int nx_inflateEnd(z_streamp strm);
 extern int nx_inflateSyncPoint(z_streamp strm);
+extern int nx_inflateSetDictionary(z_streamp strm, const unsigned char *dictionary,
+				uint dictLength);
 
 /* nx_compress.c */
 extern int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);

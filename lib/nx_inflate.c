@@ -672,7 +672,6 @@ inf_forever:
 			s->inf_state = inf_state_data_error;
 			break;
 		}
-		/* FIXME: Need double check and test here */
 		if (c & 1<<5) {
 			s->inf_state = inf_state_zlib_dictid;
 			s->dict_id = 0;
@@ -865,37 +864,46 @@ static int nx_inflate_verify_checksum(nx_streamp s, int copy)
 	return Z_STREAM_END;
 }
 
-/* we need to overlay any dictionary on top of the inflate history
-   and calculate lengths rounding up to 16 byte integrals */
-static int nx_amend_history_with_dict(nx_streamp s, int *hlen, int *dlen )
+/* Overlay any dictionary on top of the inflate history and calculate
+   lengths rounding up to 16 byte integrals */
+static int nx_amend_history_with_dict(nx_streamp s)
 {
-	int dict_len = NX_MIN(s->dict_len, INF_MAX_DICT_LEN);
-	int hist_len;
-
-	*hlen = *dlen = 0;
+	int dlen = NX_MIN(s->dict_len, INF_MAX_DICT_LEN);
+	int hlen, padding, nx_history_len;
+	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
 
 	ASSERT(s->history_len >= 0);
 
-	if (s->history_len <= dict_len) {
-		/* dictionary takes over inflate history */
-		hist_len = 0;
-		/* round up per NX-gzip history alignment requirements;
-		   no segfaults since nx_alloc_buffer is padded in front */
-		dict_len = ((dict_len + NXQWSZ - 1) / NXQWSZ) * NXQWSZ;
+	prt_info("amend before: dict_len %d hist_len %d\n", dlen, s->history_len);
+	if (s->history_len + dlen >= INF_HIS_LEN) {
+		/* dictionary occupies most of the window, and history is
+		 * reduced */
+		hlen = INF_MAX_DICT_LEN - dlen;
+	} else {
+		/* history will be padded to guarantee that hlen + dlen is as
+		 * multiple of 16 */
+		padding = NXQWSZ - (s->history_len + dlen) % NXQWSZ;
+		hlen = s->history_len + padding;
 	}
-	else {
-		/* dictionary overlays history; round up to 16 byte integral */
-		hist_len = ((s->history_len + NXQWSZ - 1) / NXQWSZ) * NXQWSZ;
-		hist_len = hist_len - dict_len;
-		/* at this point hist_len + dict_len are 16 byte integral;
-		   we need to add histlen bytes from s->fifo_out to the ddl;
-		   then add dict_len bytes from s->dict to the ddl;
-		   then comes the user data in next_in; */
-	}
-	*hlen = hist_len;
-	*dlen = dict_len;
+	prt_info("amend after: dict_len %d hist_len %d\n", dlen, hlen);
 
-	return 0;
+	/* sum is integral of 16 */
+	nx_history_len = hlen + dlen;
+	ASSERT( (nx_history_len % 16) == 0 );
+
+	cmdp->cpb.in_histlen = 0;
+	putnn(cmdp->cpb, in_histlen, nx_history_len / NXQWSZ);
+	ASSERT(!!s->dict && !!s->fifo_out);
+
+	/* add hlen bytes from the end of the history */
+	if (hlen > 0)
+		nx_append_dde(s->ddl_in, s->fifo_out + (s->cur_out - hlen), hlen);
+
+	/* add dlen bytes from the end of the dictionary */
+	if (dlen > 0)
+		nx_append_dde(s->ddl_in, s->dict + s->dict_len - dlen, dlen);
+
+	return nx_history_len;
 }
 
 
@@ -1094,23 +1102,7 @@ copy_fifo_out_to_next_out:
 			int hlen, dlen;
 
 			/* lays dict on top of hist */
-			nx_amend_history_with_dict(s, &hlen, &dlen );
-
-			/* sum is integral of 16 */
-			nx_history_len = hlen + dlen;
-			ASSERT( (nx_history_len % 16) == 0 );
-
-			cmdp->cpb.in_histlen = 0;
-			putnn(cmdp->cpb, in_histlen, nx_history_len / NXQWSZ);
-			ASSERT(!!s->dict && !!s->fifo_out);
-
-			/* add hlen bytes from the beginning of the history */
-			if (hlen > 0)
-				nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - s->history_len), hlen);
-
-			/* add dlen bytes from the dictionary */
-			if (dlen > 0)
-				nx_append_dde(ddl_in, s->dict, dlen);
+			nx_history_len = nx_amend_history_with_dict(s);
 
 			if (s->wrap == HEADER_ZLIB) {
 				/* in the raw mode pass crc as is; in the zlib mode
@@ -1696,8 +1688,6 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 	uint32_t adler;
 	int cc;
 
-	return Z_STREAM_ERROR; /* TODO untested */
-
 	if (dictionary == NULL || strm == NULL)
 		return Z_STREAM_ERROR;
 
@@ -1715,7 +1705,14 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 		return Z_STREAM_ERROR;
 	}
 
-	if (s->dict == NULL) {
+	do {
+		if (s->dict != NULL) {
+			if(dictLength > s->dict_alloc_len) /* need to resize? */
+				nx_free_buffer(s->dict, s->dict_alloc_len, 0);
+			else
+				break; /* Skip allocation */
+		}
+
 		/* one time allocation until inflateEnd() */
 		s->dict_alloc_len = NX_MAX( INF_MAX_DICT_LEN, dictLength);
 		/* we don't need larger than INF_MAX_DICT_LEN in
@@ -1725,23 +1722,12 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 			s->dict_alloc_len = 0;
 			return Z_MEM_ERROR;
 		}
-	}
-	else {
-		if (dictLength > s->dict_alloc_len) { /* resize */
-			nx_free_buffer(s->dict, s->dict_alloc_len, 0);
-			s->dict_alloc_len = NX_MAX( INF_MAX_DICT_LEN, dictLength);
-			if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
-				s->dict_alloc_len = 0;
-				return Z_MEM_ERROR;
-			}
-		}
-	}
-	s->dict_len = 0;
+		s->dict_len = 0;
+	} while(0);
 
 	/* copy dictionary in and also calculate it's checksum */
 	adler = INIT_ADLER;
 	cc = nx_copy(s->dict, (char *)dictionary, dictLength, NULL, &adler, s->nxdevp);
-	s->zstrm->adler = adler;
 	if (cc != ERR_NX_OK) {
 		prt_err("nx_copy dictionary error\n");
 		return Z_STREAM_ERROR;
@@ -1756,11 +1742,6 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 		return Z_DATA_ERROR;
 	}
 	s->dict_len = dictLength;
-
-	/* TODO zlib says "window is amended" with the dictionary; it
-	   means that we must truncate the history in fifo_out to the
-	   maximum of 32KB and dictLength; recall the NX rounding
-	   requirements */
 
 	return Z_OK;
 

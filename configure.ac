@@ -9,6 +9,7 @@ AC_INIT([libnxz],[0.62],[https://github.com/libnxz/power-gzip])
 
 AC_CONFIG_SRCDIR([lib/nx_zlib.c])
 AC_CONFIG_FILES([config.mk oct/config.mk])
+AC_CONFIG_FILES([test/run_test.sh], [chmod +x test/run_test.sh])
 AC_CONFIG_MACRO_DIR([m4])
 # TODO: Leave this commented out while Automake is not being used.
 #AC_CONFIG_HEADERS([config.h])
@@ -22,8 +23,10 @@ AC_CANONICAL_HOST
 
 # Checks for programs.
 AC_CHECK_PROG(ABIDIFF, abidiff, abidiff, no)
-AS_IF([test "x$ABIDIFF" = xno],
-      [AC_MSG_ERROR([Please install abidiff (tool from libabigail).])])
+AS_IF([test "x$ABIDIFF" != xno],
+      [AC_SUBST(ABITEST,"run ./test_abi ../lib/libnxz.so")],
+      [AC_SUBST(ABITEST,'# ABI test skipped because abidiff is not available'
+)])
 AC_CHECK_TARGET_TOOL([AR], [ar], [:])
 AC_PROG_AWK
 AC_PROG_CC

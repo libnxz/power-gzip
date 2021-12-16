@@ -21,7 +21,7 @@ run() {
     fi
 }
 
-run ./test_abi ../lib/libnxz.so
+@ABITEST@
 run ./test_deflate
 run ./test_inflate
 run ./test_inflatesyncpoint

@@ -1292,8 +1292,6 @@ restart_nx:
 			    * Kernel MM would have killed the process. */
 				prt_err("Cannot make progress; too many page");
 				prt_err(" faults cc= %d\n", cc);
-				rc = Z_ERRNO;
-				goto err5;
 			}
 			else {
 				prt_warn("ERR_NX_AT_FAULT: more retry\n");
@@ -1323,7 +1321,7 @@ restart_nx:
 		else {
 			/* History length error when CE(1)=1 CE(0)=0.
 			   We have a bug */
-			rc = Z_ERRNO;
+			rc = Z_DATA_ERROR;
 			prt_err("history length error cc= %d\n", cc);
 			goto err5;
 		}
@@ -1370,7 +1368,7 @@ restart_nx:
 		char* csb = (char*) (&cmdp->crb.csb);
 		for(int i = 0; i < 4; i++) /* dump first 32 bits of csb */
 			prt_err("CSB: 0x %02x %02x %02x %02x\n", csb[0], csb[1], csb[2], csb[3]);
-		rc = Z_ERRNO;
+		rc = Z_DATA_ERROR;
 		goto err5;
 	}
 

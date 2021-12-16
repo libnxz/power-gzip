@@ -657,6 +657,7 @@ target_os
 target_vendor
 target_cpu
 target
+ABITEST
 ABIDIFF
 host_os
 host_vendor
@@ -2349,6 +2350,8 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 ac_config_files="$ac_config_files config.mk oct/config.mk"
 
+ac_config_files="$ac_config_files test/run_test.sh"
+
 
 # TODO: Leave this commented out while Automake is not being used.
 #AC_CONFIG_HEADERS([config.h])
@@ -2498,8 +2501,13 @@ $as_echo "no" >&6; }
 fi
 
 
-if test "x$ABIDIFF" = xno; then :
-  as_fn_error $? "Please install abidiff (tool from libabigail)." "$LINENO" 5
+if test "x$ABIDIFF" != xno; then :
+  ABITEST="run ./test_abi ../lib/libnxz.so"
+
+else
+  ABITEST='# ABI test skipped because abidiff is not available'
+
+
 fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking target system type" >&5
 $as_echo_n "checking target system type... " >&6; }
@@ -7153,6 +7161,7 @@ do
   case $ac_config_target in
     "config.mk") CONFIG_FILES="$CONFIG_FILES config.mk" ;;
     "oct/config.mk") CONFIG_FILES="$CONFIG_FILES oct/config.mk" ;;
+    "test/run_test.sh") CONFIG_FILES="$CONFIG_FILES test/run_test.sh" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac
@@ -7571,6 +7580,11 @@ which seems to be undefined.  Please make sure it is defined" >&2;}
 
   esac
 
+
+  case $ac_file$ac_mode in
+    "test/run_test.sh":F) chmod +x test/run_test.sh ;;
+
+  esac
 done # for ac_tag
 
 

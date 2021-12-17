@@ -62,11 +62,27 @@
 #ifndef _NX_ZLIB_H
 #define _NX_ZLIB_H
 
-#define GZIP_AUTO	0x00 /* use sw for small inputs and nx otherwise */
-#define GZIP_SW 	0x01 /* all ops to software gzip */
-#define GZIP_NX 	0x02 /* all ops to nx gzip */
-#define GZIP_MIX	0x03 /* mix sw and nx with specific ratio */
-#define GZIP_MIX2	0x04 /* deflate: nx ; inflate: sw */
+/*! \def GZIP_AUTO
+    \brief Use software compression/decompression for inputs smaller than a
+threshold and use NX otherwise.
+*/
+#define GZIP_AUTO	0x00
+/*! \def GZIP_SW
+    \brief Use software compression/decompression.
+*/
+#define GZIP_SW 	0x01
+/*! \def GZIP_NX
+    \brief Use NX compression/decompression.
+*/
+#define GZIP_NX 	0x02
+/*! \def GZIP_MIX
+    \brief Compress like GZIP_AUTO but mix software and NX with specific ratio for inputs bigger than the threshold, use software for decompression.
+*/
+#define GZIP_MIX	0x03
+/*! \def GZIP_MIX2
+    \brief Use NX to compress and software to decompress.
+*/
+#define GZIP_MIX2	0x04
 
 #define COMPRESS_THRESHOLD	(1024)
 #define DECOMPRESS_THRESHOLD	(1024)

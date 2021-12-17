@@ -21,17 +21,28 @@ run() {
     fi
 }
 
+run_test_stress() {
+    i=0
+    while [ $i -lt 5 ]; do
+        export NX_GZIP_TYPE_SELECTOR=$i
+        echo "Using mode $i: "
+        run ./test_stress
+        i=$((i+1))
+    done
+}
+
 @ABITEST@
 run ./test_deflate
 run ./test_inflate
 run ./test_inflatesyncpoint
-run ./test_stress
 run ./test_crc32
 run ./test_adler32
 run ./test_multithread_stress ${TEST_NTHREADS:-$(nproc)} 10 6
 run ./test_pid_reuse 2
-run ./test_zeroinput
 run ./test_buf_error
+export NX_GZIP_TYPE_SELECTOR=2
+run ./test_zeroinput
+run_test_stress
 echo "------------------------------"
 
 grep -E 'run_case|failed' $run_test_log | tee -a $run_test_report

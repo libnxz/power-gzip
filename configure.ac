@@ -14,6 +14,7 @@ AC_CANONICAL_TARGET
 AC_CONFIG_SRCDIR([lib/nx_zlib.c])
 AC_CONFIG_FILES([config.mk oct/config.mk])
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([samples/Makefile])
 AC_CONFIG_FILES([test/run_test.sh], [chmod +x test/run_test.sh])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])

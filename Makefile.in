@@ -203,7 +203,7 @@ am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/aminclude.am \
 	$(srcdir)/config.h.in $(srcdir)/config.mk.in \
 	$(top_srcdir)/oct/config.mk.in \
 	$(top_srcdir)/test/run_test.sh.in compile config.guess \
-	config.sub install-sh missing
+	config.sub depcomp install-sh missing
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)

@@ -35,8 +35,6 @@
  *
  */
 #include <stdlib.h>
-#include "zlib.h"
-#include "nx_zlib.h"
 
 extern int __real_nx_touch_pages(void *buf, long buf_len, long page_len,
 				 int wr);

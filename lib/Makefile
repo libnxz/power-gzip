@@ -1,5 +1,8 @@
 include ../config.mk
 
+ZLIB_PATH ?= libz.so
+CFLAGS += -DZLIB_PATH=\"$(ZLIB_PATH)\"
+
 OBJS = nx_inflate.o nx_deflate.o nx_zlib.o nx_crc.o nx_dht.o nx_dhtgen.o \
        nx_dht_builtin.o nx_adler32.o gzip_vas.o nx_compress.o nx_uncompr.o \
        crc32_ppc.o crc32_ppc_asm.o nx_utils.o sw_zlib.o
@@ -17,6 +20,8 @@ CFLAGS += -fPIC
 
 all: $(OBJS) $(STATICLIB) $(SHAREDLIB)
 
+check:
+
 $(STATICLIB): $(OBJS)
 	rm -f $@
 	$(AR) rcs -o $@ $(OBJS)
@@ -31,12 +36,12 @@ clean:
 	rm -f *.o *.gcda *.gcno *.so* *.a *~
 
 install: $(STATICLIB) $(SHAREDLIB)
-	install -d $(LIBDIR)
-	install -m 755 $(SHAREDLIB) $(LIBDIR)
-	{ cd $(LIBDIR); \
+	install -d $(PREFIX)/$(LIBDIR)
+	install -m 755 $(SHAREDLIB) $(PREFIX)/$(LIBDIR)
+	{ cd $(PREFIX)/$(LIBDIR); \
 	  ln -s $(SHAREDLIB) $(SHAREDSONAMELIB); \
 	  ln -s $(SHAREDLIB) $(LIBLINK); }
-	install -m 644 $(STATICLIB) $(LIBDIR)
+	install -m 644 $(STATICLIB) $(PREFIX)/$(LIBDIR)
 
 uninstall:
 	rm $(LIBDIR)/$(SHAREDLIB)

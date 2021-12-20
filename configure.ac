@@ -7,17 +7,19 @@ AC_PREREQ([2.69])
 #Autoconf versioning is A:C:B
 AC_INIT([libnxz],[0.62],[https://github.com/libnxz/power-gzip])
 
-AC_CONFIG_SRCDIR([lib/nx_zlib.c])
-AC_CONFIG_FILES([config.mk oct/config.mk])
-AC_CONFIG_FILES([test/run_test.sh], [chmod +x test/run_test.sh])
-AC_CONFIG_MACRO_DIR([m4])
-# TODO: Leave this commented out while Automake is not being used.
-#AC_CONFIG_HEADERS([config.h])
-#AM_INIT_AUTOMAKE([1.10 no-define foreign subdir-objects])
-#AM_MAINTAINER_MODE([disable])
-
 # Defines host_cpu, host_vendor, and host_os variables.
 AC_CANONICAL_HOST
+AC_CANONICAL_TARGET
+
+AC_CONFIG_SRCDIR([lib/nx_zlib.c])
+AC_CONFIG_FILES([config.mk oct/config.mk])
+AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([test/run_test.sh], [chmod +x test/run_test.sh])
+AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_HEADERS([config.h])
+AM_INIT_AUTOMAKE([1.10 no-define foreign subdir-objects])
+AM_MAINTAINER_MODE([disable])
+
 
 : ${CFLAGS="-O3 -Wall -Werror -g"}
 
@@ -101,11 +103,15 @@ ACX_PTHREAD
 AX_CHECK_COMPILE_FLAG([-mcpu=power9],
 		      [CFLAGS="$CFLAGS -mcpu=power9"])
 
+AC_ARG_ENABLE([zlib-api],
+	      [  --disable-zlib-api      Enable compatibility with the Zlib API (default enabled)])
+AS_IF([test "x$enableval" != xno],
+      [CFLAGS="$CFLAGS -DZLIB_API"])
+
 # Doxygen support
-# TODO: Leave this commented out while Automake is not being used.
-#DX_HTML_FEATURE(ON)
-#DX_MAN_FEATURE(ON)
-#DX_PDF_FEATURE(OFF)
-#DX_INIT_DOXYGEN($PACKAGE_NAME, [doc/libnxz.doxy])
+DX_HTML_FEATURE(ON)
+DX_MAN_FEATURE(ON)
+DX_PDF_FEATURE(OFF)
+DX_INIT_DOXYGEN($PACKAGE_NAME, [doc/libnxz.doxy])
 
 AC_OUTPUT

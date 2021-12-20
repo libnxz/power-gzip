@@ -32,6 +32,7 @@ ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
     --no-comp-dir-path --no-show-locs
 
 all:
+install:
 
 check: $(EXE)
 	./run_test.sh

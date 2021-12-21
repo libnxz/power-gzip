@@ -10,7 +10,11 @@ dist_doc_DATA = licenses/APACHE-2.0.txt licenses/gpl-2.0.txt
 
 include_HEADERS = libnxz.h
 
-all: $(SUBDIRS)
+if DX_COND_doc
+doc_target = doc
+endif DX_COND_doc
+
+all: $(SUBDIRS) $(doc_target)
 
 $(SUBDIRS):
 	@if [ -d $@ ]; then				\

@@ -397,6 +397,7 @@ SUBDIRS = lib test samples
 DIST_SUBDIRS = doc inc_nx m4 oct
 dist_doc_DATA = licenses/APACHE-2.0.txt licenses/gpl-2.0.txt
 include_HEADERS = libnxz.h
+@DX_COND_doc_TRUE@doc_target = doc
 @DX_COND_doc_TRUE@MOSTLYCLEANFILES = $(DX_CLEANFILES)
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
@@ -965,7 +966,7 @@ uninstall-am: uninstall-dist_docDATA uninstall-includeHEADERS
 @DX_COND_doc_TRUE@		$(DX_ENV) $(DX_DOXYGEN) $(srcdir)/$$doxyfile; \
 @DX_COND_doc_TRUE@	done
 
-all: $(SUBDIRS)
+all: $(SUBDIRS) $(doc_target)
 
 $(SUBDIRS):
 	@if [ -d $@ ]; then				\

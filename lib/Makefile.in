@@ -13,6 +13,7 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
+
 VPATH = @srcdir@
 am__is_gnu_make = { \
   if test -z '$(MAKELEVEL)'; then \
@@ -88,14 +89,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-EXTRA_PROGRAMS = bad_irq_check$(EXEEXT) bench_initend$(EXEEXT) \
-	compdecomp$(EXEEXT) compdecomp_th$(EXEEXT) \
-	crc_perf_test_vmx$(EXEEXT) crc_perf_test_zlib$(EXEEXT) \
-	gunzip_nx_test$(EXEEXT) gzip_nxdht_test$(EXEEXT) \
-	gzip_nxfht_test$(EXEEXT) gzm$(EXEEXT) makedata$(EXEEXT) \
-	nx_gzip$(EXEEXT) rand_pfault_check$(EXEEXT) zpipe$(EXEEXT) \
-	zpipe_dict_nx$(EXEEXT) zpipe_dict_zlib$(EXEEXT)
-subdir = samples
+subdir = lib
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_check_compile_flag.m4 \
 	$(top_srcdir)/m4/ax_pthread.m4 \
@@ -110,70 +104,48 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-am_bad_irq_check_OBJECTS = bad_irq_check.$(OBJEXT) \
-	compdecomp_th.$(OBJEXT)
-bad_irq_check_OBJECTS = $(am_bad_irq_check_OBJECTS)
-am__DEPENDENCIES_1 =
-bad_irq_check_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = f=`echo $$p | sed -e 's|^.*/||'`;
+am__install_max = 40
+am__nobase_strip_setup = \
+  srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*|]/\\\\&/g'`
+am__nobase_strip = \
+  for p in $$list; do echo "$$p"; done | sed -e "s|$$srcdirstrip/||"
+am__nobase_list = $(am__nobase_strip_setup); \
+  for p in $$list; do echo "$$p $$p"; done | \
+  sed "s| $$srcdirstrip/| |;"' / .*\//!s/ .*/ ./; s,\( .*\)/[^/]*$$,\1,' | \
+  $(AWK) 'BEGIN { files["."] = "" } { files[$$2] = files[$$2] " " $$1; \
+    if (++n[$$2] == $(am__install_max)) \
+      { print $$2, files[$$2]; n[$$2] = 0; files[$$2] = "" } } \
+    END { for (dir in files) print dir, files[dir] }'
+am__base_list = \
+  sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
+  sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
+am__uninstall_files_from_dir = { \
+  test -z "$$files" \
+    || { test ! -d "$$dir" && test ! -f "$$dir" && test ! -r "$$dir"; } \
+    || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
+         $(am__cd) "$$dir" && rm -f $$files; }; \
+  }
+am__installdirs = "$(DESTDIR)$(libdir)"
+LTLIBRARIES = $(lib_LTLIBRARIES)
+libnxz_la_LIBADD =
+am_libnxz_la_OBJECTS = crc32_ppc.lo crc32_ppc_asm.lo gzip_vas.lo \
+	nx_adler32.lo nx_compress.lo nx_crc.lo nx_deflate.lo nx_dht.lo \
+	nx_dhtgen.lo nx_dht_builtin.lo nx_inflate.lo nx_uncompr.lo \
+	nx_utils.lo nx_zlib.lo sw_zlib.lo
+libnxz_la_OBJECTS = $(am_libnxz_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-bad_irq_check_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+libnxz_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(bad_irq_check_LDFLAGS) $(LDFLAGS) -o $@
-am_bench_initend_OBJECTS = bench_initend.$(OBJEXT)
-bench_initend_OBJECTS = $(am_bench_initend_OBJECTS)
-bench_initend_DEPENDENCIES =
-am_compdecomp_OBJECTS = compdecomp.$(OBJEXT)
-compdecomp_OBJECTS = $(am_compdecomp_OBJECTS)
-compdecomp_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_compdecomp_th_OBJECTS = compdecomp_th.$(OBJEXT)
-compdecomp_th_OBJECTS = $(am_compdecomp_th_OBJECTS)
-compdecomp_th_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_crc_perf_test_vmx_OBJECTS = crc_perf_test.$(OBJEXT)
-crc_perf_test_vmx_OBJECTS = $(am_crc_perf_test_vmx_OBJECTS)
-crc_perf_test_vmx_DEPENDENCIES = $(STATIC_LIBNXZ) \
-	$(am__DEPENDENCIES_1)
-am_crc_perf_test_zlib_OBJECTS = crc_perf_test.$(OBJEXT)
-crc_perf_test_zlib_OBJECTS = $(am_crc_perf_test_zlib_OBJECTS)
-crc_perf_test_zlib_DEPENDENCIES =
-am_gunzip_nx_test_OBJECTS = gunzip_nx.$(OBJEXT)
-gunzip_nx_test_OBJECTS = $(am_gunzip_nx_test_OBJECTS)
-gunzip_nx_test_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_gzip_nxdht_test_OBJECTS = gzip_nxdht.$(OBJEXT)
-gzip_nxdht_test_OBJECTS = $(am_gzip_nxdht_test_OBJECTS)
-gzip_nxdht_test_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_gzip_nxfht_test_OBJECTS = gzip_nxfht.$(OBJEXT)
-gzip_nxfht_test_OBJECTS = $(am_gzip_nxfht_test_OBJECTS)
-gzip_nxfht_test_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_gzm_OBJECTS = gzm.$(OBJEXT)
-gzm_OBJECTS = $(am_gzm_OBJECTS)
-gzm_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_makedata_OBJECTS = makedata.$(OBJEXT)
-makedata_OBJECTS = $(am_makedata_OBJECTS)
-makedata_LDADD = $(LDADD)
-am_nx_gzip_OBJECTS = nx_gzip.$(OBJEXT)
-nx_gzip_OBJECTS = $(am_nx_gzip_OBJECTS)
-nx_gzip_DEPENDENCIES = $(STATIC_LIBNXZ)
-am_rand_pfault_check_OBJECTS = rand_pfault_check.$(OBJEXT) \
-	compdecomp_th.$(OBJEXT)
-rand_pfault_check_OBJECTS = $(am_rand_pfault_check_OBJECTS)
-rand_pfault_check_DEPENDENCIES = $(STATIC_LIBNXZ) \
-	$(am__DEPENDENCIES_1)
-rand_pfault_check_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
-	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
-	$(AM_CFLAGS) $(CFLAGS) $(rand_pfault_check_LDFLAGS) $(LDFLAGS) \
-	-o $@
-am_zpipe_OBJECTS = zpipe.$(OBJEXT)
-zpipe_OBJECTS = $(am_zpipe_OBJECTS)
-zpipe_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_zpipe_dict_nx_OBJECTS = zpipe_dict.$(OBJEXT)
-zpipe_dict_nx_OBJECTS = $(am_zpipe_dict_nx_OBJECTS)
-zpipe_dict_nx_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_zpipe_dict_zlib_OBJECTS = zpipe_dict.$(OBJEXT)
-zpipe_dict_zlib_OBJECTS = $(am_zpipe_dict_zlib_OBJECTS)
-zpipe_dict_zlib_DEPENDENCIES =
+	$(libnxz_la_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -189,15 +161,25 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/bad_irq_check.Po \
-	./$(DEPDIR)/bench_initend.Po ./$(DEPDIR)/compdecomp.Po \
-	./$(DEPDIR)/compdecomp_th.Po ./$(DEPDIR)/crc_perf_test.Po \
-	./$(DEPDIR)/gunzip_nx.Po ./$(DEPDIR)/gzip_nxdht.Po \
-	./$(DEPDIR)/gzip_nxfht.Po ./$(DEPDIR)/gzm.Po \
-	./$(DEPDIR)/makedata.Po ./$(DEPDIR)/nx_gzip.Po \
-	./$(DEPDIR)/rand_pfault_check.Po ./$(DEPDIR)/zpipe.Po \
-	./$(DEPDIR)/zpipe_dict.Po
+am__depfiles_remade = ./$(DEPDIR)/crc32_ppc.Plo \
+	./$(DEPDIR)/crc32_ppc_asm.Plo ./$(DEPDIR)/gzip_vas.Plo \
+	./$(DEPDIR)/nx_adler32.Plo ./$(DEPDIR)/nx_compress.Plo \
+	./$(DEPDIR)/nx_crc.Plo ./$(DEPDIR)/nx_deflate.Plo \
+	./$(DEPDIR)/nx_dht.Plo ./$(DEPDIR)/nx_dht_builtin.Plo \
+	./$(DEPDIR)/nx_dhtgen.Plo ./$(DEPDIR)/nx_inflate.Plo \
+	./$(DEPDIR)/nx_uncompr.Plo ./$(DEPDIR)/nx_utils.Plo \
+	./$(DEPDIR)/nx_zlib.Plo ./$(DEPDIR)/sw_zlib.Plo
 am__mv = mv -f
+CPPASCOMPILE = $(CCAS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
+	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CCASFLAGS) $(CCASFLAGS)
+LTCPPASCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=compile $(CCAS) $(DEFS) \
+	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
+	$(AM_CCASFLAGS) $(CCASFLAGS)
+AM_V_CPPAS = $(am__v_CPPAS_@AM_V@)
+am__v_CPPAS_ = $(am__v_CPPAS_@AM_DEFAULT_V@)
+am__v_CPPAS_0 = @echo "  CPPAS   " $@;
+am__v_CPPAS_1 = 
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
@@ -216,22 +198,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(bad_irq_check_SOURCES) $(bench_initend_SOURCES) \
-	$(compdecomp_SOURCES) $(compdecomp_th_SOURCES) \
-	$(crc_perf_test_vmx_SOURCES) $(crc_perf_test_zlib_SOURCES) \
-	$(gunzip_nx_test_SOURCES) $(gzip_nxdht_test_SOURCES) \
-	$(gzip_nxfht_test_SOURCES) $(gzm_SOURCES) $(makedata_SOURCES) \
-	$(nx_gzip_SOURCES) $(rand_pfault_check_SOURCES) \
-	$(zpipe_SOURCES) $(zpipe_dict_nx_SOURCES) \
-	$(zpipe_dict_zlib_SOURCES)
-DIST_SOURCES = $(bad_irq_check_SOURCES) $(bench_initend_SOURCES) \
-	$(compdecomp_SOURCES) $(compdecomp_th_SOURCES) \
-	$(crc_perf_test_vmx_SOURCES) $(crc_perf_test_zlib_SOURCES) \
-	$(gunzip_nx_test_SOURCES) $(gzip_nxdht_test_SOURCES) \
-	$(gzip_nxfht_test_SOURCES) $(gzm_SOURCES) $(makedata_SOURCES) \
-	$(nx_gzip_SOURCES) $(rand_pfault_check_SOURCES) \
-	$(zpipe_SOURCES) $(zpipe_dict_nx_SOURCES) \
-	$(zpipe_dict_zlib_SOURCES)
+SOURCES = $(libnxz_la_SOURCES)
+DIST_SOURCES = $(libnxz_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -311,7 +279,7 @@ INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LD = @LD@
-LDFLAGS = -static-libtool-libs
+LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
@@ -409,51 +377,39 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CPPFLAGS = -I$(top_srcdir)/inc_nx
-STATIC_LIBNXZ = ../lib/libnxz.la
-EXTRATESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th \
-	bad_irq_check rand_pfault_check
+SHAREDSONAMELIB = $(PACKAGE_NAME).so.$(SOVERSION)
+SHAREDLIB = $(PACKAGE_NAME).so.$(PACKAGE_VERSION)
+LIBLINK = $(PACKAGE_NAME).so
+lib_LTLIBRARIES = libnxz.la
+libnxz_la_SOURCES = crc32_ppc.c \
+		    crc32_ppc.h \
+		    crc32_ppc_constants.h \
+		    crc32_ppc_asm.S \
+		    gzip_vas.c \
+		    nx_adler32.c \
+		    nx_compress.c \
+		    nx_crc.c \
+		    nx_deflate.c \
+		    nx_dht.c \
+		    nx_dhtgen.c \
+		    nx_dht_builtin.c \
+		    nx_inflate.c \
+		    nx_uncompr.c \
+		    nx_utils.c \
+		    nx_zlib.c \
+		    nx_zlib.h \
+		    ppc-asm.h \
+		    ppc-opcode.h \
+		    sw_zlib.c
 
-NXFLAGS = #-DNXDBG  #-DNXDBG -DNX_MMAP
-bad_irq_check_SOURCES = bad_irq_check.c compdecomp_th.c
-bad_irq_check_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-bad_irq_check_LDFLAGS = -Wl,-wrap,nx_touch_pages -Wl,-wrap,nx_touch_pages_dde
-bench_initend_SOURCES = bench_initend.c
-bench_initend_LDADD = -lz
-compdecomp_SOURCES = compdecomp.c
-compdecomp_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-compdecomp_th_SOURCES = compdecomp_th.c
-compdecomp_th_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-crc_perf_test_zlib_SOURCES = crc_perf_test.c
-crc_perf_test_zlib_LDADD = -lz
-crc_perf_test_vmx_SOURCES = crc_perf_test.c
-crc_perf_test_vmx_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-gunzip_nx_test_SOURCES = gunzip_nx.c
-gunzip_nx_test_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-gzip_nxfht_test_SOURCES = gzip_nxfht.c
-gzip_nxfht_test_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-gzip_nxdht_test_SOURCES = gzip_nxdht.c
-gzip_nxdht_test_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-gzm_SOURCES = gzm.c
-gzm_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-makedata_SOURCES = makedata.c
-nx_gzip_SOURCES = nx_gzip.c
-nx_gzip_LDADD = $(STATIC_LIBNXZ) -ldl
-rand_pfault_check_SOURCES = rand_pfault_check.c compdecomp_th.c
-rand_pfault_check_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-rand_pfault_check_LDFLAGS = -Wl,-wrap,nx_touch_pages \
-			    -Wl,-wrap,nx_touch_pages_dde
+libnxz_la_LDFLAGS = -version-info $(SOVERSION) \
+		    -Wl,--version-script=$(srcdir)/Versions
 
-zpipe_SOURCES = zpipe.c
-zpipe_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-zpipe_dict_zlib_SOURCES = zpipe_dict.c
-zpipe_dict_zlib_LDADD = -lz
-zpipe_dict_nx_SOURCES = zpipe_dict.c
-zpipe_dict_nx_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
+AM_CPPFLAGS = -I$(top_srcdir)/inc_nx -DZLIB_PATH=\"$(ZLIB_PATH)\"
 all: all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .lo .o .obj
+.SUFFIXES: .S .c .lo .o .obj
 $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -463,9 +419,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__confi
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign samples/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign lib/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign samples/Makefile
+	  $(AUTOMAKE) --foreign lib/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -484,69 +440,43 @@ $(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 
-bad_irq_check$(EXEEXT): $(bad_irq_check_OBJECTS) $(bad_irq_check_DEPENDENCIES) $(EXTRA_bad_irq_check_DEPENDENCIES) 
-	@rm -f bad_irq_check$(EXEEXT)
-	$(AM_V_CCLD)$(bad_irq_check_LINK) $(bad_irq_check_OBJECTS) $(bad_irq_check_LDADD) $(LIBS)
+install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+	@$(NORMAL_INSTALL)
+	@list='$(lib_LTLIBRARIES)'; test -n "$(libdir)" || list=; \
+	list2=; for p in $$list; do \
+	  if test -f $$p; then \
+	    list2="$$list2 $$p"; \
+	  else :; fi; \
+	done; \
+	test -z "$$list2" || { \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(libdir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(libdir)" || exit 1; \
+	  echo " $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL) $(INSTALL_STRIP_FLAG) $$list2 '$(DESTDIR)$(libdir)'"; \
+	  $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL) $(INSTALL_STRIP_FLAG) $$list2 "$(DESTDIR)$(libdir)"; \
+	}
 
-bench_initend$(EXEEXT): $(bench_initend_OBJECTS) $(bench_initend_DEPENDENCIES) $(EXTRA_bench_initend_DEPENDENCIES) 
-	@rm -f bench_initend$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(bench_initend_OBJECTS) $(bench_initend_LDADD) $(LIBS)
+uninstall-libLTLIBRARIES:
+	@$(NORMAL_UNINSTALL)
+	@list='$(lib_LTLIBRARIES)'; test -n "$(libdir)" || list=; \
+	for p in $$list; do \
+	  $(am__strip_dir) \
+	  echo " $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$f'"; \
+	  $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$f"; \
+	done
 
-compdecomp$(EXEEXT): $(compdecomp_OBJECTS) $(compdecomp_DEPENDENCIES) $(EXTRA_compdecomp_DEPENDENCIES) 
-	@rm -f compdecomp$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(compdecomp_OBJECTS) $(compdecomp_LDADD) $(LIBS)
+clean-libLTLIBRARIES:
+	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
+	@list='$(lib_LTLIBRARIES)'; \
+	locs=`for p in $$list; do echo $$p; done | \
+	      sed 's|^[^/]*$$|.|; s|/[^/]*$$||; s|$$|/so_locations|' | \
+	      sort -u`; \
+	test -z "$$locs" || { \
+	  echo rm -f $${locs}; \
+	  rm -f $${locs}; \
+	}
 
-compdecomp_th$(EXEEXT): $(compdecomp_th_OBJECTS) $(compdecomp_th_DEPENDENCIES) $(EXTRA_compdecomp_th_DEPENDENCIES) 
-	@rm -f compdecomp_th$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(compdecomp_th_OBJECTS) $(compdecomp_th_LDADD) $(LIBS)
-
-crc_perf_test_vmx$(EXEEXT): $(crc_perf_test_vmx_OBJECTS) $(crc_perf_test_vmx_DEPENDENCIES) $(EXTRA_crc_perf_test_vmx_DEPENDENCIES) 
-	@rm -f crc_perf_test_vmx$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(crc_perf_test_vmx_OBJECTS) $(crc_perf_test_vmx_LDADD) $(LIBS)
-
-crc_perf_test_zlib$(EXEEXT): $(crc_perf_test_zlib_OBJECTS) $(crc_perf_test_zlib_DEPENDENCIES) $(EXTRA_crc_perf_test_zlib_DEPENDENCIES) 
-	@rm -f crc_perf_test_zlib$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(crc_perf_test_zlib_OBJECTS) $(crc_perf_test_zlib_LDADD) $(LIBS)
-
-gunzip_nx_test$(EXEEXT): $(gunzip_nx_test_OBJECTS) $(gunzip_nx_test_DEPENDENCIES) $(EXTRA_gunzip_nx_test_DEPENDENCIES) 
-	@rm -f gunzip_nx_test$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(gunzip_nx_test_OBJECTS) $(gunzip_nx_test_LDADD) $(LIBS)
-
-gzip_nxdht_test$(EXEEXT): $(gzip_nxdht_test_OBJECTS) $(gzip_nxdht_test_DEPENDENCIES) $(EXTRA_gzip_nxdht_test_DEPENDENCIES) 
-	@rm -f gzip_nxdht_test$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(gzip_nxdht_test_OBJECTS) $(gzip_nxdht_test_LDADD) $(LIBS)
-
-gzip_nxfht_test$(EXEEXT): $(gzip_nxfht_test_OBJECTS) $(gzip_nxfht_test_DEPENDENCIES) $(EXTRA_gzip_nxfht_test_DEPENDENCIES) 
-	@rm -f gzip_nxfht_test$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(gzip_nxfht_test_OBJECTS) $(gzip_nxfht_test_LDADD) $(LIBS)
-
-gzm$(EXEEXT): $(gzm_OBJECTS) $(gzm_DEPENDENCIES) $(EXTRA_gzm_DEPENDENCIES) 
-	@rm -f gzm$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(gzm_OBJECTS) $(gzm_LDADD) $(LIBS)
-
-makedata$(EXEEXT): $(makedata_OBJECTS) $(makedata_DEPENDENCIES) $(EXTRA_makedata_DEPENDENCIES) 
-	@rm -f makedata$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(makedata_OBJECTS) $(makedata_LDADD) $(LIBS)
-
-nx_gzip$(EXEEXT): $(nx_gzip_OBJECTS) $(nx_gzip_DEPENDENCIES) $(EXTRA_nx_gzip_DEPENDENCIES) 
-	@rm -f nx_gzip$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(nx_gzip_OBJECTS) $(nx_gzip_LDADD) $(LIBS)
-
-rand_pfault_check$(EXEEXT): $(rand_pfault_check_OBJECTS) $(rand_pfault_check_DEPENDENCIES) $(EXTRA_rand_pfault_check_DEPENDENCIES) 
-	@rm -f rand_pfault_check$(EXEEXT)
-	$(AM_V_CCLD)$(rand_pfault_check_LINK) $(rand_pfault_check_OBJECTS) $(rand_pfault_check_LDADD) $(LIBS)
-
-zpipe$(EXEEXT): $(zpipe_OBJECTS) $(zpipe_DEPENDENCIES) $(EXTRA_zpipe_DEPENDENCIES) 
-	@rm -f zpipe$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(zpipe_OBJECTS) $(zpipe_LDADD) $(LIBS)
-
-zpipe_dict_nx$(EXEEXT): $(zpipe_dict_nx_OBJECTS) $(zpipe_dict_nx_DEPENDENCIES) $(EXTRA_zpipe_dict_nx_DEPENDENCIES) 
-	@rm -f zpipe_dict_nx$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(zpipe_dict_nx_OBJECTS) $(zpipe_dict_nx_LDADD) $(LIBS)
-
-zpipe_dict_zlib$(EXEEXT): $(zpipe_dict_zlib_OBJECTS) $(zpipe_dict_zlib_DEPENDENCIES) $(EXTRA_zpipe_dict_zlib_DEPENDENCIES) 
-	@rm -f zpipe_dict_zlib$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(zpipe_dict_zlib_OBJECTS) $(zpipe_dict_zlib_LDADD) $(LIBS)
+libnxz.la: $(libnxz_la_OBJECTS) $(libnxz_la_DEPENDENCIES) $(EXTRA_libnxz_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(libnxz_la_LINK) -rpath $(libdir) $(libnxz_la_OBJECTS) $(libnxz_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -554,26 +484,51 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bad_irq_check.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bench_initend.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/compdecomp.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/compdecomp_th.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/crc_perf_test.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gunzip_nx.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gzip_nxdht.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gzip_nxfht.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gzm.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/makedata.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_gzip.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rand_pfault_check.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zpipe.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zpipe_dict.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/crc32_ppc.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/crc32_ppc_asm.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gzip_vas.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_adler32.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_compress.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_crc.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_deflate.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_dht.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_dht_builtin.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_dhtgen.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_inflate.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_uncompr.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_utils.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_zlib.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sw_zlib.Plo@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
 	@echo '# dummy' >$@-t && $(am__mv) $@-t $@
 
 am--depfiles: $(am__depfiles_remade)
+
+.S.o:
+@am__fastdepCCAS_TRUE@	$(AM_V_CPPAS)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
+@am__fastdepCCAS_TRUE@	$(CPPASCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCCAS_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCCAS_FALSE@	$(AM_V_CPPAS)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCCAS_FALSE@	DEPDIR=$(DEPDIR) $(CCASDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCCAS_FALSE@	$(AM_V_CPPAS@am__nodep@)$(CPPASCOMPILE) -c -o $@ $<
+
+.S.obj:
+@am__fastdepCCAS_TRUE@	$(AM_V_CPPAS)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
+@am__fastdepCCAS_TRUE@	$(CPPASCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
+@am__fastdepCCAS_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCCAS_FALSE@	$(AM_V_CPPAS)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCCAS_FALSE@	DEPDIR=$(DEPDIR) $(CCASDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCCAS_FALSE@	$(AM_V_CPPAS@am__nodep@)$(CPPASCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+
+.S.lo:
+@am__fastdepCCAS_TRUE@	$(AM_V_CPPAS)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.lo$$||'`;\
+@am__fastdepCCAS_TRUE@	$(LTCPPASCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCCAS_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Plo
+@AMDEP_TRUE@@am__fastdepCCAS_FALSE@	$(AM_V_CPPAS)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCCAS_FALSE@	DEPDIR=$(DEPDIR) $(CCASDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCCAS_FALSE@	$(AM_V_CPPAS@am__nodep@)$(LTCPPASCOMPILE) -c -o $@ $<
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -692,8 +647,11 @@ distdir-am: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile
+all-am: Makefile $(LTLIBRARIES)
 installdirs:
+	for dir in "$(DESTDIR)$(libdir)"; do \
+	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
+	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -726,23 +684,25 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool mostlyclean-am
+clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
+	mostlyclean-am
 
 distclean: distclean-am
-		-rm -f ./$(DEPDIR)/bad_irq_check.Po
-	-rm -f ./$(DEPDIR)/bench_initend.Po
-	-rm -f ./$(DEPDIR)/compdecomp.Po
-	-rm -f ./$(DEPDIR)/compdecomp_th.Po
-	-rm -f ./$(DEPDIR)/crc_perf_test.Po
-	-rm -f ./$(DEPDIR)/gunzip_nx.Po
-	-rm -f ./$(DEPDIR)/gzip_nxdht.Po
-	-rm -f ./$(DEPDIR)/gzip_nxfht.Po
-	-rm -f ./$(DEPDIR)/gzm.Po
-	-rm -f ./$(DEPDIR)/makedata.Po
-	-rm -f ./$(DEPDIR)/nx_gzip.Po
-	-rm -f ./$(DEPDIR)/rand_pfault_check.Po
-	-rm -f ./$(DEPDIR)/zpipe.Po
-	-rm -f ./$(DEPDIR)/zpipe_dict.Po
+		-rm -f ./$(DEPDIR)/crc32_ppc.Plo
+	-rm -f ./$(DEPDIR)/crc32_ppc_asm.Plo
+	-rm -f ./$(DEPDIR)/gzip_vas.Plo
+	-rm -f ./$(DEPDIR)/nx_adler32.Plo
+	-rm -f ./$(DEPDIR)/nx_compress.Plo
+	-rm -f ./$(DEPDIR)/nx_crc.Plo
+	-rm -f ./$(DEPDIR)/nx_deflate.Plo
+	-rm -f ./$(DEPDIR)/nx_dht.Plo
+	-rm -f ./$(DEPDIR)/nx_dht_builtin.Plo
+	-rm -f ./$(DEPDIR)/nx_dhtgen.Plo
+	-rm -f ./$(DEPDIR)/nx_inflate.Plo
+	-rm -f ./$(DEPDIR)/nx_uncompr.Plo
+	-rm -f ./$(DEPDIR)/nx_utils.Plo
+	-rm -f ./$(DEPDIR)/nx_zlib.Plo
+	-rm -f ./$(DEPDIR)/sw_zlib.Plo
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -765,7 +725,7 @@ install-dvi: install-dvi-am
 
 install-dvi-am:
 
-install-exec-am:
+install-exec-am: install-libLTLIBRARIES
 
 install-html: install-html-am
 
@@ -788,20 +748,21 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-		-rm -f ./$(DEPDIR)/bad_irq_check.Po
-	-rm -f ./$(DEPDIR)/bench_initend.Po
-	-rm -f ./$(DEPDIR)/compdecomp.Po
-	-rm -f ./$(DEPDIR)/compdecomp_th.Po
-	-rm -f ./$(DEPDIR)/crc_perf_test.Po
-	-rm -f ./$(DEPDIR)/gunzip_nx.Po
-	-rm -f ./$(DEPDIR)/gzip_nxdht.Po
-	-rm -f ./$(DEPDIR)/gzip_nxfht.Po
-	-rm -f ./$(DEPDIR)/gzm.Po
-	-rm -f ./$(DEPDIR)/makedata.Po
-	-rm -f ./$(DEPDIR)/nx_gzip.Po
-	-rm -f ./$(DEPDIR)/rand_pfault_check.Po
-	-rm -f ./$(DEPDIR)/zpipe.Po
-	-rm -f ./$(DEPDIR)/zpipe_dict.Po
+		-rm -f ./$(DEPDIR)/crc32_ppc.Plo
+	-rm -f ./$(DEPDIR)/crc32_ppc_asm.Plo
+	-rm -f ./$(DEPDIR)/gzip_vas.Plo
+	-rm -f ./$(DEPDIR)/nx_adler32.Plo
+	-rm -f ./$(DEPDIR)/nx_compress.Plo
+	-rm -f ./$(DEPDIR)/nx_crc.Plo
+	-rm -f ./$(DEPDIR)/nx_deflate.Plo
+	-rm -f ./$(DEPDIR)/nx_dht.Plo
+	-rm -f ./$(DEPDIR)/nx_dht_builtin.Plo
+	-rm -f ./$(DEPDIR)/nx_dhtgen.Plo
+	-rm -f ./$(DEPDIR)/nx_inflate.Plo
+	-rm -f ./$(DEPDIR)/nx_uncompr.Plo
+	-rm -f ./$(DEPDIR)/nx_utils.Plo
+	-rm -f ./$(DEPDIR)/nx_zlib.Plo
+	-rm -f ./$(DEPDIR)/sw_zlib.Plo
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
@@ -818,31 +779,27 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am:
+uninstall-am: uninstall-libLTLIBRARIES
 
 .MAKE: install-am install-strip
 
 .PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-am clean \
-	clean-generic clean-libtool cscopelist-am ctags ctags-am \
-	distclean distclean-compile distclean-generic \
+	clean-generic clean-libLTLIBRARIES clean-libtool cscopelist-am \
+	ctags ctags-am distclean distclean-compile distclean-generic \
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
 	install-data-am install-dvi install-dvi-am install-exec \
 	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
+	install-info-am install-libLTLIBRARIES install-man install-pdf \
+	install-pdf-am install-ps install-ps-am install-strip \
+	installcheck installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am
+	tags tags-am uninstall uninstall-am uninstall-libLTLIBRARIES
 
 .PRECIOUS: Makefile
 
-
-# Does nothing by default.
-all:
-
-bench: $(EXTRATESTS) zpipe gzm nx_gzip bench_initend
+ZLIB_PATH ?= libz.so
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

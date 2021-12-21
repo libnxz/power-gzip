@@ -4,8 +4,14 @@
 # The Automake init of 1.10 requires at least autoconf 2.62
 AC_PREREQ([2.69])
 
-#Autoconf versioning is A:C:B
 AC_INIT([libnxz],[0.62],[https://github.com/libnxz/power-gzip])
+# Update this value for every release: (A:B:C will map to foo.so.(A-C).C.B)
+# http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
+LTCURRENT=$(echo "$PACKAGE_VERSION" | cut -d . -f 1)
+LTREVISION=$(echo "$PACKAGE_VERSION" | cut -d . -f 2)
+LTAGE=0
+SOVERSION="$LTCURRENT:$LTREVISION:$LTAGE"
+AC_SUBST(SOVERSION)
 
 # Defines host_cpu, host_vendor, and host_os variables.
 AC_CANONICAL_HOST
@@ -14,23 +20,25 @@ AC_CANONICAL_TARGET
 AC_CONFIG_SRCDIR([lib/nx_zlib.c])
 AC_CONFIG_FILES([config.mk oct/config.mk])
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([lib/Makefile])
 AC_CONFIG_FILES([samples/Makefile])
 AC_CONFIG_FILES([test/run_test.sh], [chmod +x test/run_test.sh])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE([1.10 no-define foreign subdir-objects])
 AM_MAINTAINER_MODE([disable])
-
+LT_INIT
 
 : ${CFLAGS="-O3 -Wall -Werror -g"}
 
 # Checks for programs.
 AC_CHECK_PROG(ABIDIFF, abidiff, abidiff, no)
 AS_IF([test "x$ABIDIFF" != xno],
-      [AC_SUBST(ABITEST,"run ./test_abi ../lib/libnxz.so")],
+      [AC_SUBST(ABITEST,"run ./test_abi ../lib/.libs/libnxz.so")],
       [AC_SUBST(ABITEST,'# ABI test skipped because abidiff is not available'
 )])
 AC_CHECK_TARGET_TOOL([AR], [ar], [:])
+AM_PROG_AS
 AC_PROG_AWK
 AC_PROG_CC
 AC_PROG_CPP
@@ -38,7 +46,6 @@ AC_PROG_GREP
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
-AC_PROG_RANLIB
 AC_PROG_SED
 AX_WITH_PROG(BASH, bash)
 AX_WITH_PROG(GZIP, gzip)

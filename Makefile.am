@@ -1,4 +1,5 @@
-#include config.mk
+ACLOCAL_AMFLAGS = -I m4
+
 include aminclude.am
 
 # List of directories built by default.

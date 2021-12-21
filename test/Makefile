@@ -1,7 +1,7 @@
 include ../config.mk
 
 INC = -I../lib -I../inc_nx
-LIB = -L../lib -L/usr/lib/
+LIB = -L../lib/.libs -L/usr/lib/
 
 SRC_DEFLATE = ${wildcard test_deflate.c test_utils.c deflate/*.c}
 SRC_INFLATE = ${wildcard test_inflate.c test_utils.c inflate/*.c}
@@ -45,7 +45,7 @@ $(TEST_OBJS): %.o : %.c
 
 regen-abi:
 	@rm -f libnxz.abi
-	abidw $(ABIDW_FLAGS) ../lib/libnxz.so > libnxz.abi
+	abidw $(ABIDW_FLAGS) ../lib/.libs/libnxz.so > libnxz.abi
 	@echo "To regenerate libz.abi, build zlib or find system's libz.so and do:"
 	@echo "    abidw $(ABIDW_FLAGS) /path/to/libz.so > libz.abi"
 

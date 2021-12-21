@@ -1,7 +1,7 @@
 AM_CPPFLAGS = -I$(top_srcdir)/inc_nx
-LDFLAGS = -L$(top_srcdir)/lib
+LDFLAGS = -static-libtool-libs
 
-STATIC_LIBNXZ = $(top_srcdir)/lib/libnxz.a
+STATIC_LIBNXZ = ../lib/libnxz.la
 
 EXTRATESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th \
 	bad_irq_check rand_pfault_check

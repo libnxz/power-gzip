@@ -15,6 +15,10 @@ if DX_COND_doc
 doc_target = doc
 endif DX_COND_doc
 
+VALGRIND_FLAGS="--leak-check=full \
+		--suppressions=$(top_srcdir)/test/valgrind.supp \
+		--error-exitcode=1"
+
 all: $(SUBDIRS) $(doc_target)
 
 $(SUBDIRS):
@@ -25,11 +29,9 @@ $(SUBDIRS):
 bench: $(SUBDIRS)
 	$(MAKE) -C samples $@
 
-check:  $(SUBDIRS)
-	$(MAKE) -C test $@
-
-valgrind-check:  $(SUBDIRS)
-	$(MAKE) -C test check TEST_WRAPPER="${VALGRIND} --leak-check=full --suppressions=valgrind.supp --error-exitcode=1"
+valgrind-check: $(SUBDIRS)
+	$(MAKE) -C test check \
+	  LOG_COMPILER="${VALGRIND}" LOG_FLAGS=$(VALGRIND_FLAGS)
 
 if DX_COND_doc
 doc: doc/libnxz.doxy
@@ -37,6 +39,3 @@ doc: doc/libnxz.doxy
 
 MOSTLYCLEANFILES = $(DX_CLEANFILES)
 endif DX_COND_doc
-
-unsafe-check:  $(SUBDIRS)
-	$(MAKE) -C test $@

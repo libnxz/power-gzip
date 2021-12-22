@@ -2656,7 +2656,7 @@ ac_config_files="$ac_config_files lib/Makefile"
 
 ac_config_files="$ac_config_files samples/Makefile"
 
-ac_config_files="$ac_config_files test/run_test.sh"
+ac_config_files="$ac_config_files test/Makefile"
 
 
 ac_config_headers="$ac_config_headers config.h"
@@ -18203,7 +18203,7 @@ do
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "lib/Makefile") CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
     "samples/Makefile") CONFIG_FILES="$CONFIG_FILES samples/Makefile" ;;
-    "test/run_test.sh") CONFIG_FILES="$CONFIG_FILES test/run_test.sh" ;;
+    "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
     "config.h") CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
@@ -18802,7 +18802,6 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
 
 
   case $ac_file$ac_mode in
-    "test/run_test.sh":F) chmod +x test/run_test.sh ;;
     "depfiles":C) test x"$AMDEP_TRUE" != x"" || {
   # Older Autoconf quotes --file arguments for eval, but not when files
   # are listed without --file.  Let's play safe and only enable the eval

@@ -121,7 +121,7 @@ int main(int argc, char **argv)
 	if (argc == 2)
 		iterations = atoi(argv[1]);
 	else
-		iterations = 100;
+		iterations = 2;
 
 	/* Get parent thread kernel PID (userspace sees as Thread ID).  */
 	pid_t my_pid = syscall(SYS_gettid);

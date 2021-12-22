@@ -1,10 +1,14 @@
+/* Usage: %s [<thread> <interval> <iterations>] */
+
 #define _GNU_SOURCE /* For pthread_tryjoin_np */
 #include <sys/time.h>
 #include <time.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
+#include <sys/sysinfo.h>
 #include "test.h"
 
 #define THREAD_MAX	176
@@ -191,18 +195,25 @@ static int run_case(void* _pstats)
 int main(int argc, char **argv)
 {
 
-	int thread_num = THREAD_MAX;
+	int thread_num = 0;
 	unsigned long tsize = 0;
 	int i;
 
-	if(argc != 4) {
-		printf("Usage: %s <thread> <interval> <iterations>\n", argv[0]);
-		return -1;
+	if(argc == 4) {
+		thread_num = atoi(argv[1]);
+		test_interval = atoi(argv[2]);
+		test_iterations = atoi(argv[3]);
+	} else {
+		char * t = getenv("TEST_NTHREADS");
+		if (t != NULL)
+			thread_num = atoi(t);
+		if (thread_num == 0)
+			thread_num = get_nprocs();
+
+		test_interval = 10;
+		test_iterations = 6;
 	}
 
-	thread_num = atoi(argv[1]);
-	test_interval = atoi(argv[2]);
-	test_iterations = atoi(argv[3]);
 
 	if(thread_num > THREAD_MAX) thread_num = THREAD_MAX;
 

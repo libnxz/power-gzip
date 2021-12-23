@@ -59,7 +59,7 @@ pdf: @DX_DOCDIR@/@PACKAGE@.pdf
 
 endif DX_COND_pdf
 
-.PHONY: $(subdirs) doc-run doc $(DX_PDF_GOAL)
+.PHONY: $(subdirs) doc-run doc $(DX_PDF_GOAL) $(EMPTY_AUTOMAKE_TARGETS)
 
 .INTERMEDIATE: doc-run $(DX_PDF_GOAL)
 

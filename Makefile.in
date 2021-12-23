@@ -398,6 +398,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+EMPTY_AUTOMAKE_TARGETS = selftest
 ACLOCAL_AMFLAGS = -I m4
 @DX_COND_doc_TRUE@@DX_COND_html_TRUE@DX_CLEAN_HTML = @DX_DOCDIR@/html
 @DX_COND_doc_TRUE@@DX_COND_man_TRUE@DX_CLEAN_MAN = @DX_DOCDIR@/man
@@ -986,7 +987,7 @@ uninstall-am: uninstall-dist_docDATA uninstall-includeHEADERS
 @DX_COND_doc_TRUE@@DX_COND_pdf_TRUE@	done; \
 @DX_COND_doc_TRUE@@DX_COND_pdf_TRUE@	mv refman.pdf ../@PACKAGE@.pdf
 
-@DX_COND_doc_TRUE@.PHONY: $(subdirs) doc-run doc $(DX_PDF_GOAL)
+@DX_COND_doc_TRUE@.PHONY: $(subdirs) doc-run doc $(DX_PDF_GOAL) $(EMPTY_AUTOMAKE_TARGETS)
 
 @DX_COND_doc_TRUE@.INTERMEDIATE: doc-run $(DX_PDF_GOAL)
 
@@ -1015,6 +1016,9 @@ valgrind-check: $(SUBDIRS)
 
 @DX_COND_doc_TRUE@doc: doc/libnxz.doxy
 @DX_COND_doc_TRUE@	doxygen $<
+
+selftest:
+	$(MAKE) $(AM_MAKEFLAGS)-C $@ run_tests
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

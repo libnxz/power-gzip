@@ -82,3 +82,5 @@ regen-abi:
 	abidw $(ABIDW_FLAGS) ../lib/.libs/libnxz.so > $(srcdir)/libnxz.abi
 	@echo "To regenerate libz.abi, build zlib or find system's libz.so and do:"
 	@echo "    abidw $(ABIDW_FLAGS) /path/to/libz.so > libz.abi"
+
+build-TESTS: $(check_PROGRAMS) $(check_SCRIPTS)

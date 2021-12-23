@@ -20,6 +20,8 @@ AC_CANONICAL_TARGET
 AC_CONFIG_SRCDIR([lib/nx_zlib.c])
 AC_CONFIG_FILES([config.mk oct/config.mk])
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([doc/Makefile])
+AC_CONFIG_FILES([inc_nx/Makefile])
 AC_CONFIG_FILES([lib/Makefile])
 AC_CONFIG_FILES([samples/Makefile])
 AC_CONFIG_FILES([test/Makefile])

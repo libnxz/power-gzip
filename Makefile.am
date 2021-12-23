@@ -1,3 +1,5 @@
+EMPTY_AUTOMAKE_TARGETS=selftest
+
 ACLOCAL_AMFLAGS = -I m4
 
 include aminclude.am
@@ -39,3 +41,6 @@ doc: doc/libnxz.doxy
 
 MOSTLYCLEANFILES = $(DX_CLEANFILES)
 endif DX_COND_doc
+
+selftest:
+	$(MAKE) $(AM_MAKEFLAGS)-C $@ run_tests

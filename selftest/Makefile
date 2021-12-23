@@ -1,5 +1,5 @@
-CC = gcc
-CFLAGS = -O3
+CC ?= gcc
+CFLAGS ?= -O3
 INC = ./inc
 SRC = gzfht_test.c gunz_test.c
 OBJ = $(SRC:.c=.o)

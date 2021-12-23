@@ -2652,6 +2652,10 @@ ac_config_files="$ac_config_files config.mk oct/config.mk"
 
 ac_config_files="$ac_config_files Makefile"
 
+ac_config_files="$ac_config_files doc/Makefile"
+
+ac_config_files="$ac_config_files inc_nx/Makefile"
+
 ac_config_files="$ac_config_files lib/Makefile"
 
 ac_config_files="$ac_config_files samples/Makefile"
@@ -18201,6 +18205,8 @@ do
     "config.mk") CONFIG_FILES="$CONFIG_FILES config.mk" ;;
     "oct/config.mk") CONFIG_FILES="$CONFIG_FILES oct/config.mk" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+    "doc/Makefile") CONFIG_FILES="$CONFIG_FILES doc/Makefile" ;;
+    "inc_nx/Makefile") CONFIG_FILES="$CONFIG_FILES inc_nx/Makefile" ;;
     "lib/Makefile") CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
     "samples/Makefile") CONFIG_FILES="$CONFIG_FILES samples/Makefile" ;;
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;

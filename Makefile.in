@@ -113,7 +113,7 @@ am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
  configure.lineno config.status.lineno
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = config.h
-CONFIG_CLEAN_FILES = config.mk oct/config.mk
+CONFIG_CLEAN_FILES = config.mk
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
@@ -202,9 +202,8 @@ ETAGS = etags
 CTAGS = ctags
 CSCOPE = cscope
 am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/aminclude.am \
-	$(srcdir)/config.h.in $(srcdir)/config.mk.in \
-	$(top_srcdir)/oct/config.mk.in compile config.guess config.sub \
-	depcomp install-sh ltmain.sh missing
+	$(srcdir)/config.h.in $(srcdir)/config.mk.in compile \
+	config.guess config.sub depcomp install-sh ltmain.sh missing
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -415,7 +414,7 @@ ACLOCAL_AMFLAGS = -I m4
 
 # List of directories built by default.
 SUBDIRS = lib test samples
-DIST_SUBDIRS = doc inc_nx m4 oct
+DIST_SUBDIRS = doc inc_nx oct
 dist_doc_DATA = licenses/APACHE-2.0.txt licenses/gpl-2.0.txt
 include_HEADERS = libnxz.h
 @DX_COND_doc_TRUE@doc_target = doc
@@ -478,8 +477,6 @@ $(srcdir)/config.h.in: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 distclean-hdr:
 	-rm -f config.h stamp-h1
 config.mk: $(top_builddir)/config.status $(srcdir)/config.mk.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-oct/config.mk: $(top_builddir)/config.status $(top_srcdir)/oct/config.mk.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:

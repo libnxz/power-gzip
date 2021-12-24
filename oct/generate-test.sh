@@ -37,7 +37,7 @@ fi
 
 echo -e "Original checksum:\t\${checksum1}"
 
-checksum2=\$(cat ${file}.uncompressed | \\
+checksum2=\$(cat ${srcdir}/${file}.uncompressed | \\
 	    ${test} \\
 	    | ${SHA256SUM} - \\
 	    | ${AWK} '{print \$1}')

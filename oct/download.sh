@@ -13,7 +13,7 @@ decompress()
 
 
 set -e
-f=$(mktemp)
+f=$(mktemp -p .)
 ${WGET} -q -L "$(${SED} -n 1p ${input})" -O ${f}
 case "$(${SED} -n 2p ${input})" in
   "none") ;;

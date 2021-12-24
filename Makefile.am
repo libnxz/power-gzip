@@ -7,7 +7,7 @@ include aminclude.am
 # List of directories built by default.
 SUBDIRS = lib test samples
 
-DIST_SUBDIRS = doc inc_nx m4 oct
+DIST_SUBDIRS = doc inc_nx oct
 
 dist_doc_DATA = licenses/APACHE-2.0.txt licenses/gpl-2.0.txt
 

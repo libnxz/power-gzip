@@ -82,7 +82,7 @@ compdecomp: $(addsuffix .test-result,$(compdecomp_tests))
 download: $(uncomp_files)
 
 minideflate.c:
-	@wget https://raw.githubusercontent.com/zlib-ng/zlib-ng/develop/test/$@
+	@wget https://raw.githubusercontent.com/tuliom/zlib-ng/minideflate-fix/test/$@
 
 minideflate: minideflate.c
 	@sed -i 's/^#include.*zbuild\.h.*$$//g' $<

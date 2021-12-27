@@ -26,6 +26,7 @@ libnxz_la_SOURCES = crc32_ppc.c \
 		    ppc-asm.h \
 		    ppc-opcode.h \
 		    sw_zlib.c
+libnxz_la_LIBADD = $(PTHREAD_LIBS) -ldl
 libnxz_la_LDFLAGS = -version-info $(SOVERSION) \
 		    -Wl,--version-script=$(srcdir)/Versions
 

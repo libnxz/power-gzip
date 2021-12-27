@@ -18,7 +18,7 @@ doc_target = doc
 endif DX_COND_doc
 
 VALGRIND_FLAGS="--leak-check=full \
-		--suppressions=$(top_srcdir)/test/valgrind.supp \
+		--suppressions=$(abs_top_srcdir)/test/valgrind.supp \
 		--error-exitcode=1"
 
 all: $(SUBDIRS) $(doc_target)

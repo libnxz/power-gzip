@@ -420,7 +420,7 @@ dist_doc_DATA = licenses/APACHE-2.0.txt licenses/gpl-2.0.txt
 include_HEADERS = libnxz.h
 @DX_COND_doc_TRUE@doc_target = doc
 VALGRIND_FLAGS = "--leak-check=full \
-		--suppressions=$(top_srcdir)/test/valgrind.supp \
+		--suppressions=$(abs_top_srcdir)/test/valgrind.supp \
 		--error-exitcode=1"
 
 @DX_COND_doc_TRUE@MOSTLYCLEANFILES = $(DX_CLEANFILES)

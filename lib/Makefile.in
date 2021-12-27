@@ -133,7 +133,8 @@ am__uninstall_files_from_dir = { \
   }
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libnxz_la_LIBADD =
+am__DEPENDENCIES_1 =
+libnxz_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am_libnxz_la_OBJECTS = crc32_ppc.lo crc32_ppc_asm.lo gzip_vas.lo \
 	nx_adler32.lo nx_compress.lo nx_crc.lo nx_deflate.lo nx_dht.lo \
 	nx_dhtgen.lo nx_dht_builtin.lo nx_inflate.lo nx_uncompr.lo \
@@ -402,6 +403,7 @@ libnxz_la_SOURCES = crc32_ppc.c \
 		    ppc-opcode.h \
 		    sw_zlib.c
 
+libnxz_la_LIBADD = $(PTHREAD_LIBS) -ldl
 libnxz_la_LDFLAGS = -version-info $(SOVERSION) \
 		    -Wl,--version-script=$(srcdir)/Versions
 

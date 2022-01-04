@@ -622,6 +622,26 @@ static void nx_close_all()
 	return;
 }
 
+#define SYSFS_GZIP_CAPS "/sys/devices/vio/ibm,compression-v1/nx_gzip_caps/"
+static int nx_query_job_limits()
+{
+	char buf[32];
+	long val;
+	int fd;
+
+	fd = open(SYSFS_GZIP_CAPS "req_max_processed_len", O_RDONLY);
+	if (fd != -1) {
+		if(read(fd, buf, sizeof(buf)) > 0) {
+			val = strtol(buf, NULL, 10);
+			if (!((val == LONG_MIN || val == LONG_MAX) &&
+					errno == ERANGE))
+				return (int) val;
+		}
+	}
+
+	/* On error return default value of 1 MB */
+	return (1024 * 1024);
+}
 
 /*
    TODO
@@ -958,7 +978,7 @@ void nx_hw_init(void)
 	nx_config.max_source_dde_count = MAX_DDE_COUNT;
 	nx_config.max_target_dde_count = MAX_DDE_COUNT;
 	nx_config.max_vas_reuse_count = 100;
-	nx_config.per_job_len = (1024 * 1024); /* less than suspend limit */
+	nx_config.per_job_len = nx_query_job_limits(); /* less than suspend limit */
 	nx_config.strm_def_bufsz = (1024 * 1024); /* affect the deflate fifo_out */
 	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */
 	nx_config.cache_threshold = 8 * 1024; /* Cache input before

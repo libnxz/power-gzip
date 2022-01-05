@@ -23,13 +23,6 @@ ln -s /usr/lib/libnxz.so.0.0 /usr/lib/libz.so
 LD_PRELOAD=./libnxz.so /home/your_program
 ```
 
-- If want to use nxzlib standalone, following the steps as below:
-1. Edit `config.mk` and remove line `ZLIB = -DZLIB_API`
-2. Build libnxz.so
-```
-make clean; make
-```
-
 ## How to Run Test
 ```
 cd test

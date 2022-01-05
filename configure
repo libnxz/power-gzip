@@ -2648,7 +2648,7 @@ test -n "$target_alias" &&
   program_prefix=${target_alias}-
 
 
-ac_config_files="$ac_config_files config.mk oct/config.mk"
+ac_config_files="$ac_config_files oct/config.mk"
 
 ac_config_files="$ac_config_files Makefile"
 
@@ -16315,6 +16315,70 @@ else
 fi
 
 
+# GNU C11 is mandatory in order to build libnxz, however older compilers may
+# not enable GNU C11 by default.  Guarantee that GNU C11 is enabled and
+# supported by the current compiler.
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether $CC supports GNU C11 by default" >&5
+$as_echo_n "checking whether $CC supports GNU C11 by default... " >&6; }
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#if !defined __STDC_VERSION__ || __STDC_VERSION__ < 201112L
+		   # error "GNU C11 is not available"
+		   #endif
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_cpp "$LINENO"; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -std=gnu11" >&5
+$as_echo_n "checking whether C compiler accepts -std=gnu11... " >&6; }
+if ${ax_cv_check_cflags___std_gnu11+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -std=gnu11"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags___std_gnu11=yes
+else
+  ax_cv_check_cflags___std_gnu11=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___std_gnu11" >&5
+$as_echo "$ax_cv_check_cflags___std_gnu11" >&6; }
+if test "x$ax_cv_check_cflags___std_gnu11" = xyes; then :
+  CFLAGS="$CFLAGS -std=gnu11"
+else
+  as_fn_error $? "$CC does not support -std=gnu11" "$LINENO" 5
+fi
+
+
+fi
+rm -f conftest.err conftest.i conftest.$ac_ext
+
 # Check whether --enable-zlib-api was given.
 if test "${enable_zlib_api+set}" = set; then :
   enableval=$enable_zlib_api;
@@ -18206,7 +18270,6 @@ cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
 for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
-    "config.mk") CONFIG_FILES="$CONFIG_FILES config.mk" ;;
     "oct/config.mk") CONFIG_FILES="$CONFIG_FILES oct/config.mk" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "doc/Makefile") CONFIG_FILES="$CONFIG_FILES doc/Makefile" ;;

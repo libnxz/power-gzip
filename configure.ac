@@ -18,7 +18,7 @@ AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
 
 AC_CONFIG_SRCDIR([lib/nx_zlib.c])
-AC_CONFIG_FILES([config.mk oct/config.mk])
+AC_CONFIG_FILES([oct/config.mk])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([doc/Makefile])
 AC_CONFIG_FILES([inc_nx/Makefile])
@@ -114,6 +114,22 @@ ACX_PTHREAD
 
 AX_CHECK_COMPILE_FLAG([-mcpu=power9],
 		      [CFLAGS="$CFLAGS -mcpu=power9"])
+
+# GNU C11 is mandatory in order to build libnxz, however older compilers may
+# not enable GNU C11 by default.  Guarantee that GNU C11 is enabled and
+# supported by the current compiler.
+AC_MSG_CHECKING([whether $CC supports GNU C11 by default])
+AC_PREPROC_IFELSE(
+[AC_LANG_PROGRAM([[#if !defined __STDC_VERSION__ || __STDC_VERSION__ < 201112L
+		   # error "GNU C11 is not available"
+		   #endif
+]])],
+[AC_MSG_RESULT([yes])],
+[AC_MSG_RESULT([no])
+ AX_CHECK_COMPILE_FLAG([-std=gnu11],
+		       [CFLAGS="$CFLAGS -std=gnu11"],
+		       [AC_MSG_ERROR([$CC does not support -std=gnu11])])
+])
 
 AC_ARG_ENABLE([zlib-api],
 	      [  --disable-zlib-api      Enable compatibility with the Zlib API (default enabled)])

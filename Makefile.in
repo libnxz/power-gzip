@@ -1013,7 +1013,7 @@ valgrind-check: $(SUBDIRS)
 @DX_COND_doc_TRUE@	doxygen $<
 
 selftest:
-	$(MAKE) $(AM_MAKEFLAGS)-C $@ run_tests
+	$(MAKE) $(AM_MAKEFLAGS)-C $(abs_srcdir)/$@ run_tests
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

@@ -43,4 +43,4 @@ MOSTLYCLEANFILES = $(DX_CLEANFILES)
 endif DX_COND_doc
 
 selftest:
-	$(MAKE) $(AM_MAKEFLAGS)-C $@ run_tests
+	$(MAKE) $(AM_MAKEFLAGS)-C $(abs_srcdir)/$@ run_tests

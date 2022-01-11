@@ -36,11 +36,6 @@ LT_INIT
 : ${CFLAGS="-O3 -Wall -Werror -g"}
 
 # Checks for programs.
-AC_CHECK_PROG(ABIDIFF, abidiff, abidiff, no)
-AS_IF([test "x$ABIDIFF" != xno],
-      [AC_SUBST(ABITEST,"run ./test_abi ../lib/.libs/libnxz.so")],
-      [AC_SUBST(ABITEST,'# ABI test skipped because abidiff is not available'
-)])
 AC_CHECK_TARGET_TOOL([AR], [ar], [:])
 AM_PROG_AS
 AC_PROG_AWK

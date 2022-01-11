@@ -674,8 +674,6 @@ am__fastdepCCAS_TRUE
 CCASDEPMODE
 CCASFLAGS
 CCAS
-ABITEST
-ABIDIFF
 CPP
 LT_SYS_LIBRARY_PATH
 OTOOL64
@@ -12306,52 +12304,6 @@ CC=$lt_save_CC
 : ${CFLAGS="-O3 -Wall -Werror -g"}
 
 # Checks for programs.
-# Extract the first word of "abidiff", so it can be a program name with args.
-set dummy abidiff; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_prog_ABIDIFF+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  if test -n "$ABIDIFF"; then
-  ac_cv_prog_ABIDIFF="$ABIDIFF" # Let the user override the test.
-else
-as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_prog_ABIDIFF="abidiff"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  test -z "$ac_cv_prog_ABIDIFF" && ac_cv_prog_ABIDIFF="no"
-fi
-fi
-ABIDIFF=$ac_cv_prog_ABIDIFF
-if test -n "$ABIDIFF"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ABIDIFF" >&5
-$as_echo "$ABIDIFF" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-if test "x$ABIDIFF" != xno; then :
-  ABITEST="run ./test_abi ../lib/.libs/libnxz.so"
-
-else
-  ABITEST='# ABI test skipped because abidiff is not available'
-
-
-fi
 # Extract the first word of "$target_alias-ar", so it can be a program name with args.
 set dummy $target_alias-ar; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5

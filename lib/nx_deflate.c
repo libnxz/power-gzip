@@ -627,6 +627,7 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
 
+	s->magic1     = MAGIC1;
 	s->nxcmdp     = &s->nxcmd0;
 	s->wrap       = wrap;
 	s->windowBits = windowBits;

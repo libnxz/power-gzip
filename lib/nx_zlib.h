@@ -182,9 +182,12 @@ typedef struct nx_dev_t *nx_devp_t;
 /* save recent header bytes for hcrc calculations */
 typedef struct ckbuf_t { char buf[128]; } ckbuf_t;
 
+#define MAGIC1 0x1234567887654321ull
+
 /* z_stream equivalent of NX hardware */
 typedef struct nx_stream_s {
         /* parameters for the supported functions */
+	uint64_t        magic1;
 	int             level;          /* compression level */
 	int             method;         /* must be Z_DEFLATED for zlib */
 	int             windowBits;     /* also encodes zlib/gzip/raw */
@@ -329,7 +332,7 @@ static inline int has_nx_state(z_streamp strm)
 	nx_state = (struct nx_stream_s *)(strm->state);
 	if (nx_state == NULL) return 0;
 
-	return ((-1 <= nx_state->level) && (nx_state->level <= 9));
+	return (nx_state->magic1 == MAGIC1);
 }
 
 static inline int use_nx_inflate(z_streamp strm)

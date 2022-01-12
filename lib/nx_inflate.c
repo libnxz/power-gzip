@@ -189,8 +189,6 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 
-	nx_hw_init();
-
 	strm->msg = Z_NULL; /* in case we return an error */
 
 	h = nx_open(-1); /* if want to pick specific NX device, set env NX_GZIP_DEV_NUM */

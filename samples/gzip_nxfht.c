@@ -61,6 +61,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
+#include <limits.h>
 #include "nxu.h"
 #include "nx.h"
 #include "nx_dbg.h"
@@ -74,6 +75,27 @@ struct _nx_time_dbg {
 	uint64_t fault;
 } td;
 
+
+#define SYSFS_GZIP_CAPS "/sys/devices/vio/ibm,compression-v1/nx_gzip_caps/"
+static int nx_query_job_limits()
+{
+	char buf[32];
+	long val;
+	int fd;
+
+	fd = open(SYSFS_GZIP_CAPS "req_max_processed_len", O_RDONLY);
+	if (fd != -1) {
+		if(read(fd, buf, sizeof(buf)) > 0) {
+			val = strtol(buf, NULL, 10);
+			if (!((val == LONG_MIN || val == LONG_MAX) &&
+					errno == ERANGE))
+				return (int) val;
+		}
+	}
+
+	/* On error return default value of 1 MB */
+	return (1024 * 1024);
+}
 
 /* LZ counts returned in the user supplied nx_gzip_crb_cpb_t structure */
 static int compress_fht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
@@ -294,7 +316,7 @@ int compress_file(int argc, char **argv, void *handle)
 	NX_CLK( (td.freq = nx_get_freq())  );
 
 	/* compress piecemeal in small chunks */
-	chunk = 1<<22;
+	chunk = (uint32_t) nx_query_job_limits();
 
 	/* write the gzip header */
 	num_hdr_bytes = gzip_header_blank(outbuf);

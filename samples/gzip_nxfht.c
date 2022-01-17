@@ -90,36 +90,36 @@ static int compress_fht_sample(char *src, uint32_t srclen, char *dst, uint32_t d
 	putnn(cmdp->crb, gzip_fc, fc);
 	putnn(cmdp->cpb, in_histlen, 0); /* resuming with no history */
 	memset((void *)&cmdp->crb.csb, 0, sizeof(cmdp->crb.csb));
-    
+
 	/* Section 6.6 programming notes; spbc may be in two different places depending on FC */
-	if (!with_count) 
+	if (!with_count)
 		put32(cmdp->cpb, out_spbc_comp, 0);
-	else 
+	else
 		put32(cmdp->cpb, out_spbc_comp_with_count, 0);
-    
+
 	/* Figure 6-3 6-4; CSB location */
-	put64(cmdp->crb, csb_address, 0);    
+	put64(cmdp->crb, csb_address, 0);
 	put64(cmdp->crb, csb_address, (uint64_t) &cmdp->crb.csb & csb_address_mask);
-    
+
 	/* source direct dde */
-	clear_dde(cmdp->crb.source_dde);    
-	putnn(cmdp->crb.source_dde, dde_count, 0); 
-	put32(cmdp->crb.source_dde, ddebc, srclen); 
+	clear_dde(cmdp->crb.source_dde);
+	putnn(cmdp->crb.source_dde, dde_count, 0);
+	put32(cmdp->crb.source_dde, ddebc, srclen);
 	put64(cmdp->crb.source_dde, ddead, (uint64_t) src);
 
 	/* target direct dde */
-	clear_dde(cmdp->crb.target_dde);        
+	clear_dde(cmdp->crb.target_dde);
 	putnn(cmdp->crb.target_dde, dde_count, 0);
 	put32(cmdp->crb.target_dde, ddebc, dstlen);
-	put64(cmdp->crb.target_dde, ddead, (uint64_t) dst);   
+	put64(cmdp->crb.target_dde, ddead, (uint64_t) dst);
 
 	/* submit the crb */
 	nxu_run_job(cmdp, handle);
 
-	/* poll for the csb.v bit; you should also consider expiration */        
+	/* poll for the csb.v bit; you should also consider expiration */
 	do {;} while (getnn(cmdp->crb.csb, csb_v) == 0);
 
-	/* CC Table 6-8 */        
+	/* CC Table 6-8 */
 	cc = getnn(cmdp->crb.csb, csb_cc);
 
 	return cc;
@@ -138,13 +138,13 @@ int gzip_header_blank(char *buf)
 	buf[i++] = 0x00; /* MTIME */
 	buf[i++] = 0x00; /* MTIME */
 	buf[i++] = 0x00; /* MTIME */
-	buf[i++] = 0x00; /* MTIME */            
+	buf[i++] = 0x00; /* MTIME */
 	buf[i++] = 0x04; /* XFL 4=fastest */
 	buf[i++] = 0x03; /* OS UNIX */
 	return i;
 }
 
-/* Caller must free the allocated buffer 
+/* Caller must free the allocated buffer
    return nonzero on error */
 int read_alloc_input_file(char *fname, char **buf, size_t *bufsize)
 {
@@ -195,8 +195,8 @@ int append_sync_flush(char *buf, int tebc, int final)
 	uint64_t flush;
 	int shift = (tebc & 0x7);
 	if (tebc > 0) {
-		/* last byte is partially full */	
-		buf = buf - 1; 
+		/* last byte is partially full */
+		buf = buf - 1;
 		*buf = *buf & (unsigned char)((1<<tebc)-1);
 	}
 	else *buf = 0;
@@ -228,10 +228,10 @@ static int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 	assert(buf_len >= 0 && !!buf);
 
 	NXPRT( fprintf(stderr, "touch %p %p len 0x%lx wr=%d\n", buf, buf + buf_len, buf_len, wr) );
-	
+
 	if (buf_len <= 0 || buf == NULL)
 		return -1;
-	
+
 	do {
 		t = *begin;
 		if (wr) *begin = t;
@@ -240,13 +240,13 @@ static int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 
 	/* when buf_sz is small or buf tail is in another page */
 	t = *end;
-	if (wr) *end = t;	
+	if (wr) *end = t;
 
 	return 0;
 }
 
 /*
-  Final deflate block bit. This call assumes the block 
+  Final deflate block bit. This call assumes the block
   beginning is byte aligned.
 */
 static void set_bfinal(void *buf, int bfinal)
@@ -264,7 +264,7 @@ int compress_file(int argc, char **argv, void *handle)
 	char outname[1024];
 	uint32_t srclen, dstlen;
 	uint32_t flushlen, chunk;
-	size_t inlen, outlen, dsttotlen, srctotlen;	
+	size_t inlen, outlen, dsttotlen, srctotlen;
 	uint32_t crc=0, spbc, tpbc, tebc;
 	int lzcounts=0;
 	int cc;
@@ -275,8 +275,8 @@ int compress_file(int argc, char **argv, void *handle)
 
 	cmdp = (void *)(uintptr_t)aligned_alloc(sizeof(nx_gzip_crb_t),sizeof(nx_gzip_crb_cpb_t));
 	fprintf(stderr, "crb %p\n", cmdp);
-	
-    
+
+
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <fname>\n", argv[0]);
 		exit(-1);
@@ -284,7 +284,7 @@ int compress_file(int argc, char **argv, void *handle)
 	if (read_alloc_input_file(argv[1], &inbuf, &inlen))
 		exit(-1);
 	fprintf(stderr, "file %s read, %ld bytes\n", argv[1], inlen);
-	
+
 	outlen = 2*inlen + 1024; /* 1024 for header and crap */
 
 	assert(NULL != (outbuf = (char *)malloc(outlen))); /* generous malloc for testing */
@@ -292,16 +292,16 @@ int compress_file(int argc, char **argv, void *handle)
 
 	NX_CLK( memset(&td, 0, sizeof(td)) );
 	NX_CLK( (td.freq = nx_get_freq())  );
-	
-	/* compress piecemeal in small chunks */    
+
+	/* compress piecemeal in small chunks */
 	chunk = 1<<22;
 
-	/* write the gzip header */    
-	num_hdr_bytes = gzip_header_blank(outbuf); 
+	/* write the gzip header */
+	num_hdr_bytes = gzip_header_blank(outbuf);
 	dstbuf    = outbuf + num_hdr_bytes;
-	outlen    = outlen - num_hdr_bytes;	
+	outlen    = outlen - num_hdr_bytes;
 	dsttotlen = num_hdr_bytes;
-	
+
 	srcbuf    = inbuf;
 	srctotlen = 0;
 
@@ -315,12 +315,12 @@ int compress_file(int argc, char **argv, void *handle)
 
 		/* will submit a chunk size source per job */
 		srclen = NX_MIN(chunk, inlen);
-		/* supply large target in case data expands */				
-		dstlen = NX_MIN(2*srclen, outlen); 
+		/* supply large target in case data expands */
+		dstlen = NX_MIN(2*srclen, outlen);
 
 		NX_CLK( (td.touch1 = nx_get_time()) );
 
-		/* Page faults are handled by the user code */		
+		/* Page faults are handled by the user code */
 
 		/* Fault-in pages; an improved code wouldn't touch so
 		   many pages but would try to estimate the
@@ -328,20 +328,20 @@ int compress_file(int argc, char **argv, void *handle)
 		   touch amounts */
 		nx_touch_pages (cmdp, sizeof(nx_gzip_crb_cpb_t), pagelen, 1);
 		nx_touch_pages (srcbuf, srclen, pagelen, 0);
-		nx_touch_pages (dstbuf, dstlen, pagelen, 1);	    
+		nx_touch_pages (dstbuf, dstlen, pagelen, 1);
 
-		NX_CLK( (td.touch2 += (nx_get_time() - td.touch1)) );	
+		NX_CLK( (td.touch2 += (nx_get_time() - td.touch1)) );
 
-		NX_CLK( (td.sub1 = nx_get_time()) );			
+		NX_CLK( (td.sub1 = nx_get_time()) );
 		NX_CLK( (td.subc += 1) );
-		
+
 		cc = compress_fht_sample(
 			srcbuf, srclen,
 			dstbuf, dstlen,
 			lzcounts, cmdp, handle);
 
-		NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );	
-		
+		NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );
+
 		if (cc != ERR_NX_OK && cc != ERR_NX_TPBC_GT_SPBC && cc != ERR_NX_AT_FAULT) {
 			fprintf(stderr, "nx error: cc= %d\n", cc);
 			exit(-1);
@@ -350,7 +350,7 @@ int compress_file(int argc, char **argv, void *handle)
 		/* Page faults are handled by the user code */
 		if (cc == ERR_NX_AT_FAULT) {
 			NXPRT( fprintf(stderr, "page fault: cc= %d, try= %d, fsa= %08llx\n", cc, fault_tries, (long long unsigned) cmdp->crb.csb.fsaddr) );
-			NX_CLK( (td.fault += 1) );			
+			NX_CLK( (td.fault += 1) );
 
 			fault_tries --;
 			if (fault_tries > 0) {
@@ -359,11 +359,11 @@ int compress_file(int argc, char **argv, void *handle)
 			else {
 				fprintf(stderr, "error: cannot progress; too many faults\n");
 				exit(-1);
-			};			    
+			};
 		}
 
 		fault_tries = 50; /* reset for the next chunk */
-	    
+
 		inlen     = inlen - srclen;
 		srcbuf    = srcbuf + srclen;
 		srctotlen = srctotlen + srclen;
@@ -376,23 +376,23 @@ int compress_file(int argc, char **argv, void *handle)
 		tpbc = get32(cmdp->crb.csb, tpbc);  /* target byte count */
 		tebc = getnn(cmdp->cpb, out_tebc);  /* target ending bit count */
 		NXPRT( fprintf(stderr, "compressed chunk %d to %d bytes, tebc= %d\n", spbc, tpbc, tebc) );
-	    
+
 		if (inlen > 0) { /* more chunks to go */
 			set_bfinal(dstbuf, 0);
 			dstbuf    = dstbuf + tpbc;
 			dsttotlen = dsttotlen + tpbc;
 			outlen    = outlen - tpbc;
 			/* round up to the next byte with a flush
-			 * block; do not set the BFINAL bit */		    
+			 * block; do not set the BFINAL bit */
 			flushlen  = append_sync_flush(dstbuf, tebc, 0);
 			dsttotlen = dsttotlen + flushlen;
-			outlen    = outlen - flushlen;			
+			outlen    = outlen - flushlen;
 			dstbuf    = dstbuf + flushlen;
 			NXPRT( fprintf(stderr, "added deflate sync_flush %d bytes\n", flushlen) );
 		}
-		else {  /* done */ 
+		else {  /* done */
 			/* set the BFINAL bit of the last block per deflate std */
-			set_bfinal(dstbuf, 1);		    
+			set_bfinal(dstbuf, 1);
 			/* *dstbuf   = *dstbuf | (unsigned char) 0x01;  */
 			dstbuf    = dstbuf + tpbc;
 			dsttotlen = dsttotlen + tpbc;
@@ -401,10 +401,10 @@ int compress_file(int argc, char **argv, void *handle)
 
 		/* resuming crc for the next chunk */
 		crc = get32(cmdp->cpb, out_crc);
-		put32(cmdp->cpb, in_crc, crc); 
+		put32(cmdp->cpb, in_crc, crc);
 		crc = be32toh(crc);
 
-		NX_CLK( (td.sub3 += (nx_get_time() - td.sub1)) );		
+		NX_CLK( (td.sub3 += (nx_get_time() - td.sub1)) );
 	}
 
 	/* append CRC32 and ISIZE to the end */
@@ -422,16 +422,16 @@ int compress_file(int argc, char **argv, void *handle)
 
 	fprintf(stderr, "compressed %ld to %ld bytes total, crc32=%08x\n", srctotlen, dsttotlen, crc);
 
-	NX_CLK( fprintf(stderr, "COMP ofile %s ", outname) );	
+	NX_CLK( fprintf(stderr, "COMP ofile %s ", outname) );
 	NX_CLK( fprintf(stderr, "ibytes %ld obytes %ld ", srctotlen, dsttotlen) );
-	NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );						
+	NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );
 	NX_CLK( fprintf(stderr, "sub %ld %ld ticks %ld count ", td.sub2, td.sub3, td.subc) );
 	NX_CLK( fprintf(stderr, "touch %ld ticks ", td.touch2)     );
-	NX_CLK( fprintf(stderr, "fault %ld ticks ", td.fault)     );	
+	NX_CLK( fprintf(stderr, "fault %ld ticks ", td.fault)     );
 	NX_CLK( fprintf(stderr, "%g byte/s\n", (double)srctotlen/((double)td.sub2/(double)td.freq)) );
-	
+
 	if (NULL != inbuf) free(inbuf);
-	if (NULL != outbuf) free(outbuf);    
+	if (NULL != outbuf) free(outbuf);
 
 	return 0;
 }
@@ -445,7 +445,7 @@ void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
 		sig, info->si_code, info->si_addr);
 
-	nx_fault_storage_address = info->si_addr; 
+	nx_fault_storage_address = info->si_addr;
 }
 
 
@@ -454,14 +454,14 @@ int main(int argc, char **argv)
 	int rc;
 	struct sigaction act;
 	void *handle;
-	
+
 	act.sa_handler = 0;
 	act.sa_sigaction = sigsegv_handler;
 	act.sa_flags = SA_SIGINFO;
 	act.sa_restorer = 0;
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
-	
+
 	handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0);
 	if (!handle) {
 		fprintf(stderr, "Unable to init NX, errno %d\n", errno);
@@ -474,6 +474,3 @@ int main(int argc, char **argv)
 
 	return rc;
 }
-
-
-

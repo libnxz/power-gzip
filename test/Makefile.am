@@ -11,7 +11,7 @@ test_exe = test_adler32 \
 	   test_multithread_stress \
 	   test_pid_reuse
 
-selector_tests = test_stress test_deflate test_inflate
+selector_tests = test_stress test_deflate test_inflate test_dict
 other_tests = test_zeroinput
 
 TESTS = $(test_exe) $(test_scripts) \
@@ -53,6 +53,8 @@ test_pid_reuse_SOURCES = test_pid_reuse.c
 test_stress_SOURCES = test_stress.c test_utils.c
 
 test_zeroinput_SOURCES = test_zeroinput.c test_utils.c
+
+test_dict_SOURCES = test_dict.c test_utils.c
 
 ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
 	      --no-comp-dir-path --no-show-locs

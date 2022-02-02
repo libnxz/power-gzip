@@ -2026,11 +2026,6 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	   dictionary smaller than the max. Be prepared to do the
 	   rounding down when appending s->dict to dde.
 
-	   In the ZLIB format case, what is the initial value of the
-	   adler32 sum before deflate(). Is it going to be 1 or the
-	   checksum of the dictionary? Need to verify this with a test
-	   case.
-
 	   nx_copy and deflate with history results in passing the
 	   dictionary through twice. It's a waste of bandwidth.
 	   Perhaps we can leave the dictionary in s->dict and for

@@ -93,8 +93,7 @@ EXTRA_PROGRAMS = bad_irq_check$(EXEEXT) bench_initend$(EXEEXT) \
 	crc_perf_test_vmx$(EXEEXT) crc_perf_test_zlib$(EXEEXT) \
 	gunzip_nx_test$(EXEEXT) gzip_nxdht_test$(EXEEXT) \
 	gzip_nxfht_test$(EXEEXT) gzm$(EXEEXT) makedata$(EXEEXT) \
-	nx_gzip$(EXEEXT) rand_pfault_check$(EXEEXT) zpipe$(EXEEXT) \
-	zpipe_dict_nx$(EXEEXT) zpipe_dict_zlib$(EXEEXT)
+	nx_gzip$(EXEEXT) rand_pfault_check$(EXEEXT) zpipe$(EXEEXT)
 subdir = samples
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_check_compile_flag.m4 \
@@ -168,12 +167,6 @@ rand_pfault_check_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 am_zpipe_OBJECTS = zpipe.$(OBJEXT)
 zpipe_OBJECTS = $(am_zpipe_OBJECTS)
 zpipe_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_zpipe_dict_nx_OBJECTS = zpipe_dict.$(OBJEXT)
-zpipe_dict_nx_OBJECTS = $(am_zpipe_dict_nx_OBJECTS)
-zpipe_dict_nx_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_zpipe_dict_zlib_OBJECTS = zpipe_dict.$(OBJEXT)
-zpipe_dict_zlib_OBJECTS = $(am_zpipe_dict_zlib_OBJECTS)
-zpipe_dict_zlib_DEPENDENCIES =
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -195,8 +188,7 @@ am__depfiles_remade = ./$(DEPDIR)/bad_irq_check.Po \
 	./$(DEPDIR)/gunzip_nx.Po ./$(DEPDIR)/gzip_nxdht.Po \
 	./$(DEPDIR)/gzip_nxfht.Po ./$(DEPDIR)/gzm.Po \
 	./$(DEPDIR)/makedata.Po ./$(DEPDIR)/nx_gzip.Po \
-	./$(DEPDIR)/rand_pfault_check.Po ./$(DEPDIR)/zpipe.Po \
-	./$(DEPDIR)/zpipe_dict.Po
+	./$(DEPDIR)/rand_pfault_check.Po ./$(DEPDIR)/zpipe.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -222,16 +214,14 @@ SOURCES = $(bad_irq_check_SOURCES) $(bench_initend_SOURCES) \
 	$(gunzip_nx_test_SOURCES) $(gzip_nxdht_test_SOURCES) \
 	$(gzip_nxfht_test_SOURCES) $(gzm_SOURCES) $(makedata_SOURCES) \
 	$(nx_gzip_SOURCES) $(rand_pfault_check_SOURCES) \
-	$(zpipe_SOURCES) $(zpipe_dict_nx_SOURCES) \
-	$(zpipe_dict_zlib_SOURCES)
+	$(zpipe_SOURCES)
 DIST_SOURCES = $(bad_irq_check_SOURCES) $(bench_initend_SOURCES) \
 	$(compdecomp_SOURCES) $(compdecomp_th_SOURCES) \
 	$(crc_perf_test_vmx_SOURCES) $(crc_perf_test_zlib_SOURCES) \
 	$(gunzip_nx_test_SOURCES) $(gzip_nxdht_test_SOURCES) \
 	$(gzip_nxfht_test_SOURCES) $(gzm_SOURCES) $(makedata_SOURCES) \
 	$(nx_gzip_SOURCES) $(rand_pfault_check_SOURCES) \
-	$(zpipe_SOURCES) $(zpipe_dict_nx_SOURCES) \
-	$(zpipe_dict_zlib_SOURCES)
+	$(zpipe_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -444,10 +434,6 @@ rand_pfault_check_LDFLAGS = -Wl,-wrap,nx_touch_pages \
 
 zpipe_SOURCES = zpipe.c
 zpipe_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-zpipe_dict_zlib_SOURCES = zpipe_dict.c
-zpipe_dict_zlib_LDADD = -lz
-zpipe_dict_nx_SOURCES = zpipe_dict.c
-zpipe_dict_nx_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
 all: all-am
 
 .SUFFIXES:
@@ -538,14 +524,6 @@ zpipe$(EXEEXT): $(zpipe_OBJECTS) $(zpipe_DEPENDENCIES) $(EXTRA_zpipe_DEPENDENCIE
 	@rm -f zpipe$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(zpipe_OBJECTS) $(zpipe_LDADD) $(LIBS)
 
-zpipe_dict_nx$(EXEEXT): $(zpipe_dict_nx_OBJECTS) $(zpipe_dict_nx_DEPENDENCIES) $(EXTRA_zpipe_dict_nx_DEPENDENCIES) 
-	@rm -f zpipe_dict_nx$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(zpipe_dict_nx_OBJECTS) $(zpipe_dict_nx_LDADD) $(LIBS)
-
-zpipe_dict_zlib$(EXEEXT): $(zpipe_dict_zlib_OBJECTS) $(zpipe_dict_zlib_DEPENDENCIES) $(EXTRA_zpipe_dict_zlib_DEPENDENCIES) 
-	@rm -f zpipe_dict_zlib$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(zpipe_dict_zlib_OBJECTS) $(zpipe_dict_zlib_LDADD) $(LIBS)
-
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -565,7 +543,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_gzip.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rand_pfault_check.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zpipe.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zpipe_dict.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -740,7 +717,6 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/nx_gzip.Po
 	-rm -f ./$(DEPDIR)/rand_pfault_check.Po
 	-rm -f ./$(DEPDIR)/zpipe.Po
-	-rm -f ./$(DEPDIR)/zpipe_dict.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -799,7 +775,6 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/nx_gzip.Po
 	-rm -f ./$(DEPDIR)/rand_pfault_check.Po
 	-rm -f ./$(DEPDIR)/zpipe.Po
-	-rm -f ./$(DEPDIR)/zpipe_dict.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

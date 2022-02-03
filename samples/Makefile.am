@@ -20,9 +20,7 @@ EXTRA_PROGRAMS = bad_irq_check \
 		 makedata \
 		 nx_gzip \
 		 rand_pfault_check \
-		 zpipe \
-		 zpipe_dict_nx \
-		 zpipe_dict_zlib
+		 zpipe
 
 # Does nothing by default.
 all:
@@ -72,9 +70,3 @@ rand_pfault_check_LDFLAGS = -Wl,-wrap,nx_touch_pages \
 
 zpipe_SOURCES = zpipe.c
 zpipe_LDADD   = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-
-zpipe_dict_zlib_SOURCES = zpipe_dict.c
-zpipe_dict_zlib_LDADD   = -lz
-
-zpipe_dict_nx_SOURCES = zpipe_dict.c
-zpipe_dict_nx_LDADD   = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl

@@ -65,6 +65,9 @@ extern int nx_deflateInit2_(void *strm, int level, int method, int windowBits,
 			    int stream_size);
 #define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), \
 					ZLIB_VERSION, (int)sizeof(z_stream))
+#define nx_deflateInit2(strm, level, method, windowBits, memLevel, strategy) \
+	nx_deflateInit2_((strm), (level), (method), (windowBits), (memLevel), \
+		(strategy), ZLIB_VERSION, (int)sizeof(z_stream))
 extern int nx_deflate(void *strm, int flush);
 extern int nx_deflateEnd(void *strm);
 extern ulong nx_deflateBound(void *strm, ulong sourceLen);
@@ -81,6 +84,8 @@ extern int nx_inflateInit2_(void *strm, int windowBits, const char *version,
 			    int stream_size);
 #define nx_inflateInit(strm) nx_inflateInit_((strm), ZLIB_VERSION, \
 					(int)sizeof(z_stream))
+#define nx_inflateInit2(strm, windowBits) \
+	nx_inflateInit2_((strm), (windowBits), ZLIB_VERSION, (int)sizeof(z_stream))
 extern int nx_inflate(void *strm, int flush);
 extern int nx_inflateEnd(void *strm);
 extern int nx_inflateCopy(void *dest, void *source);

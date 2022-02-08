@@ -563,6 +563,9 @@ extern int nx_deflateInit_(z_streamp strm, int level, const char *version, int s
 extern int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		int memLevel __unused, int strategy, const char *version __unused, int stream_size __unused);
 #define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), ZLIB_VERSION, (int)sizeof(z_stream))
+#define nx_deflateInit2(strm, level, method, windowBits, memLevel, strategy) \
+	nx_deflateInit2_((strm), (level), (method), (windowBits), (memLevel), \
+			(strategy), ZLIB_VERSION, (int)sizeof(z_stream))
 extern int nx_deflate(z_streamp strm, int flush);
 extern int nx_deflateEnd(z_streamp strm);
 extern unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen);
@@ -571,6 +574,8 @@ extern unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen);
 extern int nx_inflateInit_(z_streamp strm, const char *version, int stream_size);
 extern int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int stream_size);
 #define nx_inflateInit(strm) nx_inflateInit_((strm), ZLIB_VERSION, (int)sizeof(z_stream))
+#define nx_inflateInit2(strm, windowBits)				\
+	nx_inflateInit2_((strm), (windowBits), ZLIB_VERSION, (int)sizeof(z_stream))
 extern int nx_inflate(z_streamp strm, int flush);
 extern int nx_inflateEnd(z_streamp strm);
 extern int nx_inflateSyncPoint(z_streamp strm);

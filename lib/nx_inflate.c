@@ -1819,13 +1819,18 @@ int nx_inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLe
 	if (NULL == (s = (nx_streamp) strm->state))
 		return Z_STREAM_ERROR;
 
+	if (s->wrap == (HEADER_ZLIB | HEADER_GZIP)) {
+		prt_err("inflateSetDictionary error: inflate did not detect the header yet.\n");
+		return Z_STREAM_ERROR;
+	}
+
 	if (s->wrap == HEADER_GZIP) {
 		/* gzip doesn't allow dictionaries; */
 		prt_err("inflateSetDictionary error: gzip format does not permit dictionary\n");
 		return Z_STREAM_ERROR;
 	}
 
-	if (s->inf_state != inf_state_zlib_dict && s->wrap == HEADER_ZLIB ) {
+	if (s->inf_state != inf_state_zlib_dict && s->wrap == HEADER_ZLIB) {
 		prt_err("inflateSetDictionary error: inflate did not ask for a dictionary\n");
 		return Z_STREAM_ERROR;
 	}

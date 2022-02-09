@@ -20,6 +20,7 @@ libnxz_la_SOURCES = \
 		    nx_dht.c \
 		    nx_dhtgen.c \
 		    nx_dht_builtin.c \
+		    nx_gzlib.c \
 		    nx_inflate.c \
 		    nx_uncompr.c \
 		    nx_utils.c \

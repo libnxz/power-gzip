@@ -419,6 +419,12 @@ static inline int use_nx_deflate(z_streamp strm)
 #define fifo_used_first_offset(cur)            (cur)
 #define fifo_used_last_offset(cur)             (0)
 
+#define fifo_in_len_check(s)		\
+do { if ((s)->cur_in > (s)->len_in/2) { \
+	memmove((s)->fifo_in, (s)->fifo_in + (s)->cur_in, (s)->used_in); \
+	(s)->cur_in = 0; } \
+} while(0)
+
 /* for appending bytes in to the stream */
 #define nx_put_byte(s,b)  do { if ((s)->avail_out > 0)			\
 		{ *((s)->next_out++) = (b); --(s)->avail_out; ++(s)->total_out; \
@@ -618,6 +624,7 @@ extern void *dht_copy(void *handle);
 extern int nx_gzclose(gzFile file);
 extern gzFile nx_gzopen(const char* path, const char *mode);
 extern gzFile nx_gzdopen(int fd, const char *mode);
+extern int nx_gzread(gzFile file, void *buf, unsigned len);
 extern int nx_gzwrite(gzFile file, const void *buf, unsigned len);
 
 /* sw_zlib.c */
@@ -642,6 +649,7 @@ extern int sw_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLo
 extern int sw_gzclose(gzFile file);
 extern gzFile sw_gzopen(const char* path, const char *mode);
 extern gzFile sw_gzdopen(int fd, const char *mode);
+extern int sw_gzread(gzFile file, void *buf, unsigned len);
 extern int sw_gzwrite(gzFile file, const void *buf, unsigned len);
 
 extern int sw_inflateInit_(z_streamp strm, const char *version, int stream_size);
@@ -659,6 +667,32 @@ extern int sw_compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong 
 extern int sw_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen, int level);
 extern uLong sw_compressBound(uLong sourceLen);
 
+static inline int copy_data_to_fifo_in(nx_streamp s) {
+	uint32_t free_space, read_sz;
+
+	if (s->fifo_in == NULL) {
+		s->len_in = nx_config.cache_threshold * 2;
+		if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
+			prt_err("nx_alloc_buffer for inflate fifo_in\n");
+			return Z_MEM_ERROR;
+		}
+	}
+
+	/* reset fifo head to reduce unnecessary wrap arounds */
+	s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;
+	fifo_in_len_check(s);
+	free_space = s->len_in - s->cur_in - s->used_in;
+
+	read_sz = NX_MIN(free_space, s->avail_in);
+	if (read_sz > 0) {
+		/* copy from next_in to the offset cur_in + used_in */
+		memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, read_sz);
+		update_stream_in(s, read_sz);
+		s->used_in = s->used_in + read_sz;
+	}
+
+	return Z_OK;
+}
 
 
 #endif /* _NX_ZLIB_H */

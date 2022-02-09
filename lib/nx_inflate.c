@@ -82,12 +82,6 @@ do { if ((s)->cur_out > (s)->len_out/2) { \
 	(s)->cur_out = INF_HIS_LEN; } \
 } while(0)
 
-#define fifo_in_len_check(s)		\
-do { if ((s)->cur_in > (s)->len_in/2) { \
-	memmove((s)->fifo_in, (s)->fifo_in + (s)->cur_in, (s)->used_in); \
-	(s)->cur_in = 0; } \
-} while(0)
-
 static int nx_inflate_(nx_streamp s, int flush);
 
 int nx_inflateResetKeep(z_streamp strm)
@@ -904,34 +898,6 @@ static int nx_amend_history_with_dict(nx_streamp s)
 		nx_append_dde(s->ddl_in, s->dict + s->dict_len - dlen, dlen);
 
 	return nx_history_len;
-}
-
-
-static int copy_data_to_fifo_in(nx_streamp s) {
-	uint32_t free_space, read_sz;
-
-	if (s->fifo_in == NULL) {
-		s->len_in = nx_config.cache_threshold * 2;
-		if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0))) {
-			prt_err("nx_alloc_buffer for inflate fifo_in\n");
-			return Z_MEM_ERROR;
-		}
-	}
-
-	/* reset fifo head to reduce unnecessary wrap arounds */
-	s->cur_in = (s->used_in == 0) ? 0 : s->cur_in;
-	fifo_in_len_check(s);
-	free_space = s->len_in - s->cur_in - s->used_in;
-
-	read_sz = NX_MIN(free_space, s->avail_in);
-	if (read_sz > 0) {
-		/* copy from next_in to the offset cur_in + used_in */
-		memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, read_sz);
-		update_stream_in(s, read_sz);
-		s->used_in = s->used_in + read_sz;
-	}
-
-	return Z_OK;
 }
 
 /** \brief Reset DDE to initial values.

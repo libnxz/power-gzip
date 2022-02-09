@@ -197,6 +197,13 @@ gzFile sw_gzdopen(int fd, const char *mode)
 	return (* p_gzdopen)(fd, mode);
 }
 
+static int (* p_gzread)(gzFile file, void *buf, unsigned len);
+int sw_gzread(gzFile file, void *buf, unsigned len)
+{
+	check_sym(p_gzread, Z_STREAM_ERROR);
+	return (* p_gzread)(file, buf, len);
+}
+
 static int (*p_gzwrite)(gzFile file, const void *buf, unsigned len);
 int sw_gzwrite (gzFile file, const void *buf, unsigned len)
 {
@@ -339,6 +346,7 @@ int sw_zlib_init(void)
 	register_sym(gzclose);
 	register_sym(gzopen);
 	register_sym(gzdopen);
+	register_sym(gzread);
 	register_sym(gzwrite);
 	register_sym(inflateInit_);
 	register_sym(inflateInit2_);

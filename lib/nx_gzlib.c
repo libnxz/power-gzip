@@ -169,3 +169,30 @@ gzFile nx_gzopen_(const char* path, int fd, const char *mode)
 	file = (gzFile) state;
 	return file;
 }
+
+int nx_gzwrite (gzFile file, const void *buf, unsigned len)
+{
+	gz_statep state = (gz_statep) file;
+	z_streamp stream = &(state->strm);
+	int rc;
+	uLong last_total_in = stream->total_in;
+	unsigned char* next_out = malloc(sizeof(char)*len);
+
+	if (next_out == NULL)
+		return Z_MEM_ERROR;
+
+	stream->next_in = (z_const Bytef *)buf;
+	stream->avail_in = len;
+	stream->next_out = next_out;
+	stream->avail_out = len;
+
+	rc = nx_deflate(stream, Z_NO_FLUSH);
+	write(state->fd, next_out, len - stream->avail_out);
+
+	free(next_out);
+	if (rc != Z_OK && rc != Z_STREAM_END){
+		state->err = rc;
+		return 0;
+	}
+	return stream->total_in - last_total_in;
+}

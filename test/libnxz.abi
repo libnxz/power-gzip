@@ -56,6 +56,7 @@
     <elf-symbol name='nx_gzclose' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_gzdopen' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_gzopen' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='nx_gzwrite' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_inflate' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_inflateCopy' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_inflateEnd' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -423,6 +424,12 @@
     </class-decl>
     <pointer-type-def type-id='fbc67d64' size-in-bits='64' id='9149c942'/>
     <pointer-type-def type-id='002ac4a6' size-in-bits='64' id='cf536864'/>
+    <function-decl name='nx_gzwrite' mangled-name='nx_gzwrite' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nx_gzwrite@@LIBNXZ_0.64.0'>
+      <parameter type-id='45259bf7' name='file'/>
+      <parameter type-id='eaa32e2f' name='buf'/>
+      <parameter type-id='f0981eeb' name='len'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='nx_gzopen' mangled-name='nx_gzopen' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nx_gzopen@@LIBNXZ_0.64.0'>
       <parameter type-id='80f4b756' name='path'/>
       <parameter type-id='80f4b756' name='mode'/>

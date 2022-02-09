@@ -27,6 +27,7 @@
     <elf-symbol name='gzclose' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='gzdopen' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='gzopen' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='gzread' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='gzwrite' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='inflate' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='inflateCopy' version='ZLIB_1.2.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -60,6 +61,7 @@
     <elf-symbol name='nx_gzclose' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_gzdopen' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_gzopen' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='nx_gzread' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_gzwrite' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_inflate' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_inflateCopy' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -439,6 +441,12 @@
       <parameter type-id='f0981eeb' name='len'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='gzread' mangled-name='gzread' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='gzread'>
+      <parameter type-id='45259bf7' name='file'/>
+      <parameter type-id='eaa32e2f' name='buf'/>
+      <parameter type-id='f0981eeb' name='len'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='gzdopen' mangled-name='gzdopen' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='gzdopen'>
       <parameter type-id='95e97e5e' name='fd'/>
       <parameter type-id='80f4b756' name='mode'/>
@@ -454,6 +462,12 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='nx_gzwrite' mangled-name='nx_gzwrite' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nx_gzwrite@@LIBNXZ_0.64.0'>
+      <parameter type-id='45259bf7' name='file'/>
+      <parameter type-id='eaa32e2f' name='buf'/>
+      <parameter type-id='f0981eeb' name='len'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='nx_gzread' mangled-name='nx_gzread' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nx_gzread@@LIBNXZ_0.64.0'>
       <parameter type-id='45259bf7' name='file'/>
       <parameter type-id='eaa32e2f' name='buf'/>
       <parameter type-id='f0981eeb' name='len'/>

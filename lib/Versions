@@ -64,6 +64,7 @@ LIBNXZ_0.64.0 {
     nx_gzclose;
     nx_gzopen;
     nx_gzdopen;
+    nx_gzread;
     nx_gzwrite;
 } LIBNXZ_0.63.0;
 

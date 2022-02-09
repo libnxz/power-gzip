@@ -171,6 +171,50 @@ gzFile nx_gzopen_(const char* path, int fd, const char *mode)
 	return file;
 }
 
+int nx_gzread(gzFile file, void *buf, unsigned len)
+{
+	gz_statep state = (gz_statep) file;
+	z_streamp stream = &(state->strm);
+	int ret, err;
+	const uInt max = len > 10? 10 : 1;
+	uLong last_total_out = stream->total_out;
+	unsigned char* next_in = malloc(sizeof(char)*max);
+
+	if (next_in == NULL)
+		return Z_MEM_ERROR;
+
+	stream->next_out = buf;
+	stream->avail_out = len;
+	do {
+		ret = read(state->fd, next_in, sizeof(char)*max);
+		stream->next_in = next_in;
+		if (ret == 0){
+			/* Flush all at the end of the file. */
+			err = nx_inflate(stream, Z_FINISH);
+			break;
+		}
+
+		stream->avail_in = ret;
+		err = nx_inflate(stream, Z_NO_FLUSH);
+
+		if (err != Z_OK && err != Z_STREAM_END){
+			state->err = err;
+			free(next_in);
+			return 0;
+		}
+	} while (stream->avail_out != 0);
+
+	/* gzread should return when len bytes are wrote on buf, if we still
+	   have unprocessed data on avail_in we need to save it on fifo_in.  */
+	if (stream->avail_in > 0){
+		nx_streamp s = (nx_streamp) stream->state;
+		copy_data_to_fifo_in(s);
+	}
+
+	free(next_in);
+	return stream->total_out - last_total_out;
+}
+
 int nx_gzwrite (gzFile file, const void *buf, unsigned len)
 {
 	gz_statep state = (gz_statep) file;
@@ -238,6 +282,24 @@ gzFile gzdopen(int fd, const char *mode)
 		return sw_gzdopen(fd, mode);
 	else
 		return nx_gzdopen(fd, mode);
+}
+
+int gzread(gzFile file, void *buf, unsigned len)
+{
+	int rc;
+
+	if (nx_config.mode.inflate == GZIP_AUTO) {
+		if(len <= DECOMPRESS_THRESHOLD)
+			rc = sw_gzread(file, buf, len);
+		else
+			rc = nx_gzread(file, buf, len);
+	}else if (nx_config.mode.inflate == GZIP_SW) {
+		rc = sw_gzread(file, buf, len);
+	}else {
+		rc = nx_gzread(file, buf, len);
+	}
+
+	return rc;
 }
 
 int gzwrite(gzFile file, const void *buf, unsigned len)

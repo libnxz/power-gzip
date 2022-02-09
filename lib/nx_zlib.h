@@ -618,6 +618,7 @@ extern void *dht_copy(void *handle);
 extern int nx_gzclose(gzFile file);
 extern gzFile nx_gzopen(const char* path, const char *mode);
 extern gzFile nx_gzdopen(int fd, const char *mode);
+extern int nx_gzwrite(gzFile file, const void *buf, unsigned len);
 
 /* sw_zlib.c */
 extern int sw_zlib_init(void);

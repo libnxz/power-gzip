@@ -19,3 +19,8 @@
 #define DEBUG 1
 #define dbg_printf(format, ...) do { if (DEBUG) printf(format, ##__VA_ARGS__); } while(0)
 
+#define test_error(format, ...) \
+	do { \
+		printf("%s:%d " format, __FILE__, __LINE__, ##__VA_ARGS__); \
+		exit(TEST_ERROR); \
+	} while(0)

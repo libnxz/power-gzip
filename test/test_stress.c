@@ -31,8 +31,6 @@ struct time_duration {
 	float inflate;
 } duration[THREAD_MAX+3]; /* last is average, min, max */
 
-#define MIN(x, y) (((x)<(y) && ((x)!=0))?(x):(y))
-#define MAX(x, y) ((x)>(y)?(x):(y))
 
 static struct use_time* get_use_time_by_tid(pthread_t id)
 {

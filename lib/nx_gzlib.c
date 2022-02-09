@@ -47,13 +47,14 @@
 
 gzFile nx_gzopen_(const char* path, int fd, const char *mode);
 
+bool is_deflate;
+
 typedef struct gz_state {
 	gzFile gz;
 	int fd;
 	FILE *fp;
 	int err;
 	z_stream strm;
-	bool deflate;
 } *gz_statep;
 
 int nx_gzclose(gzFile file)
@@ -72,7 +73,7 @@ int nx_gzclose(gzFile file)
 	if (next_out == NULL)
 		return Z_MEM_ERROR;
 
-	if (state->deflate) {
+	if (is_deflate) {
 		/* Finish the stream.  */
 		stream->next_in = Z_NULL;
 		stream->avail_in = 0;
@@ -154,10 +155,10 @@ gzFile nx_gzopen_(const char* path, int fd, const char *mode)
 
 		err = nx_deflateInit2(stream, level, Z_DEFLATED, 31,
 					DEF_MEM_LEVEL, strategy);
-		state->deflate = true;
+		is_deflate = true;
 	} else {
 		err = nx_inflateInit(stream);
-		state->deflate = false;
+		is_deflate = false;
 	}
 	if (err != Z_OK){
 		free(state);
@@ -195,4 +196,64 @@ int nx_gzwrite (gzFile file, const void *buf, unsigned len)
 		return 0;
 	}
 	return stream->total_in - last_total_in;
+}
+
+int gzclose(gzFile file)
+{
+	uint8_t sel = is_deflate ?
+		      nx_config.mode.deflate : nx_config.mode.inflate;
+
+	if (sel == GZIP_SW)
+		return sw_gzclose(file);
+	else
+		return nx_gzclose(file);
+}
+
+gzFile gzopen(const char *path, const char *mode)
+{
+	uint8_t sel;
+	if (strchr(mode, 'w')) {
+		sel = nx_config.mode.deflate;
+		is_deflate = true;
+	} else {
+		sel = nx_config.mode.inflate;
+		is_deflate = false;
+	}
+
+	if (sel == GZIP_SW)
+		return sw_gzopen(path, mode);
+	else
+		return nx_gzopen(path, mode);
+}
+
+gzFile gzdopen(int fd, const char *mode)
+{
+	uint8_t sel;
+	if (strchr(mode, 'w'))
+		sel = nx_config.mode.deflate;
+	else
+		sel = nx_config.mode.inflate;
+
+	if (sel == GZIP_SW)
+		return sw_gzdopen(fd, mode);
+	else
+		return nx_gzdopen(fd, mode);
+}
+
+int gzwrite(gzFile file, const void *buf, unsigned len)
+{
+	int rc;
+
+	if (nx_config.mode.deflate == GZIP_AUTO) {
+		if (len <= COMPRESS_THRESHOLD)
+			rc = sw_gzwrite(file, buf, len);
+		else
+			rc = nx_gzwrite(file, buf, len);
+	}else if (nx_config.mode.deflate == GZIP_SW) {
+		rc = sw_gzwrite(file, buf, len);
+	}else {
+		rc = nx_gzwrite(file, buf, len);
+	}
+
+	return rc;
 }

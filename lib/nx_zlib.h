@@ -639,6 +639,10 @@ extern int sw_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLon
 #if ZLIB_VERNUM >= 0x1290
 extern int sw_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen);
 #endif
+extern int sw_gzclose(gzFile file);
+extern gzFile sw_gzopen(const char* path, const char *mode);
+extern gzFile sw_gzdopen(int fd, const char *mode);
+extern int sw_gzwrite(gzFile file, const void *buf, unsigned len);
 
 extern int sw_inflateInit_(z_streamp strm, const char *version, int stream_size);
 extern int sw_inflateInit2_(z_streamp strm, int  windowBits, const char *version, int stream_size);

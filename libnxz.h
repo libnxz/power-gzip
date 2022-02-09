@@ -2,7 +2,7 @@
  * NX-GZIP compression accelerator user library
  * implementing zlib library interfaces
  *
- * Copyright (C) IBM Corporation, 2020
+ * Copyright (C) IBM Corporation, 2020-2022
  *
  * Licenses for GPLv2 and Apache v2.0:
  *
@@ -109,6 +109,11 @@ extern int nx_uncompress2(unsigned char *dest, ulong *destLen,
 extern int nx_uncompress(unsigned char *dest, ulong *destLen,
 			 const unsigned char *source, ulong sourceLen);
 
+/* nx_gzip.c */
+extern int nx_gzclose(gzFile file);
+extern gzFile nx_gzopen(const char* path, const char *mode);
+extern gzFile nx_gzdopen(int fd, const char *mode);
+extern int nx_gzwrite(gzFile file, const void *buf, unsigned len);
 
 extern int deflateInit_(void *strm, int level, const char* version,
 			int stream_size);
@@ -178,5 +183,9 @@ extern int uncompress(unsigned char *dest, ulong *destLen,
 		      const unsigned char *source, ulong sourceLen);
 extern int uncompress2(unsigned char *dest, ulong *destLen,
 		       const unsigned char *source, ulong *sourceLen);
+extern int gzclose(gzFile file);
+extern gzFile gzopen(const char* path, const char *mode);
+extern gzFile gzdopen(int fd, const char *mode);
+extern int gzwrite(gzFile file, void *buf, unsigned len);
 
 #endif /* _LIBNXZ_H */

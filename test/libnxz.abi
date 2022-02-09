@@ -24,6 +24,10 @@
     <elf-symbol name='deflateResetKeep' version='ZLIB_1.2.5.2' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='deflateSetDictionary' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='deflateSetHeader' version='ZLIB_1.2.2' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='gzclose' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='gzdopen' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='gzopen' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='gzwrite' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='inflate' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='inflateCopy' version='ZLIB_1.2.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='inflateEnd' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -73,6 +77,9 @@
     <elf-symbol name='uncompress2' version='ZLIB_1.2.9' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zlibVersion' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
   </elf-function-symbols>
+  <elf-variable-symbols>
+    <elf-symbol name='is_deflate' size='1' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+  </elf-variable-symbols>
   <abi-instr version='1.0' address-size='64' path='gzip_vas.c' language='LANG_C11'>
     <type-decl name='unsigned long int' size-in-bits='64' id='7359adad'/>
     <type-decl name='void' id='48b5725f'/>
@@ -410,6 +417,7 @@
     </function-type>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='nx_gzlib.c' language='LANG_C11'>
+    <type-decl name='bool' size-in-bits='8' id='c894953d'/>
     <typedef-decl name='gzFile' type-id='9149c942' id='45259bf7'/>
     <class-decl name='gzFile_s' size-in-bits='192' is-struct='yes' visibility='default' id='fbc67d64'>
       <data-member access='public' layout-offset-in-bits='0'>
@@ -424,6 +432,27 @@
     </class-decl>
     <pointer-type-def type-id='fbc67d64' size-in-bits='64' id='9149c942'/>
     <pointer-type-def type-id='002ac4a6' size-in-bits='64' id='cf536864'/>
+    <var-decl name='is_deflate' type-id='c894953d' mangled-name='is_deflate' visibility='default' elf-symbol-id='is_deflate'/>
+    <function-decl name='gzwrite' mangled-name='gzwrite' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='gzwrite'>
+      <parameter type-id='45259bf7' name='file'/>
+      <parameter type-id='eaa32e2f' name='buf'/>
+      <parameter type-id='f0981eeb' name='len'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='gzdopen' mangled-name='gzdopen' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='gzdopen'>
+      <parameter type-id='95e97e5e' name='fd'/>
+      <parameter type-id='80f4b756' name='mode'/>
+      <return type-id='45259bf7'/>
+    </function-decl>
+    <function-decl name='gzopen' mangled-name='gzopen' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='gzopen'>
+      <parameter type-id='80f4b756' name='path'/>
+      <parameter type-id='80f4b756' name='mode'/>
+      <return type-id='45259bf7'/>
+    </function-decl>
+    <function-decl name='gzclose' mangled-name='gzclose' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='gzclose'>
+      <parameter type-id='45259bf7' name='file'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='nx_gzwrite' mangled-name='nx_gzwrite' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nx_gzwrite@@LIBNXZ_0.64.0'>
       <parameter type-id='45259bf7' name='file'/>
       <parameter type-id='eaa32e2f' name='buf'/>

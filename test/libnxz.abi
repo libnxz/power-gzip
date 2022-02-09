@@ -53,6 +53,9 @@
     <elf-symbol name='nx_deflateReset' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_deflateSetDictionary' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_deflateSetHeader' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='nx_gzclose' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='nx_gzdopen' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='nx_gzopen' version='LIBNXZ_0.64.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_inflate' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_inflateCopy' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nx_inflateEnd' version='LIBNXZ_0.61.0' is-default-version='yes' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -405,6 +408,36 @@
       <return type-id='48b5725f'/>
     </function-type>
   </abi-instr>
+  <abi-instr version='1.0' address-size='64' path='nx_gzlib.c' language='LANG_C11'>
+    <typedef-decl name='gzFile' type-id='9149c942' id='45259bf7'/>
+    <class-decl name='gzFile_s' size-in-bits='192' is-struct='yes' visibility='default' id='fbc67d64'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='have' type-id='f0981eeb' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='next' type-id='cf536864' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='pos' type-id='ad707ada' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <pointer-type-def type-id='fbc67d64' size-in-bits='64' id='9149c942'/>
+    <pointer-type-def type-id='002ac4a6' size-in-bits='64' id='cf536864'/>
+    <function-decl name='nx_gzopen' mangled-name='nx_gzopen' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nx_gzopen@@LIBNXZ_0.64.0'>
+      <parameter type-id='80f4b756' name='path'/>
+      <parameter type-id='80f4b756' name='mode'/>
+      <return type-id='45259bf7'/>
+    </function-decl>
+    <function-decl name='nx_gzdopen' mangled-name='nx_gzdopen' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nx_gzdopen@@LIBNXZ_0.64.0'>
+      <parameter type-id='95e97e5e' name='fd'/>
+      <parameter type-id='80f4b756' name='mode'/>
+      <return type-id='45259bf7'/>
+    </function-decl>
+    <function-decl name='nx_gzclose' mangled-name='nx_gzclose' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nx_gzclose@@LIBNXZ_0.64.0'>
+      <parameter type-id='45259bf7' name='file'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+  </abi-instr>
   <abi-instr version='1.0' address-size='64' path='nx_inflate.c' language='LANG_C11'>
     <function-decl name='inflateSyncPoint' mangled-name='inflateSyncPoint' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='inflateSyncPoint'>
       <parameter type-id='fb4f8c25' name='strm'/>
@@ -446,6 +479,13 @@
     </function-decl>
     <function-decl name='inflateReset' mangled-name='inflateReset' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='inflateReset'>
       <parameter type-id='fb4f8c25' name='strm'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='inflateInit2_' mangled-name='inflateInit2_' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='inflateInit2_'>
+      <parameter type-id='fb4f8c25' name='strm'/>
+      <parameter type-id='95e97e5e' name='windowBits'/>
+      <parameter type-id='80f4b756' name='version'/>
+      <parameter type-id='95e97e5e' name='stream_size'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='inflateInit_' mangled-name='inflateInit_' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='inflateInit_'>
@@ -502,13 +542,6 @@
     </function-decl>
     <function-decl name='nx_inflateResetKeep' mangled-name='nx_inflateResetKeep' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nx_inflateResetKeep@@LIBNXZ_0.61.0'>
       <parameter type-id='fb4f8c25' name='strm'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='inflateInit2_' mangled-name='inflateInit2_' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='inflateInit2_'>
-      <parameter type-id='fb4f8c25' name='strm'/>
-      <parameter type-id='95e97e5e' name='windowBits'/>
-      <parameter type-id='80f4b756' name='version'/>
-      <parameter type-id='95e97e5e' name='stream_size'/>
       <return type-id='95e97e5e'/>
     </function-decl>
   </abi-instr>
@@ -630,13 +663,21 @@
         <var-decl name='strategy_override' type-id='95e97e5e' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='736'>
-        <var-decl name='gzip_selector' type-id='b96825af' visibility='default'/>
+        <var-decl name='mode' type-id='8971ed04' visibility='default'/>
       </data-member>
     </class-decl>
     <typedef-decl name='uint32_t' type-id='62f1140c' id='8f92235e'/>
     <typedef-decl name='__uint32_t' type-id='f0981eeb' id='62f1140c'/>
     <typedef-decl name='uint8_t' type-id='c51d6389' id='b96825af'/>
     <typedef-decl name='__uint8_t' type-id='002ac4a6' id='c51d6389'/>
+    <class-decl name='selector' size-in-bits='16' is-struct='yes' visibility='default' id='8971ed04'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='inflate' type-id='b96825af' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='8'>
+        <var-decl name='deflate' type-id='b96825af' visibility='default'/>
+      </data-member>
+    </class-decl>
     <typedef-decl name='FILE' type-id='ec1ed955' id='aa12d1ba'/>
     <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' id='ec1ed955'>
       <data-member access='public' layout-offset-in-bits='0'>

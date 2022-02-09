@@ -2,7 +2,7 @@
  * NX-GZIP compression accelerator user library
  * implementing zlib library interfaces
  *
- * Copyright (C) IBM Corporation, 2011-2017
+ * Copyright (C) IBM Corporation, 2011-2022
  *
  * Licenses for GPLv2 and Apache v2.0:
  *
@@ -113,11 +113,12 @@ struct selector {
 #define HEADER_ZLIB  1
 #define HEADER_GZIP  2
 
+/* 47 is the max windowBits for auto detect header */
 #ifndef MAX_WBITS
-#  define MAX_WBITS 15
+#  define MAX_WBITS 47
 #endif
 #ifndef DEF_WBITS
-#  define DEF_WBITS MAX_WBITS
+#  define DEF_WBITS 47
 #endif
 
 #define NXQWSZ  (sizeof(nx_qw_t))
@@ -612,6 +613,11 @@ extern void *dht_begin(char *ifile, char *ofile);
 extern void dht_end(void *handle);
 extern int dht_lookup(nx_gzip_crb_cpb_t *cmdp, int request, void *handle);
 extern void *dht_copy(void *handle);
+
+/* nx_gzip.c */
+extern int nx_gzclose(gzFile file);
+extern gzFile nx_gzopen(const char* path, const char *mode);
+extern gzFile nx_gzdopen(int fd, const char *mode);
 
 /* sw_zlib.c */
 extern int sw_zlib_init(void);

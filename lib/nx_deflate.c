@@ -838,6 +838,17 @@ static uint32_t nx_compress_nxstrm_to_ddl_out(nx_streamp s)
 	return total;
 }
 
+/* spbc is found in two possible locations Table 6-5 */
+static int get_spbc(nx_streamp s, int fc) {
+	if (fc == GZIP_FC_COMPRESS_RESUME_DHT_COUNT ||
+	    fc == GZIP_FC_COMPRESS_RESUME_FHT_COUNT ||
+	    fc == GZIP_FC_COMPRESS_DHT_COUNT        ||
+	    fc == GZIP_FC_COMPRESS_FHT_COUNT        )
+		return get32(s->nxcmdp->cpb, out_spbc_comp_with_count);
+
+	return get32(s->nxcmdp->cpb, out_spbc_comp);
+}
+
 /* copies spbc, tpbc, in_histlen from cpb in to nx_streamp */
 static void nx_compress_block_get_cpb(nx_streamp s, int fc) __attribute__ ((unused));
 static void nx_compress_block_get_cpb(nx_streamp s, int fc)
@@ -850,14 +861,7 @@ static void nx_compress_block_get_cpb(nx_streamp s, int fc)
 	/* history size we fed to NX before */
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
 
-	/* spbc is found in two possible locations Table 6-5 */
-	if (fc == GZIP_FC_COMPRESS_RESUME_DHT_COUNT ||
-	    fc == GZIP_FC_COMPRESS_RESUME_FHT_COUNT ||
-	    fc == GZIP_FC_COMPRESS_DHT_COUNT        ||
-	    fc == GZIP_FC_COMPRESS_FHT_COUNT        )
-		spbc = get32(s->nxcmdp->cpb, out_spbc_comp_with_count);
-	else
-		spbc = get32(s->nxcmdp->cpb, out_spbc_comp);
+	spbc = get_spbc(s, fc);
 
 	/* spbc includes histlen */
 	ASSERT(spbc >= histbytes);
@@ -894,14 +898,7 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
 
-	/* spbc is found in two possible locations Table 6-5 */
-	if (fc == GZIP_FC_COMPRESS_RESUME_DHT_COUNT ||
-	    fc == GZIP_FC_COMPRESS_RESUME_FHT_COUNT ||
-	    fc == GZIP_FC_COMPRESS_DHT_COUNT        ||
-	    fc == GZIP_FC_COMPRESS_FHT_COUNT        )
-		s->spbc = get32(s->nxcmdp->cpb, out_spbc_comp_with_count);
-	else
-		s->spbc = get32(s->nxcmdp->cpb, out_spbc_comp);
+	s->spbc = get_spbc(s, fc);
 
 	/* spbc includes histlen */
 	ASSERT(s->spbc >= histbytes);

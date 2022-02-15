@@ -141,11 +141,14 @@ typedef int retnx_t;
 /*
    Deflate block BFINAL bit.
 */
-static inline void set_bfinal(void *buf, int bfinal, int offset)
+static inline void set_bfinal(nx_streamp s, bool is_final, int offset)
 {
-	char *b = buf;
-	if (bfinal)
+	unsigned char *b = s->next_out;
+	if (is_final){
+		prt_info("%s %d set final block\n", __FUNCTION__, __LINE__);
+		s->status = NX_BFINAL_ST;
 		*b = *b | (unsigned char) (1<<offset);
+	}
 	else
 		*b = *b & ~((unsigned char) (1<<offset));
 }
@@ -885,6 +888,7 @@ static void nx_compress_block_get_cpb(nx_streamp s, int fc)
 static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 {
 	uint32_t copy_bytes, histbytes, overflow;
+	bool is_final;
 
 	prt_info("%s:%d fc %d\n", __FUNCTION__, __LINE__, fc);
 
@@ -943,26 +947,19 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 
 	copy_bytes = NX_MIN(NX_MIN(s->tpbc, s->avail_out), nx_config.strm_def_bufsz);
 
-	int bfinal;
-	int bfinal_offset;
-	if (s->avail_in == 0 && s->used_in == 0 && s->flush == Z_FINISH && fc != GZIP_FC_WRAP ) {
-		/* no more input; make this the last block by setting BFINAL=1 in the block header */
-		prt_info("%s %d set final block\n", __FUNCTION__, __LINE__);
-		bfinal = 1;
-		bfinal_offset = 0; /* offset is zero because NX can only start byte aligned */
-		s->status = NX_BFINAL_ST;
-		set_bfinal(s->next_out, bfinal, bfinal_offset);
-	}
-	else if (fc == GZIP_FC_WRAP) {
-		/* (type0 stored block header is finalized differently
-		   because the header starts about s->next_out-4 or
-		   -5 */
-	}
-	else {
-		/* no need to finalize this block because more source data may be available */
-		bfinal = 0;
-		bfinal_offset = 0;
-		set_bfinal(s->next_out, bfinal, bfinal_offset);
+	/* (type0 stored block header is finalized differently because the header
+	   starts about s->next_out-4 or -5 */
+	if (fc != GZIP_FC_WRAP){
+		if (s->avail_in == 0 && s->used_in == 0 && s->flush == Z_FINISH) {
+			/* no more input; make this the last block by setting BFINAL=1 in
+			 * the block header */
+			is_final = true;
+		} else {
+			is_final = false;
+		}
+
+		/* offset is zero because NX can only start byte aligned */
+		set_bfinal(s, is_final, 0);
 	}
 
 	update_stream_out(s, copy_bytes);

@@ -36,26 +36,17 @@
 #include <stdint.h>
 #include <stddef.h>  /* ptrdiff_t */
 #include <byteswap.h>
-#include "crc32_ppc.h"
+#include "nx_zlib.h"
 
 /* make crc32.c work without external zlib headers */
 #undef MAKECRCH
 #undef DYNAMIC_CRC_TABLE
-#define FAR
 #define local static
-#define OF(args)  ()
-typedef unsigned long uLong;
-typedef unsigned int uInt;
-typedef uint32_t z_crc_t;
 typedef size_t   z_size_t;
-typedef off_t    z_off_t;
-typedef off_t    z_off64_t;
 
 #undef NOBYFOUR
-#define Z_U4 uint32_t
 #define ZEXPORT
 #define ZEXTERN extern
-#define Z_NULL NULL
 #define ZSWAP32(q) bswap_32(q)
 
 

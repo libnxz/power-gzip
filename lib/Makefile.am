@@ -6,10 +6,12 @@ LIBLINK = $(PACKAGE_NAME).so
 
 lib_LTLIBRARIES = libnxz.la
 
-libnxz_la_SOURCES = crc32_ppc.c \
+libnxz_la_SOURCES = \
+			clang_workaround.h \
+			crc32_ppc.c \
 		    crc32_ppc.h \
 		    crc32_ppc_constants.h \
-		    crc32_ppc_asm.S \
+			crc32_power.c \
 		    gzip_vas.c \
 		    nx_adler32.c \
 		    nx_compress.c \
@@ -23,8 +25,6 @@ libnxz_la_SOURCES = crc32_ppc.c \
 		    nx_utils.c \
 		    nx_zlib.c \
 		    nx_zlib.h \
-		    ppc-asm.h \
-		    ppc-opcode.h \
 		    sw_zlib.c
 libnxz_la_LIBADD = $(PTHREAD_LIBS) -ldl
 libnxz_la_LDFLAGS = -version-info $(SOVERSION) \

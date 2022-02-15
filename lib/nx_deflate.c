@@ -898,6 +898,8 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
 
+	/* s->spbc equals the amount used from next_in plus histbytes plus the
+	   amount used from fifo_in */
 	s->spbc = get_spbc(s, fc);
 
 	/* spbc includes histlen */
@@ -921,19 +923,13 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	   update the input pointers
 	*/
 
-	/* advance fifo_in head */
 	ASSERT(s->spbc >= s->used_in);
-	s->spbc = s->spbc - s->used_in;
+	int from_next_in = s->spbc - s->used_in;
 	s->used_in = 0;
+	s->cur_in = 0;
 
-	/* s->spbc minus spbc is the amount used from fifo_in
-	   (minus histbytes)
-	   remainder is the amount used from next_in  */
-
-	update_stream_in(s, s->spbc);
-	update_stream_in(s->zstrm, s->spbc);
-
-	if (s->used_in == 0) s->cur_in = 0;
+	update_stream_in(s, from_next_in);
+	update_stream_in(s->zstrm, from_next_in);
 
 	/*
 	   update the output pointers
@@ -1270,11 +1266,17 @@ restart:
 
 	case ERR_NX_TPBC_GT_SPBC:
 
-		/* output larger than input; retry */
+		/* Generated data is larger than original, so let's retry with a wrap
+		   job to generate a literal block instead. We need to subtract
+		   resume_len because the history will not be part of the literal block,
+		   only the contents of fifo_in and next_in. */
+		s->spbc = get_spbc(s, fc);
+		ASSERT(s->spbc >= resume_len);
+		s->spbc = s->spbc - resume_len;
 
 		rc = LIBNX_OK_BIG_TARGET;
-		prt_info("ERR_NX_TPBC_GT_SPBC\n");
-		/* TODO treat as ERR_NX_OK currently; */
+		prt_info("ERR_NX_TPBC_GT_SPBC, retry with wrap job\n");
+		goto err_exit;
 
 	case ERR_NX_OK:
 		/* need to adjust strm and fifo offsets on return */
@@ -1689,6 +1691,7 @@ s2:
 			rewrite_spanning_flush(s, blk_head, avail_out, old_tebc, bfinal, s->spbc);
 
 			/* subtract the amount processed so far */
+			prt_info("%s:%d spbc %d\n", __FILE__, __LINE__, s->spbc);
 			s->need_stored_block -= s->spbc;
 
 		} /* while (s->avail_out > 0 && s->need_stored_block > 0)  */
@@ -1738,14 +1741,14 @@ s2:
 		rc = nx_compress_block(s, GZIP_FC_COMPRESS_RESUME_DHT_COUNT, nx_config.per_job_len);
 
 		if (unlikely(rc == LIBNX_OK_BIG_TARGET)) {
-			/* compressed data has expanded; we're
-			 * going to repeat with last source using
-			 * fixed Huffman block */
-			s->strategy = Z_FIXED;
+			/* compressed data has expanded; so emit a literal block instead */
+			s->need_stored_block = s->spbc; /* amount to repeat */
 			s->tebc = 0; /* not valid since we're
 				      * repeating; last block would
 				      * have sync flushed */
-			prt_info("%s:%d Expanded, trying fixed Huffman, spbc %d, tebc %d\n", __FUNCTION__, __LINE__, s->spbc, s->tebc);
+			prt_info("%s:%d need_stored_block, spbc %d\n", __FUNCTION__, __LINE__, s->spbc);
+			/* TODO Could we use memcpy to copy input to output in place without
+			   the need to call the engine again with WRAP function? */
 			goto s1;
 		}
 		if (rc != LIBNX_OK && rc != LIBNX_OK_NO_AVIN) {

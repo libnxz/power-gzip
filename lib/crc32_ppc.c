@@ -45,11 +45,13 @@ static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
 unsigned int __crc32_vpmsum(unsigned int crc, const unsigned char *p,
                             unsigned long len);
 
-static uint32_t crc32_vpmsum(uint32_t crc, const unsigned char *p,
-                             unsigned len)
+uint32_t crc32_ppc(uint32_t crc, const unsigned char *p, unsigned long len)
 {
     unsigned int prealign;
     unsigned int tail;
+
+    if (!p)
+        return 0;
 
 #ifdef CRC_XOR
     crc ^= 0xffffffff;
@@ -82,17 +84,3 @@ out:
 
     return crc;
 }
-
-/* This wrapper function works around the fact that crc32_vpmsum
- * does not gracefully handle the case where the data pointer is NULL.  There
- * may be room for performance improvement here.
- */
-uint32_t crc32_ppc(uint32_t crc, const unsigned char *data, unsigned len) {
-  if (!data) {
-    return 0;
-  } else {
-    crc = crc32_vpmsum(crc, data, (unsigned long)len);
-  }
-  return crc;
-}
-

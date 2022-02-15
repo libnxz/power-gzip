@@ -539,6 +539,10 @@ static inline void zlib_stats_inc(unsigned long *count)
 #  define ARRAY_SIZE(a)	 (sizeof((a)) / sizeof((a)[0]))
 #endif
 
+/* crc32_power.c */
+extern unsigned long crc32_ppc(unsigned long crc, const unsigned char *buffer,
+                               unsigned long len);
+
 /* gzip_vas.c */
 extern void *nx_fault_storage_address;
 extern void *nx_function_begin(int function, int pri);

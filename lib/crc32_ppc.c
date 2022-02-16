@@ -14,17 +14,11 @@
 #include <stdlib.h>
 #include <strings.h>
 
-#ifdef CRC32_CONSTANTS_HEADER
-#include CRC32_CONSTANTS_HEADER
-#else
 #include "crc32_ppc_constants.h"
-#endif
-
 
 #define VMX_ALIGN   16
 #define VMX_ALIGN_MASK  (VMX_ALIGN-1)
 
-#ifdef REFLECT
 static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
                    unsigned long len)
 {
@@ -32,15 +26,6 @@ static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
         crc = crc_table[(crc ^ *p++) & 0xff] ^ (crc >> 8);
     return crc;
 }
-#else
-static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
-                unsigned long len)
-{
-    while (len--)
-        crc = crc_table[((crc >> 24) ^ *p++) & 0xff] ^ (crc << 8);
-    return crc;
-}
-#endif
 
 unsigned int __crc32_vpmsum(unsigned int crc, const unsigned char *p,
                             unsigned long len);
@@ -53,9 +38,7 @@ uint32_t crc32_ppc(uint32_t crc, const unsigned char *p, unsigned long len)
     if (!p)
         return 0;
 
-#ifdef CRC_XOR
     crc ^= 0xffffffff;
-#endif
 
     if (len < VMX_ALIGN + VMX_ALIGN_MASK) {
         crc = crc32_align(crc, p, len);
@@ -78,9 +61,7 @@ uint32_t crc32_ppc(uint32_t crc, const unsigned char *p, unsigned long len)
     }
 
 out:
-#ifdef CRC_XOR
     crc ^= 0xffffffff;
-#endif
 
     return crc;
 }

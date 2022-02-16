@@ -212,8 +212,8 @@ local void write_table(FILE *out, const z_crc_t FAR *table)
 #define DO8 DO1; DO1; DO1; DO1; DO1; DO1; DO1; DO1
 
 /* ========================================================================= */
-unsigned long nx_crc32(unsigned long crc, const unsigned char FAR *buf,
-                       size_t len)
+static unsigned long generic_crc32(unsigned long crc, const unsigned char FAR *buf,
+                                   z_size_t len)
 {
     if (buf == Z_NULL) return 0UL;
 
@@ -242,6 +242,16 @@ unsigned long nx_crc32(unsigned long crc, const unsigned char FAR *buf,
         DO1;
     } while (--len);
     return crc ^ 0xffffffffUL;
+}
+
+unsigned long nx_crc32(unsigned long crc, const unsigned char FAR *buf,
+                       size_t len)
+{
+    /* Threshold chosen based on benchmarking */
+    if (len < 32)
+        return generic_crc32(crc, buf, len);
+
+    return crc32_ppc(crc, buf, len);
 }
 
 #ifdef BYFOUR

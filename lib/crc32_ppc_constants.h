@@ -10,8 +10,6 @@
 #ifndef CRC32_PPC_CONST_H
 #define CRC32_PPC_CONST_H
 #define CRC 0x4c11db7
-#define CRC_XOR
-#define REFLECT
 #define MAX_SIZE    32768
 
 #ifndef __ASSEMBLER__

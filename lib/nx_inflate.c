@@ -1099,8 +1099,6 @@ copy_fifo_out_to_next_out:
 		   nx_alloc_buffer has padding at the beginning */
 
 		if (s->dict_len > 0) {
-			int hlen, dlen;
-
 			/* lays dict on top of hist */
 			nx_history_len = nx_amend_history_with_dict(s);
 

@@ -37,7 +37,7 @@ unsigned long fill_dict(unsigned char* dict, int dict_len, int data_len)
 	return adler32(1, dict, dict_len);
 }
 
-int test_setDictionary(unsigned char* dict, int dict_len,
+void test_setDictionary(unsigned char* dict, int dict_len,
 		unsigned long dict_adler32, bool raw_mode)
 {
 	unsigned long total_exp;
@@ -62,7 +62,7 @@ int test_setDictionary(unsigned char* dict, int dict_len,
 	/* On ZLIB mode, strm.adler must contain the dictionary's adler32 */
 	if (!raw_mode && strm.adler != dict_adler32)
 		test_error("deflateSetDictionary set wrong strm.adler"
-			"Expected 0x%08x but got 0x%08x\n", dict_adler32,
+			"Expected 0x%08lx but got 0x%08lx\n", dict_adler32,
 			strm.adler);
 
 	strm.next_in  = src;
@@ -86,7 +86,7 @@ int test_setDictionary(unsigned char* dict, int dict_len,
 		/* DICTID must match the adler32 calculated by fill_dict */
 		unsigned long dictid = (unsigned long) be32toh(*((uint32_t *)(compr + 2)));
 		if (dictid != dict_adler32)
-			test_error("Wrong dictid! Expected 0x%08x but got 0x%08x\n",
+			test_error("Wrong dictid! Expected 0x%08lx but got 0x%08lx\n",
 				dict_adler32, dictid);
 
 		/* adler32 written to compressed stream (last 4 bytes) should be
@@ -98,7 +98,7 @@ int test_setDictionary(unsigned char* dict, int dict_len,
 		data_adler32 = adler32(data_adler32, ran_data, src_len);
 
 		if (out_adler32 != data_adler32)
-			test_error("Wrong adler32! Expected 0x%08x but got 0x%08x\n",
+			test_error("Wrong adler32! Expected 0x%08lx but got 0x%08lx\n",
 				data_adler32, out_adler32);
 	}
 
@@ -130,7 +130,7 @@ int test_setDictionary(unsigned char* dict, int dict_len,
 		   dictionary used by the compressor */
 		if (strm.adler != dict_adler32)
 			test_error("inflate set the wrong dictionary id! "
-				"Expected 0x%08x but got 0x%08x\n", dict_adler32,
+				"Expected 0x%08lx but got 0x%08lx\n", dict_adler32,
 				strm.adler);
 
 		/* Using a different dictionary (e.g. other size) should fail */

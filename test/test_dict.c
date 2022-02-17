@@ -12,11 +12,12 @@
 #include "test_utils.h"
 
 #define DEF_MAX_DICT_LEN   (1L<<15)
+#define DATALEN 1024*1024 // 1MB
 
 Byte *src, *compr, *uncompr;
-const unsigned int src_len = 1024*1024; // 1 MB
-const unsigned int compr_len = src_len*2;
-const unsigned int uncompr_len = src_len*2;
+const unsigned int src_len = DATALEN;
+const unsigned int compr_len = DATALEN*2;
+const unsigned int uncompr_len = DATALEN*2;
 
 /* Creates a dictionary suitable to be used with *SetDictionary family of
  * functions. It consists of the concatenation of strings of sizes between 3 and

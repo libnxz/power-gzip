@@ -546,10 +546,10 @@ extern int nx_function_end(void *vas_handle);
 extern uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int do_sleep);
 
 /* zlib crc32.c and adler32.c */
-extern unsigned long nx_crc32_combine(unsigned long crc1, unsigned long crc2, uint64_t len2);
+extern unsigned long nx_crc32_combine(unsigned long crc1, unsigned long crc2, off_t len2);
 extern unsigned long nx_adler32_combine(unsigned long adler1, unsigned long adler2, off_t len2);
-extern unsigned long nx_crc32(unsigned long crc, const unsigned char *buf, uint64_t len);
-extern unsigned long nx_adler32(unsigned long adler, const char *buf, unsigned int len);
+extern unsigned long nx_crc32(unsigned long crc, const unsigned char *buf, size_t len);
+extern unsigned long nx_adler32(unsigned long adler, const unsigned char *buf, size_t len);
 
 /* nx_zlib.c */
 extern nx_devp_t nx_open(int nx_id);

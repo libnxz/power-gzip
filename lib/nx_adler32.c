@@ -78,10 +78,10 @@ typedef size_t  z_size_t;
 #endif
 
 /* ========================================================================= */
-unsigned long nx_adler32_z(adler, buf, len)
+unsigned long nx_adler32(adler, buf, len)
     unsigned long adler;
-    const char *buf;
-    z_size_t len;
+    const unsigned char *buf;
+    size_t len;
 {
     unsigned long sum2;
     unsigned n;
@@ -149,19 +149,14 @@ unsigned long nx_adler32_z(adler, buf, len)
 }
 
 /* ========================================================================= */
-unsigned long nx_adler32(adler, buf, len)
-    unsigned long adler;
-    const char *buf;
-    unsigned int len;
-{
-    return nx_adler32_z(adler, buf, len);
-}
+unsigned long nx_adler32_z(unsigned long adler, const unsigned char *buf,
+                           size_t len) __attribute__((alias("nx_adler32")));
 
 /* ========================================================================= */
 unsigned long nx_adler32_combine(adler1, adler2, len2)
     unsigned long adler1;
     unsigned long adler2;
-    z_off64_t len2;
+    off_t len2;
 {
     unsigned long sum1;
     unsigned long sum2;
@@ -191,18 +186,21 @@ unsigned long nx_adler32_combine(adler1, adler2, len2)
 #ifdef ZLIB_API
 
 unsigned long adler32_combine(unsigned long adler1, unsigned long adler2,
-			      z_off_t len2)
+			      off_t len2)
 	      __attribute__((alias("nx_adler32_combine")));
 
 unsigned long adler32_combine64(unsigned long adler1, unsigned long adler2,
-			      z_off_t len2)
+			      off_t len2)
 	      __attribute__((alias("nx_adler32_combine")));
 
-unsigned long adler32(unsigned long adler, const char * buf, unsigned int len)
-	      __attribute__((alias("nx_adler32_z")));
+unsigned long adler32(unsigned long adler, const unsigned char * buf,
+                      unsigned int len) {
+    return nx_adler32(adler, buf, len);
+}
 
-unsigned long adler32_z(unsigned long adler, const char * buf, z_size_t len)
-	      __attribute__((alias("nx_adler32_z")));
+unsigned long adler32_z(unsigned long adler, const unsigned char * buf,
+                        size_t len)
+	      __attribute__((alias("nx_adler32")));
 
 #endif
 

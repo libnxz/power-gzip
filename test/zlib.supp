@@ -1,9 +1,6 @@
 # List of zlib exported symbols currently not implemented by libnxz. These
 # must be ignored in our ABI comparison for now.
 [suppress_function]
-  symbol_name = crc32_z
-
-[suppress_function]
   symbol_name = deflateGetDictionary
 
 [suppress_function]

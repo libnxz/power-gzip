@@ -25,7 +25,7 @@
 #define VMX_ALIGN_MASK  (VMX_ALIGN-1)
 
 #ifdef REFLECT
-static unsigned int crc32_align(unsigned int crc, unsigned char *p,
+static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
                    unsigned long len)
 {
     while (len--)
@@ -33,7 +33,7 @@ static unsigned int crc32_align(unsigned int crc, unsigned char *p,
     return crc;
 }
 #else
-static unsigned int crc32_align(unsigned int crc, unsigned char *p,
+static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
                 unsigned long len)
 {
     while (len--)
@@ -42,10 +42,10 @@ static unsigned int crc32_align(unsigned int crc, unsigned char *p,
 }
 #endif
 
-unsigned int __crc32_vpmsum(unsigned int crc, unsigned char *p, 
+unsigned int __crc32_vpmsum(unsigned int crc, const unsigned char *p,
                             unsigned long len);
 
-static uint32_t crc32_vpmsum(uint32_t crc, unsigned char *p,
+static uint32_t crc32_vpmsum(uint32_t crc, const unsigned char *p,
                              unsigned len)
 {
     unsigned int prealign;
@@ -87,7 +87,7 @@ out:
  * does not gracefully handle the case where the data pointer is NULL.  There
  * may be room for performance improvement here.
  */
-uint32_t crc32_ppc(uint32_t crc, unsigned char *data, unsigned len) {
+uint32_t crc32_ppc(uint32_t crc, const unsigned char *data, unsigned len) {
   if (!data) {
     return 0;
   } else {

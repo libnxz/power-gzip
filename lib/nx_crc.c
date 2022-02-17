@@ -223,10 +223,10 @@ local void write_table(out, table)
 #define DO8 DO1; DO1; DO1; DO1; DO1; DO1; DO1; DO1
 
 /* ========================================================================= */
-local unsigned long nx_crc32_z(crc, buf, len)
+unsigned long nx_crc32(crc, buf, len)
     unsigned long crc;
     const unsigned char FAR *buf;
-    z_size_t len;
+    size_t len;
 {
     if (buf == Z_NULL) return 0UL;
 
@@ -255,15 +255,6 @@ local unsigned long nx_crc32_z(crc, buf, len)
         DO1;
     } while (--len);
     return crc ^ 0xffffffffUL;
-}
-
-/* ========================================================================= */
-unsigned long ZEXPORT nx_crc32(crc, buf, len)
-    unsigned long crc;
-    const unsigned char FAR *buf;
-    uint64_t len;
-{
-    return nx_crc32_z(crc, buf, len);
 }
 
 #ifdef BYFOUR
@@ -396,7 +387,7 @@ local void gf2_matrix_square(square, mat)
 local uLong crc32_combine_(crc1, crc2, len2)
     uLong crc1;
     uLong crc2;
-    z_off64_t len2;
+    off_t len2;
 {
     int n;
     unsigned long row;
@@ -452,7 +443,7 @@ local uLong crc32_combine_(crc1, crc2, len2)
 uLong nx_crc32_combine(crc1, crc2, len2)
     uLong crc1;
     uLong crc2;
-    uint64_t len2;
+    off_t len2;
 {
     return crc32_combine_(crc1, crc2, len2);
 }
@@ -460,7 +451,7 @@ uLong nx_crc32_combine(crc1, crc2, len2)
 uLong nx_crc32_combine64(crc1, crc2, len2)
     uLong crc1;
     uLong crc2;
-    uint64_t len2;
+    off_t len2;
 {
     return crc32_combine_(crc1, crc2, len2);
 }
@@ -471,13 +462,20 @@ unsigned long crc32(crc, buf, len)
     const unsigned char FAR *buf;
     uInt len;
 {
-    return crc32_ppc(crc, (unsigned char *)buf, len);
+    return (unsigned long) crc32_ppc(crc, buf, len);
 }
 
-uLong crc32_combine(uLong crc1, uLong crc2, uint64_t len2)
+unsigned long crc32_z(unsigned long crc, const unsigned char FAR *buf,
+                      size_t len)
+{
+    return (unsigned long) crc32_ppc(crc, buf, (unsigned long) len);
+}
+
+/* Since we only support 64-bit systems, these two are the same */
+uLong crc32_combine(uLong crc1, uLong crc2, off_t len2)
       __attribute__((alias("nx_crc32_combine")));
 
-uLong crc32_combine64(uLong crc1, uLong crc2, uint64_t len2)
+uLong crc32_combine64(uLong crc1, uLong crc2, off_t len2)
       __attribute__((alias("nx_crc32_combine64")));
 
 #endif

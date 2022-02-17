@@ -57,7 +57,7 @@ test_zeroinput_SOURCES = test_zeroinput.c test_utils.c
 test_dict_SOURCES = test_dict.c test_utils.c
 
 ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
-	      --no-comp-dir-path --no-show-locs
+	      --no-comp-dir-path --no-show-locs --type-id-style hash
 
 %.auto:
 	@$(srcdir)/gen_test.sh 0 $(*F) > $@

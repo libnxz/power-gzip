@@ -991,7 +991,9 @@ void nx_hw_init(void)
 	nx_config.dht = 0; /* default is literals only */
 	nx_config.nx_ratio = 100; /* default is 100% NX */
 	nx_config.strategy_override = 1; /* default is dynamic huffman */
-	nx_config.gzip_selector = GZIP_AUTO; /* default to the automatic switch */
+	/* default to the automatic switch */
+	nx_config.mode.deflate = GZIP_AUTO;
+	nx_config.mode.inflate = GZIP_AUTO;
 
 	if (!cfg_file_s)
 		cfg_file_s = "./nx-zlib.conf";
@@ -1044,13 +1046,17 @@ void nx_hw_init(void)
 	/* log file pointer may be NULL, the worst case is we log nothing */
 
 	if(type_selector != NULL){
-		nx_config.gzip_selector = str_to_num(type_selector);
-		prt("gzip_selector: %d (0-AUTO;1-SW;2-NX;3/4-MIX)\n", nx_config.gzip_selector);
-		/* check for misconfiguration */
-		if(nx_config.gzip_selector > 4) {
+		uint8_t gzip_selector = str_to_num(type_selector);
+		prt("gzip_selector: %d (0-AUTO;1-SW;2-NX;3/4-MIX)\n", gzip_selector);
+		if(gzip_selector < 4) {
+			nx_config.mode.deflate = gzip_selector;
+			nx_config.mode.inflate = gzip_selector;
+		} else if(gzip_selector == 4) {
+			/* GZIP_MIX2 */
+			nx_config.mode.deflate = GZIP_NX;
+			nx_config.mode.inflate = GZIP_SW;
+		} else
 			prt("Unrecognized option, defaulting to AUTO.\n");
-			nx_config.gzip_selector = GZIP_AUTO;
-		}
 	}
 
 	nx_count = nx_enumerate_engines();
@@ -1168,8 +1174,10 @@ static void _nx_hwinit(void)
 {
 	nx_hw_init();
 	/* Default to nx if zlib load failed.  */
-	if(sw_zlib_init() == Z_ERRNO)
-		nx_config.gzip_selector = GZIP_NX;
+	if(sw_zlib_init() == Z_ERRNO) {
+		nx_config.mode.deflate = GZIP_NX;
+		nx_config.mode.inflate = GZIP_NX;
+	}
 }
 
 void nx_hw_done(void)

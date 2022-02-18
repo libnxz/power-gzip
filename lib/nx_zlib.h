@@ -84,6 +84,11 @@ threshold and use NX otherwise.
 */
 #define GZIP_MIX2	0x04
 
+struct selector {
+	uint8_t inflate;
+	uint8_t deflate;
+};
+
 #define COMPRESS_THRESHOLD	(1024)
 #define DECOMPRESS_THRESHOLD	(1024)
 
@@ -151,7 +156,8 @@ struct nx_config_t {
 	int      strategy_override; /** Force use of an specific deflate
 				     * strategy.  0 is fixed huffman, 1 is
 				     * dynamic huffman */
-	uint8_t  gzip_selector;
+	struct selector mode; /** mode selector: selects between software
+				* and hardware compression. */
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;
@@ -340,13 +346,13 @@ static inline int use_nx_inflate(z_streamp strm)
 	uint64_t rnd;
 	assert(strm != NULL);
 
-	if(nx_config.gzip_selector == GZIP_NX) return 1;
-	if(nx_config.gzip_selector == GZIP_SW || nx_config.gzip_selector == GZIP_MIX2) return 0;
+	if(nx_config.mode.inflate == GZIP_NX) return 1;
+	if(nx_config.mode.inflate == GZIP_SW) return 0;
 
 	/* #1 Threshold */
 	if(strm->avail_in <= DECOMPRESS_THRESHOLD) return 0;
 
-	if(nx_config.gzip_selector == GZIP_AUTO) return 1;
+	if(nx_config.mode.inflate == GZIP_AUTO) return 1;
 
 	/* #2 Percentage */
 	rnd = __ppc_get_timebase();
@@ -361,8 +367,8 @@ static inline int use_nx_deflate(z_streamp strm)
 {
 	assert(strm != NULL);
 
-        if(nx_config.gzip_selector == GZIP_NX || nx_config.gzip_selector == GZIP_MIX2) return 1;
-        if(nx_config.gzip_selector == GZIP_SW) return 0;
+        if(nx_config.mode.deflate == GZIP_NX) return 1;
+        if(nx_config.mode.deflate == GZIP_SW) return 0;
 
 	/* #1 Threshold */
 	if(strm->avail_in <= COMPRESS_THRESHOLD) return 0;

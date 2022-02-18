@@ -85,12 +85,12 @@ int compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen
 {
 	int rc=0;
 
-	if(nx_config.gzip_selector == GZIP_AUTO){
+	if(nx_config.mode.deflate == GZIP_AUTO){
 		if(sourceLen <= COMPRESS_THRESHOLD)
 			rc = sw_compress2(dest, destLen, source, sourceLen, level);
 		else
 			rc = nx_compress2(dest, destLen, source, sourceLen, level);
-	}else if(nx_config.gzip_selector == GZIP_NX){
+	}else if(nx_config.mode.deflate == GZIP_NX){
 		rc = nx_compress2(dest, destLen, source, sourceLen, level);
 	}else{
 		rc = sw_compress2(dest, destLen, source, sourceLen, level);

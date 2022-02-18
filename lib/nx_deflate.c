@@ -2137,8 +2137,8 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	zlib_stats_inc(&zlib_stats.deflateInit);
 
 	strm->state = NULL;
-	if(nx_config.gzip_selector == GZIP_AUTO ||
-	   nx_config.gzip_selector == GZIP_MIX){
+	if(nx_config.mode.deflate == GZIP_AUTO ||
+	   nx_config.mode.deflate == GZIP_MIX){
 
 		/* call sw and nx initialization */
 		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
@@ -2165,7 +2165,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		}
 
 
-	}else if(nx_config.gzip_selector == GZIP_NX || nx_config.gzip_selector == GZIP_MIX2){
+	}else if(nx_config.mode.deflate == GZIP_NX){
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 	}else{
 		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);

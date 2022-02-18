@@ -198,9 +198,7 @@ local void make_crc_table()
 }
 
 #ifdef MAKECRCH
-local void write_table(out, table)
-    FILE *out;
-    const z_crc_t FAR *table;
+local void write_table(FILE *out, const z_crc_t FAR *table)
 {
     int n;
 
@@ -223,10 +221,8 @@ local void write_table(out, table)
 #define DO8 DO1; DO1; DO1; DO1; DO1; DO1; DO1; DO1
 
 /* ========================================================================= */
-unsigned long nx_crc32(crc, buf, len)
-    unsigned long crc;
-    const unsigned char FAR *buf;
-    size_t len;
+unsigned long nx_crc32(unsigned long crc, const unsigned char FAR *buf,
+                       size_t len)
 {
     if (buf == Z_NULL) return 0UL;
 
@@ -356,9 +352,7 @@ local unsigned long crc32_big(crc, buf, len)
 #define GF2_DIM 32      /* dimension of GF(2) vectors (length of CRC) */
 
 /* ========================================================================= */
-local unsigned long gf2_matrix_times(mat, vec)
-    unsigned long *mat;
-    unsigned long vec;
+local unsigned long gf2_matrix_times(unsigned long *mat, unsigned long vec)
 {
     unsigned long sum;
 
@@ -373,9 +367,7 @@ local unsigned long gf2_matrix_times(mat, vec)
 }
 
 /* ========================================================================= */
-local void gf2_matrix_square(square, mat)
-    unsigned long *square;
-    unsigned long *mat;
+local void gf2_matrix_square(unsigned long *square, unsigned long *mat)
 {
     int n;
 
@@ -384,10 +376,7 @@ local void gf2_matrix_square(square, mat)
 }
 
 /* ========================================================================= */
-local uLong crc32_combine_(crc1, crc2, len2)
-    uLong crc1;
-    uLong crc2;
-    off_t len2;
+local uLong crc32_combine_(uLong crc1, uLong crc2, off_t len2)
 {
     int n;
     unsigned long row;
@@ -440,27 +429,18 @@ local uLong crc32_combine_(crc1, crc2, len2)
 }
 
 /* ========================================================================= */
-uLong nx_crc32_combine(crc1, crc2, len2)
-    uLong crc1;
-    uLong crc2;
-    off_t len2;
+uLong nx_crc32_combine(uLong crc1, uLong crc2, off_t len2)
 {
     return crc32_combine_(crc1, crc2, len2);
 }
 
-uLong nx_crc32_combine64(crc1, crc2, len2)
-    uLong crc1;
-    uLong crc2;
-    off_t len2;
+uLong nx_crc32_combine64(uLong crc1, uLong crc2, off_t len2)
 {
     return crc32_combine_(crc1, crc2, len2);
 }
 
 #ifdef ZLIB_API
-unsigned long crc32(crc, buf, len)
-    unsigned long crc;
-    const unsigned char FAR *buf;
-    uInt len;
+unsigned long crc32(unsigned long crc, const unsigned char FAR *buf, uInt len)
 {
     return (unsigned long) crc32_ppc(crc, buf, len);
 }

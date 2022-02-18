@@ -78,10 +78,8 @@ typedef size_t  z_size_t;
 #endif
 
 /* ========================================================================= */
-unsigned long nx_adler32(adler, buf, len)
-    unsigned long adler;
-    const unsigned char *buf;
-    size_t len;
+unsigned long nx_adler32(unsigned long adler, const unsigned char *buf,
+                         size_t len)
 {
     unsigned long sum2;
     unsigned n;
@@ -153,10 +151,8 @@ unsigned long nx_adler32_z(unsigned long adler, const unsigned char *buf,
                            size_t len) __attribute__((alias("nx_adler32")));
 
 /* ========================================================================= */
-unsigned long nx_adler32_combine(adler1, adler2, len2)
-    unsigned long adler1;
-    unsigned long adler2;
-    off_t len2;
+unsigned long nx_adler32_combine(unsigned long adler1, unsigned long adler2,
+                                 off_t len2)
 {
     unsigned long sum1;
     unsigned long sum2;

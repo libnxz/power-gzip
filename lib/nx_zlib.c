@@ -954,7 +954,12 @@ void nx_hw_init(void)
 	pthread_mutex_init (&saved_nx_devp_mutex, NULL);
 
 	char *mlock_csb  = getenv("NX_GZIP_MLOCK_CSB"); /* 0 or 1 */
-	char *type_selector    = getenv("NX_GZIP_TYPE_SELECTOR"); /* selector for sw or hw gzip implementation */
+	/* selector for sw or hw gzip implementation */
+	char *type_selector = getenv("NX_GZIP_TYPE_SELECTOR");
+	/* selector for deflate */
+	char *comp_mode = getenv("NX_GZIP_COMP_MODE");
+	/* selector for inflate */
+	char *dec_mode = getenv("NX_GZIP_DEC_MODE");
 	char *verbo_s    = getenv("NX_GZIP_VERBOSE"); /* 0 to 255 */
 	char *chip_num_s = getenv("NX_GZIP_DEV_NUM"); /* -1 for default, 0 for vas_id 0, 1 for vas_id 1 2 for both */
 	char *def_bufsz  = getenv("NX_GZIP_DEF_BUF_SIZE"); /* KiB MiB GiB suffix */
@@ -1035,6 +1040,10 @@ void nx_hw_init(void)
 			type_selector = nx_get_cfg("nx_selector", &cfg_tab);
 		if (!nx_ratio_s)
 			nx_ratio_s = nx_get_cfg("nx_ratio", &cfg_tab);
+		if(!comp_mode)
+			comp_mode = nx_get_cfg("comp_mode", &cfg_tab);
+		if(!dec_mode)
+			dec_mode = nx_get_cfg("dec_mode", &cfg_tab);
 	}
 
 	/* log file should be initialized first */
@@ -1057,6 +1066,19 @@ void nx_hw_init(void)
 			nx_config.mode.inflate = GZIP_SW;
 		} else
 			prt("Unrecognized option, defaulting to AUTO.\n");
+	} else {
+		uint8_t strat;
+		if(comp_mode != NULL) {
+			strat = str_to_num(comp_mode);
+			nx_config.mode.deflate = strat < 3 ? strat
+				: GZIP_AUTO;
+		}
+
+		if(dec_mode != NULL) {
+			strat = str_to_num(dec_mode);
+			nx_config.mode.inflate = strat < 3 ? strat
+				: GZIP_AUTO;
+		}
 	}
 
 	nx_count = nx_enumerate_engines();

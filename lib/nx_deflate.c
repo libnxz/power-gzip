@@ -85,6 +85,13 @@ do { if ((s)->cur_in > (s)->len_in/2) { \
 	(s)->cur_in = 0; } \
 } while(0)
 
+#define fifo_in_alloc_check(s) \
+	do { if (s->fifo_in == NULL) { \
+			s->len_in = nx_config.deflate_fifo_in_len; \
+			s->fifo_in = nx_alloc_buffer(s->len_in, s->page_sz, 0); \
+			if (s->fifo_in == NULL)	\
+				return Z_MEM_ERROR; } \
+	} while(0)
 
 #define put_byte(s, c) {(s)->fifo_out[(s)->used_out++] = (Bytef)((c) & 0xff);}
 #define put_short(s, b) do {					\
@@ -1640,11 +1647,7 @@ s2:
 		(s->level != 0)            &&   /* not a raw copy */
 		(s->dict_len == 0)) {
 		/* if dictionary present do not buffer small input */
-		if (s->fifo_in == NULL) {
-			s->len_in = nx_config.deflate_fifo_in_len;
-			if (NULL == (s->fifo_in = nx_alloc_buffer(s->len_in, s->page_sz, 0)))
-				return Z_MEM_ERROR;
-		}
+		fifo_in_alloc_check(s);
 		/* small input and no request made for flush or finish */
 		small_copy_nxstrm_in_to_fifo_in(s);
 		return Z_OK;

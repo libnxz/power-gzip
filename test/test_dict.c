@@ -149,14 +149,15 @@ void test_setDictionary(unsigned char* dict, int dict_len,
 int main()
 {
 	unsigned long dict_adler32;
-	unsigned char dict[DEF_MAX_DICT_LEN + 1024];
+	unsigned char dict[(1<<17) + 10];
 
 	/* lengths chosen to test the following cases:
 	   1. small, medium, maximum and over-maximum lengths
 	   2. lengths multiple of 16
-	   3. lengths not multiple of 16 */
+	   3. lengths not multiple of 16
+	   4. length greater than size of fifo_in */
 	int dict_lengths[] = {100, 783, 2520, 15341, 21769, 28800,
-		DEF_MAX_DICT_LEN, DEF_MAX_DICT_LEN + 500 };
+		DEF_MAX_DICT_LEN, DEF_MAX_DICT_LEN + 500, (1<<17)+10 };
 
 	generate_random_data(src_len);
 	src = (Byte*)&ran_data[0];

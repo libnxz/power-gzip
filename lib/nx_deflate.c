@@ -569,7 +569,6 @@ int nx_deflateEnd(z_streamp strm)
 
 	nx_free_buffer(s->fifo_in, s->len_in, 0);
 	nx_free_buffer(s->fifo_out, s->len_out, 0);
-	nx_free_buffer(s->dict, s->dict_alloc_len, 0);
 
 	nx_close(s->nxdevp);
 
@@ -660,7 +659,6 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	s->fifo_in = NULL;
 	s->len_in = 0;
 
-	s->dict = NULL;
 	s->dict_len = 0;
 
 	s->len_out = nx_config.deflate_fifo_out_len;
@@ -745,16 +743,25 @@ static int nx_copy_fifo_out_to_nxstrm_out(nx_streamp s)
 */
 
 /*
-   When small number of bytes are in strm, copy them to fifo instead of
-   using NX to DMA them.  Returns number of bytes copied.
+   When small number of bytes are in strm, copy them to fifo_in instead of
+   using NX to DMA them.
 */
-static inline void small_copy_nxstrm_in_to_fifo_in(nx_streamp s)
+static inline void cache_input(nx_streamp s)
 {
 	uint32_t free_bytes, copy_bytes;
 
-	prt_info("%s:%d avail_in %d used_in %d\n", __FUNCTION__, __LINE__, s->avail_in, s->used_in);
+	/* Avoid underflow if more than half of fifo_in has been used already. */
+	free_bytes = s->cur_in + s->used_in < s->len_in/2 ?
+		s->len_in/2 - s->cur_in - s->used_in : 0;
 
-	free_bytes = s->len_in/2 - s->cur_in - s->used_in;
+	/* Not enough space to cache input. Time to throw away old data, keeping at
+	 * most DEF_HIST_LEN bytes of history. */
+	if(free_bytes < s->avail_in) {
+		memmove(s->fifo_in, s->fifo_in + s->cur_in - DEF_HIST_LEN,
+				DEF_HIST_LEN + s->used_in);
+		s->cur_in = DEF_HIST_LEN;
+		free_bytes = s->len_in/2 - s->cur_in - s->used_in;
+	}
 	copy_bytes = NX_MIN(free_bytes, s->avail_in);
 
 	memcpy(s->fifo_in + s->cur_in + s->used_in, s->next_in, copy_bytes);
@@ -778,18 +785,18 @@ static inline void small_copy_nxstrm_in_to_fifo_in(nx_streamp s)
 */
 
 /*
-   make a scatter gather list of buffered data in fifo_in and strm
-   input. The deflate() input data order is history (optional),
-   fifo_in (first and last segments if any), and finally the strm
-   next_in. Fifo_in contains input buffered during earlier calls.
-   resume_buf contains either the history or the dictionary data.
-   resume_len must be rounded down to 16 byte multiple as required by
-   NX-gzip
-*/
-static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, char *resume_buf, uint32_t resume_len)
+   make a scatter gather list of buffered data in fifo_in and strm input. The
+   deflate() input data order is history, fifo_in, and finally next_in. Fifo_in
+   contains input buffered during earlier calls (s->used_in bytes in fifo_in
+   starting at s->cur_in) as well as the history (s->history_len bytes in
+   fifo_in before s->cur_in). limit is the maximum number of input bytes to
+   use. */
+static uint32_t nx_setup_ddl_in(nx_streamp s, uint32_t *resume_len, int limit)
 {
-	uint32_t avail_in;
-	uint32_t total=0;
+	uint32_t avail_in, budget, from_fifo_in, from_next_in, histbytes, total;
+
+	total = histbytes = from_fifo_in = from_next_in = 0;
+	budget = limit;
 
 	/* TODO may need a way to limit the input size from top level
 	   to prevent CC=13 */
@@ -798,16 +805,42 @@ static uint32_t nx_compress_nxstrm_to_ddl_in(nx_streamp s, char *resume_buf, uin
 
 	clearp_dde(s->ddl_in);
 
-	if (resume_buf != NULL && resume_len != 0)
-		total = nx_append_dde(s->ddl_in, resume_buf, resume_len);
+	if (s->fifo_in != NULL) {
+		assert(s->cur_in >= s->history_len);
 
-	if (s->fifo_in != NULL)
-		total = nx_append_dde(s->ddl_in,
-				      s->fifo_in + s->cur_in,
-				      s->used_in);
+		/* Append history if there's any. Make sure to respect the byte limit,
+		   giving priority to new input data over history data. */
+		if (s->history_len && s->used_in + avail_in < limit) {
+			/* TODO: We can tune the amount of history and user data used here
+			   depending on the compression level. Using more history may lead
+			   to higher compression ratio. */
+			histbytes = NX_MIN(s->history_len, limit - s->used_in - avail_in);
 
-	if (avail_in > 0)
-		total = nx_append_dde(s->ddl_in, s->next_in, avail_in);
+			/* History length must be multiple of 16 (NX requirement) */
+			int offset = s->history_len % sizeof(nx_qw_t);
+			histbytes = s->history_len - offset;
+
+			total = nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in - histbytes,
+								  histbytes);
+
+			budget -= histbytes;
+		}
+
+		/* Append cached data */
+		from_fifo_in = NX_MIN(budget, s->used_in);
+		total = nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in, from_fifo_in);
+		budget -= from_fifo_in;
+	}
+
+	/* Append new user data */
+	if (avail_in > 0 && budget > 0) {
+		from_next_in = NX_MIN(avail_in, budget);
+		total = nx_append_dde(s->ddl_in, s->next_in, from_next_in);
+	}
+
+	/* Tell the engine the actual amount of history being used */
+	putnn(s->nxcmdp->cpb, in_histlen, histbytes/sizeof(nx_qw_t));
+	*resume_len = histbytes;
 
 	return total;
 }
@@ -901,19 +934,24 @@ static void nx_compress_block_get_cpb(nx_streamp s, int fc)
 /* updates stream offsets and also sets the block final bit */
 static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 {
-	uint32_t copy_bytes, histbytes, overflow;
+	uint32_t copy_bytes, histbytes, overflow, from_next_in, from_used_in;
 	bool is_final;
 
 	prt_info("%s:%d fc %d\n", __FUNCTION__, __LINE__, fc);
 
 	histbytes = getnn(s->nxcmdp->cpb, in_histlen) * sizeof(nx_qw_t);
 
-	/* s->spbc equals the amount used from next_in plus histbytes plus the
-	   amount used from fifo_in */
+	/* s->spbc equals the amount used from next_in and fifo_in */
 	s->spbc = get_spbc(s, fc);
 
+	if(s->spbc <= histbytes) {
+		/* Didn't make any useful progress. This is not necessarily an error,
+		   but NX job may have been preempted for a number of fine reasons. */
+		s->spbc = 0;
+		return LIBNX_OK;
+	}
+
 	/* spbc includes histlen */
-	ASSERT(s->spbc >= histbytes);
 	s->spbc = s->spbc - histbytes;
 
 	/* target byte count */
@@ -933,10 +971,38 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	   update the input pointers
 	*/
 
-	ASSERT(s->spbc >= s->used_in);
-	int from_next_in = s->spbc - s->used_in;
-	s->used_in = 0;
-	s->cur_in = 0;
+	from_used_in = NX_MIN(s->used_in, s->spbc);
+	from_next_in = s->spbc > s->used_in ? s->spbc - s->used_in : 0;
+
+	s->cur_in += from_used_in;
+	s->used_in -= from_used_in;
+
+	/* Make sure fifo_in has been allocated */
+	fifo_in_alloc_check(s);
+
+	/* We need to copy data from next_in to fifo_in to maintain the history. We
+	   also need to limit the amount of data in fifo_in to len_in/2, so we may
+	   need to throw away old data if we reach that limit. */
+	if (s->cur_in + from_next_in > s->len_in/2) {
+
+		/* Throwing away old data. We just want to keep DEF_HIST_LEN bytes of
+		   history at the beginning of fifo_in. Data from next_in has priority
+		   because it comes later in the data stream. */
+		copy_bytes = from_next_in < DEF_HIST_LEN ? DEF_HIST_LEN-from_next_in : 0;
+		if (copy_bytes > 0)
+			memmove(s->fifo_in, s->fifo_in + s->cur_in - copy_bytes, copy_bytes);
+		s->cur_in = copy_bytes;
+	}
+
+	/* Copy enough bytes from the end of the input data to fill the history */
+	if (from_next_in > 0) {
+		copy_bytes = NX_MIN(from_next_in, DEF_HIST_LEN);
+		memcpy(s->fifo_in + s->cur_in,
+			   s->next_in + from_next_in - copy_bytes, copy_bytes);
+		s->cur_in += copy_bytes;
+	}
+
+	s->history_len = NX_MIN(s->cur_in, DEF_HIST_LEN);
 
 	update_stream_in(s, from_next_in);
 	update_stream_in(s->zstrm, from_next_in);
@@ -1114,7 +1180,6 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	nx_dde_t *ddl_in, *ddl_out;
 	long pgsz;
 	uint64_t ticks_total = 0;
-	char *resume_buf;
 
 	prt_info("%s:%d fc %d, limit %d\n", __FUNCTION__, __LINE__, fc, limit);
 
@@ -1140,37 +1205,9 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 		goto do_no_update;
 	}
 
-	/* with no history TODO alignment Section 2.8.1 */
-	resume_len = 0;
-	resume_buf = NULL;
-
-	if (s->dict_len > 0) {
-		resume_len = NX_MIN(s->dict_len, DEF_MAX_DICT_LEN);
-		/* round down to 16 byte multiple. We can't round it up because
-		   the generated deflate stream could contain references to the
-		   padding bytes added, which won't be present in the window if
-		   the same dictionary is given to a zlib decompressor, which
-		   knows nothing about this 16 byte requirement. So it's better
-		   to throw away a few bytes of the dictionary instead, so zlib
-		   can correctly decompress the stream later if given the same
-		   dictionary.  */
-		resume_len = (resume_len / sizeof(nx_qw_t)) * sizeof(nx_qw_t);
-		/* use the last ~32KB of the dictionary */
-		resume_buf = s->dict + (s->dict_len - resume_len);
-		/* if we use dict once, we don't reuse it until the
-		   next setDictionary */
-		s->dict_len = 0;
-	}
-
-	/* Tell NX size of the history (resume) buffer; needs to be 16 byte integral */
-	putnn(nxcmdp->cpb, in_histlen, resume_len/sizeof(nx_qw_t));
-
 	/* setup ddes */
-	bytes_in = nx_compress_nxstrm_to_ddl_in(s, resume_buf, resume_len);
+	bytes_in = nx_setup_ddl_in(s, &resume_len, limit);
 	bytes_out = nx_compress_nxstrm_to_ddl_out(s);
-
-	/* limit the input size; mainly for sampling LZcounts */
-	if (limit) bytes_in = NX_MIN(bytes_in, limit);
 
 	/* initial checksums. TODO arch independent endianness */
 	put32(nxcmdp->cpb, in_crc, s->crc32);
@@ -1649,7 +1686,7 @@ s2:
 		/* if dictionary present do not buffer small input */
 		fifo_in_alloc_check(s);
 		/* small input and no request made for flush or finish */
-		small_copy_nxstrm_in_to_fifo_in(s);
+		cache_input(s);
 		return Z_OK;
 	}
 
@@ -1665,9 +1702,10 @@ s2:
 		int bfinal = 0;
 
 		print_dbg_info(s, __LINE__);
-		prt_info("%s:%d need_stored_block %d, tebc %d\n", __FUNCTION__, __LINE__, s->need_stored_block, s->tebc);
 
 		while (s->avail_out > 0 && s->need_stored_block > 0) {
+			prt_info("%s:%d need_stored_block %d, tebc %d\n", __FUNCTION__,
+					 __LINE__, s->need_stored_block, s->tebc);
 			/* reminder of the output block start offset */
 			char *blk_head = (char*) s->next_out;
 
@@ -1706,8 +1744,7 @@ s2:
 			/* subtract the amount processed so far */
 			prt_info("%s:%d spbc %d\n", __FILE__, __LINE__, s->spbc);
 			s->need_stored_block -= s->spbc;
-
-		} /* while (s->avail_out > 0 && s->need_stored_block > 0)  */
+		}
 
 		s->need_stored_block = 0;
 	}
@@ -1946,29 +1983,48 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 		}
 	}
 
-	do {
-		if (s->dict != NULL) {
-			if(dictLength > s->dict_alloc_len) /* need to resize? */
-				nx_free_buffer(s->dict, s->dict_alloc_len, 0);
-			else
-				break; /* Skip allocation */
-		}
-
-		/* one time allocation until deflateEnd() */
-		s->dict_alloc_len = NX_MAX( DEF_MAX_DICT_LEN, dictLength);
-		/* we don't need larger than DEF_MAX_DICT_LEN in
-		   principle; however nx_copy needs a target buffer to
-		   be able to compute adler32 */
-		if (NULL == (s->dict = nx_alloc_buffer(s->dict_alloc_len, s->page_sz, 0))) {
-			s->dict_alloc_len = 0;
-			return Z_MEM_ERROR;
-		}
-		s->dict_len = 0;
-		s->dict_id = 0;
-	} while(0);
-
 	adler = INIT_ADLER;
-	cc = nx_copy(s->dict, (char *)dictionary, dictLength, NULL, &adler, s->nxdevp);
+
+	/* deflateSetDictionary can only be called when there's no pending user
+	   input (before deflate or after flush), so no worries about overwriting
+	   cached input. We can use fifo_in to hold the dictionary like any other
+	   history data, without the need for a separate buffer. */
+	fifo_in_alloc_check(s);
+
+	unsigned int chunk_size, left;
+	if (dictLength <= DEF_MAX_DICT_LEN) {
+		/* Just append the dictionary to the existing history data. */
+		left = dictLength;
+	} else {
+		/* The entire history will be overwritten, so we can use fifo_in in its
+		   entirety. The initial bytes will be copied in chunks of s->len_in, so
+		   for most reasonable dictionary use cases this should require just a
+		   few NX jobs. All this is necessary because we need to calculate the
+		   adler32 of the entire dictionary, so we use NX wrap jobs to do this
+		   faster. */
+
+		left = dictLength - DEF_MAX_DICT_LEN;
+		while (left != 0) {
+			chunk_size = NX_MIN(s->len_in, left);
+			cc = nx_copy(s->fifo_in, (char *)dictionary, chunk_size,
+						 NULL, &adler, s->nxdevp);
+			if (cc != ERR_NX_OK) {
+				prt_err("nx_copy dictionary error\n");
+				return Z_STREAM_ERROR;
+			}
+			left -= chunk_size;
+			dictionary += chunk_size;
+		}
+
+		/* Copy the last DEF_MAX_DICT_LEN bytes separately to leave them at the
+		   very beginning of fifo_in to save space for cached input. */
+		left = DEF_MAX_DICT_LEN;
+		s->cur_in = 0;
+	}
+
+	/* Copy last bytes and leave dictionary in place for usage as history */
+	cc = nx_copy(s->fifo_in+s->cur_in, (char *)dictionary, left, NULL, &adler,
+				 s->nxdevp);
 	if (cc != ERR_NX_OK) {
 		prt_err("nx_copy dictionary error\n");
 		return Z_STREAM_ERROR;
@@ -1979,6 +2035,8 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	   format doesn't use an ID */
 	s->dict_len = dictLength;
 	s->dict_id = adler;
+	s->cur_in += left;
+	s->history_len = NX_MIN(s->history_len + dictLength, DEF_HIST_LEN);
 
 	/* Mimic zlib behavior */
 	s->zstrm->total_in += NX_MIN(dictLength, DEF_MAX_DICT_LEN);
@@ -2087,12 +2145,6 @@ int nx_deflateCopy(z_streamp dest, z_streamp source)
 		if (NULL == (d->fifo_in = nx_alloc_buffer(s->len_in, nx_config.page_sz, 0)))
 			goto mem_error;
 		memcpy(d->fifo_in, s->fifo_in, s->len_in);
-	}
-
-	if (s->dict != NULL) {
-		if (NULL == (d->dict = nx_alloc_buffer(s->dict_alloc_len, nx_config.page_sz, 0)))
-			goto mem_error;
-		memcpy(d->dict, s->dict, s->dict_alloc_len);
 	}
 
 	if (s->dhthandle != NULL) {

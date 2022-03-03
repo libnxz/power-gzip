@@ -178,7 +178,7 @@ static inline int append_btype00_header(char *buf, uint32_t tebc, int final, int
 	blen = 0xffffffffULL & (((~blen) << 16) | blen); /* NLEN,LEN */
 	flush = ((0x1ULL & final) << shift) | *buf;
 	shift = shift + 3; /* BFINAL and BTYPE written */
-	shift = (shift <= 8) ? 8 : 16;
+	shift = (shift <= 8) ? 8 : 16; /* padding bits */
 	flush |= blen << shift; /* blen length block */
 	shift = shift + 32;
 	while (shift > 0) {
@@ -399,14 +399,14 @@ static int rewrite_spanning_flush(nx_streamp s, char *buf, uint32_t avail_out, u
 	/* now copy the flush block to the stream possibly
 	   overflowing in to fifo_out */
 	k = 0;
-	while (avail_out > 0 && k < 4) {
+	while (avail_out > 0 && k < nb) {
 		*buf++ = tmp[k+1];
 		++k;
 		--avail_out;
 	}
 	/* overflowing any remainder in to fifo_out */
 	j = 0;
-	while (k < 4) {
+	while (k < nb) {
 		*(s->fifo_out + j) = tmp[k+1];
 		++k; ++j;
 	}

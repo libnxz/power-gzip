@@ -1893,7 +1893,6 @@ int nx_inflateSyncPoint(z_streamp strm)
 	return s->sync_point;
 }
 
-#ifdef ZLIB_API
 int inflateInit_(z_streamp strm, const char *version, int stream_size)
 {
 	return inflateInit2_(strm, DEF_WBITS, version, stream_size);
@@ -2098,5 +2097,3 @@ int inflateSyncPoint(z_streamp strm)
 
 	return rc;
 }
-
-#endif

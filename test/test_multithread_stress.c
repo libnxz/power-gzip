@@ -15,13 +15,8 @@
 #define DATA_NUM	10
 
 
-#ifdef ZLIB_API
 #define COMPRESS	compress
 #define UNCOMPRESS	uncompress
-#else
-#define COMPRESS	nx_compress
-#define UNCOMPRESS	nx_uncompress
-#endif
 
 static unsigned int buf_size_array[DATA_NUM] = {4096, 4096, 65536, 65536, 131072, 131072, 262144, 262144, 1048576, 1048576};
 Byte *data_buf[DATA_NUM] = {NULL};

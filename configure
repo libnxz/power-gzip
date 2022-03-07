@@ -815,7 +815,6 @@ with_gzip
 with_sha256sum
 with_valgrind
 with_wget
-enable_zlib_api
 enable_doxygen_doc
 enable_doxygen_man
 enable_doxygen_html
@@ -1482,7 +1481,6 @@ Optional Features:
   --disable-dependency-tracking
                           speeds up one-time build
   --disable-libtool-lock  avoid locking (might break parallel builds)
-  --disable-zlib-api      Enable compatibility with the Zlib API (default enabled)
   --disable-doxygen-doc   don't generate any doxygen documentation
   --disable-doxygen-man   don't generate doxygen manual pages
   --disable-doxygen-html  don't generate doxygen plain HTML documentation
@@ -16330,15 +16328,6 @@ fi
 
 fi
 rm -f conftest.err conftest.i conftest.$ac_ext
-
-# Check whether --enable-zlib-api was given.
-if test "${enable_zlib_api+set}" = set; then :
-  enableval=$enable_zlib_api;
-fi
-
-if test "x$enableval" != xno; then :
-  CFLAGS="$CFLAGS -DZLIB_API"
-fi
 
 # Doxygen support
 

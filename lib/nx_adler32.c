@@ -179,8 +179,6 @@ unsigned long nx_adler32_combine(unsigned long adler1, unsigned long adler2,
 
 /* ========================================================================= */
 
-#ifdef ZLIB_API
-
 unsigned long adler32_combine(unsigned long adler1, unsigned long adler2,
 			      off_t len2)
 	      __attribute__((alias("nx_adler32_combine")));
@@ -197,6 +195,3 @@ unsigned long adler32(unsigned long adler, const unsigned char * buf,
 unsigned long adler32_z(unsigned long adler, const unsigned char * buf,
                         size_t len)
 	      __attribute__((alias("nx_adler32")));
-
-#endif
-

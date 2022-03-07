@@ -440,7 +440,6 @@ uLong nx_crc32_combine64(uLong crc1, uLong crc2, off_t len2)
     return crc32_combine_(crc1, crc2, len2);
 }
 
-#ifdef ZLIB_API
 unsigned long crc32(unsigned long crc, const unsigned char FAR *buf, uInt len)
 {
     return (unsigned long) crc32_ppc(crc, buf, len);
@@ -458,5 +457,3 @@ uLong crc32_combine(uLong crc1, uLong crc2, off_t len2)
 
 uLong crc32_combine64(uLong crc1, uLong crc2, off_t len2)
       __attribute__((alias("nx_crc32_combine64")));
-
-#endif

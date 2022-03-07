@@ -87,8 +87,6 @@ int nx_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourc
     return nx_uncompress2(dest, destLen, source, &sourceLen);
 }
 
-#ifdef ZLIB_API
-
 #if ZLIB_VERNUM >= 0x1290
 int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sourceLen)
 {
@@ -136,5 +134,3 @@ int uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLe
 	return rc;
 #endif
 }
-
-#endif

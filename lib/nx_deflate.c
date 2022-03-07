@@ -2118,7 +2118,6 @@ mem_error:
 }
 
 
-#ifdef ZLIB_API
 int deflateInit_(z_streamp strm, int level, const char* version, int stream_size)
 {
 	return deflateInit2_(strm, level, Z_DEFLATED, MAX_WBITS, DEF_MEM_LEVEL,
@@ -2328,5 +2327,3 @@ int deflateCopy(z_streamp dest, z_streamp source)
 
 	return rc;
 }
-
-#endif

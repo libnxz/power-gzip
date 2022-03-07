@@ -126,11 +126,6 @@ AC_PREPROC_IFELSE(
 		       [AC_MSG_ERROR([$CC does not support -std=gnu11])])
 ])
 
-AC_ARG_ENABLE([zlib-api],
-	      [  --disable-zlib-api      Enable compatibility with the Zlib API (default enabled)])
-AS_IF([test "x$enableval" != xno],
-      [CFLAGS="$CFLAGS -DZLIB_API"])
-
 # Doxygen support
 DX_HTML_FEATURE(ON)
 DX_MAN_FEATURE(ON)

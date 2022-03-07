@@ -74,8 +74,6 @@ uLong nx_compressBound(uLong sourceLen)
     return nx_deflateBound(NULL, sourceLen);
 }
 
-#ifdef ZLIB_API
-
 int compress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen)
 {
 	return compress2(dest, destLen, source, sourceLen, Z_DEFAULT_COMPRESSION);
@@ -107,5 +105,3 @@ uLong compressBound(uLong sourceLen)
 	return	NX_MAX(nx_deflateBound(NULL, sourceLen),
                    sw_deflateBound(NULL, sourceLen));
 }
-
-#endif

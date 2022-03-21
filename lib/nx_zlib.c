@@ -1013,7 +1013,7 @@ void nx_hw_init(void)
 		if (!chip_num_s)
 			chip_num_s = nx_get_cfg("dev_num", &cfg_tab);
 		if (!def_bufsz)
-			def_bufsz = nx_get_cfg("dev_buf_size", &cfg_tab);
+			def_bufsz = nx_get_cfg("def_buf_size", &cfg_tab);
 		if (!logfile)
 			logfile = nx_get_cfg("logfile", &cfg_tab);
 		if (!trace_s)

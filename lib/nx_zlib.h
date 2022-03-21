@@ -249,6 +249,7 @@ typedef struct nx_stream_s {
 	int             inf_held;
 	int		resuming;
 	int		history_len;
+	int		max_history_len;
 	int		last_comp_ratio;
 	int		is_final;
 	int		invoke_cnt;  /* the times to invoke nx inflate or nx deflate */

@@ -630,9 +630,6 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		return Z_STREAM_ERROR;
 	}
 
-	/* only support level 6 here */
-	level = 6;
-
 	s = nx_alloc_buffer(sizeof(*s), nx_config.page_sz, nx_config.mlock_nx_crb_csb);
 	if (s == NULL) return Z_MEM_ERROR;
 	memset(s, 0, sizeof(*s));
@@ -649,6 +646,34 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		s->strategy = Z_FIXED;
 	else
 		s->strategy = Z_DEFAULT_STRATEGY;
+
+	switch (level) {
+		case 0:
+			/* TODO: Level 0 is not working properly */
+			s->level = 6;
+			break;
+		case Z_DEFAULT_COMPRESSION:
+		case 1:
+		case 2:
+		case 3:
+		case 4:
+			s->max_history_len = 0;
+			break;
+		case 5:
+		case 6:
+		case 7:
+			/* From level 5 upwards we'll use different history lengths, starting
+			   from 4 kB. */
+			s->max_history_len = 1<<(level+7);
+			break;
+		case 8:
+		case 9:
+			s->max_history_len = DEF_HIST_LEN;
+			break;
+		default:
+			/* Invalid level */
+			return Z_STREAM_ERROR;
+	}
 
 	s->zstrm      = strm; /* pointer to parent */
 	s->page_sz    = nx_config.page_sz;
@@ -755,11 +780,11 @@ static inline void cache_input(nx_streamp s)
 		s->len_in/2 - s->cur_in - s->used_in : 0;
 
 	/* Not enough space to cache input. Time to throw away old data, keeping at
-	 * most DEF_HIST_LEN bytes of history. */
+	 * most s->max_history_len bytes of history. */
 	if(free_bytes < s->avail_in) {
-		memmove(s->fifo_in, s->fifo_in + s->cur_in - DEF_HIST_LEN,
-				DEF_HIST_LEN + s->used_in);
-		s->cur_in = DEF_HIST_LEN;
+		memmove(s->fifo_in, s->fifo_in + s->cur_in - s->max_history_len,
+				s->max_history_len + s->used_in);
+		s->cur_in = s->max_history_len;
 		free_bytes = s->len_in/2 - s->cur_in - s->used_in;
 	}
 	copy_bytes = NX_MIN(free_bytes, s->avail_in);
@@ -985,10 +1010,10 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 	   need to throw away old data if we reach that limit. */
 	if (s->cur_in + from_next_in > s->len_in/2) {
 
-		/* Throwing away old data. We just want to keep DEF_HIST_LEN bytes of
+		/* Throwing away old data. We just want to keep s->max_history_len bytes of
 		   history at the beginning of fifo_in. Data from next_in has priority
 		   because it comes later in the data stream. */
-		copy_bytes = from_next_in < DEF_HIST_LEN ? DEF_HIST_LEN-from_next_in : 0;
+		copy_bytes = from_next_in < s->max_history_len ? s->max_history_len-from_next_in : 0;
 		if (copy_bytes > 0)
 			memmove(s->fifo_in, s->fifo_in + s->cur_in - copy_bytes, copy_bytes);
 		s->cur_in = copy_bytes;
@@ -996,13 +1021,13 @@ static int  nx_compress_block_update_offsets(nx_streamp s, int fc)
 
 	/* Copy enough bytes from the end of the input data to fill the history */
 	if (from_next_in > 0) {
-		copy_bytes = NX_MIN(from_next_in, DEF_HIST_LEN);
+		copy_bytes = NX_MIN(from_next_in, s->max_history_len);
 		memcpy(s->fifo_in + s->cur_in,
 			   s->next_in + from_next_in - copy_bytes, copy_bytes);
 		s->cur_in += copy_bytes;
 	}
 
-	s->history_len = NX_MIN(s->cur_in, DEF_HIST_LEN);
+	s->history_len = NX_MIN(s->cur_in, s->max_history_len);
 
 	update_stream_in(s, from_next_in);
 	update_stream_in(s->zstrm, from_next_in);
@@ -2036,7 +2061,7 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 	s->dict_len = dictLength;
 	s->dict_id = adler;
 	s->cur_in += left;
-	s->history_len = NX_MIN(s->history_len + dictLength, DEF_HIST_LEN);
+	s->history_len = NX_MIN(s->history_len + dictLength, s->max_history_len);
 
 	/* Mimic zlib behavior */
 	s->zstrm->total_in += NX_MIN(dictLength, DEF_MAX_DICT_LEN);

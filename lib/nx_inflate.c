@@ -934,6 +934,120 @@ static int copy_data_to_fifo_in(nx_streamp s) {
 	return Z_OK;
 }
 
+/** \brief Reset DDE to initial values.
+ *
+ *  @param s nx_streamp to be processed.
+ *  @return Function code as passed to CRB. The function will set the CRB and
+ *          return the value here.
+ */
+static int nx_reset_dde(nx_streamp s) {
+	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
+	uint32_t fc;
+
+	/* address/len lists */
+	clearp_dde(s->ddl_in);
+	clearp_dde(s->ddl_out);
+
+	/* FC, CRC, HistLen, Table 6-6 */
+	if (s->resuming || (s->dict_len > 0)) {
+		/* Resuming a partially decompressed input.  */
+		fc = GZIP_FC_DECOMPRESS_RESUME;
+	} else {
+		/* First decompress job */
+		fc = GZIP_FC_DECOMPRESS;
+
+		/* We use the most recently measured compression ratio
+		   as a heuristic to estimate the input and output
+		   sizes. If we give too much input, the target buffer
+		   overflows and NX cycles are wasted, and then we
+		   must retry with smaller input size. 1000 is 100% */
+		s->last_comp_ratio = 1000UL;
+	}
+
+	/* clear then copy fc to the crb */
+	cmdp->crb.gzip_fc = 0;
+	putnn(cmdp->crb, gzip_fc, fc);
+
+	return fc;
+}
+
+/** \brief Initialize DDE, appending a dictionary, if necessary.
+ *
+ *  @param s nx_streamp to be processed.
+ *  @return The history length
+ */
+static int nx_init_dde(nx_streamp s) {
+	nx_gzip_crb_cpb_t *cmdp = s->nxcmdp;
+	int nx_history_len = s->history_len;
+
+	/* FC, CRC, HistLen, Table 6-6 */
+	if (s->resuming || (s->dict_len > 0)) {
+		/* Resuming a partially decompressed input.  The key
+		   to resume is supplying the max 32KB dictionary
+		   (history) to NX, which is basically the last 32KB
+		   or less of the output earlier produced. And also
+		   make sure partial checksums are carried forward
+		*/
+
+		/* Crc of prev job passed to the job to be resumed */
+		put32(cmdp->cpb, in_crc, s->crc32);
+		put32(cmdp->cpb, in_adler, s->adler32);
+
+		/* Round up the sizes to quadword. Section 2.10
+		   Rounding up will not segfault because
+		   nx_alloc_buffer has padding at the beginning */
+
+		if (s->dict_len > 0) {
+			/* lays dict on top of hist */
+			nx_history_len = nx_amend_history_with_dict(s);
+
+			if (s->wrap == HEADER_ZLIB) {
+				/* in the raw mode pass crc as is; in the zlib
+				   mode initialize them */
+				put32(cmdp->cpb, in_crc, INIT_CRC );
+				put32(cmdp->cpb, in_adler, INIT_ADLER);
+				put32(cmdp->cpb, out_crc, INIT_CRC );
+				put32(cmdp->cpb, out_adler, INIT_ADLER);
+			}
+			print_dbg_info(s, __LINE__);
+		} else {
+			/* no dictionary here */
+			ASSERT( s->dict_len == 0 );
+			nx_history_len = (nx_history_len + NXQWSZ - 1) / NXQWSZ;
+			putnn(cmdp->cpb, in_histlen, nx_history_len);
+			/* convert to bytes */
+			nx_history_len = nx_history_len * NXQWSZ;
+
+			if (nx_history_len > 0) {
+				/* deflate history goes in first */
+				ASSERT(s->cur_out >= nx_history_len);
+				nx_append_dde(s->ddl_in,
+					      s->fifo_out + (s->cur_out
+							     - nx_history_len),
+					      nx_history_len);
+			}
+			print_dbg_info(s, __LINE__);
+		}
+	} else {
+		nx_history_len = s->history_len = 0;
+		/* writing a 0 clears out subc as well */
+		cmdp->cpb.in_histlen = 0;
+
+		/* initialize the crc values */
+		put32(cmdp->cpb, in_crc, INIT_CRC );
+		put32(cmdp->cpb, in_adler, INIT_ADLER);
+		put32(cmdp->cpb, out_crc, INIT_CRC );
+		put32(cmdp->cpb, out_adler, INIT_ADLER);
+	}
+
+	/* We use the most recently measured compression ratio as a heuristic
+	   to estimate the input and output sizes. If we give too much input,
+	   the target buffer overflows and NX cycles are wasted, and then we
+	   must retry with smaller input size. 1000 is 100% */
+	s->last_comp_ratio = NX_MAX(NX_MIN(1000UL, s->last_comp_ratio), 100L);
+	return nx_history_len;
+}
+
 /** \brief Internal implementation of inflate.
  *
  * @param s nx_streamp to be processed.
@@ -1075,87 +1189,8 @@ copy_fifo_out_to_next_out:
 
 	/* NX decompresses input data */
 
-	/* address/len lists */
-	clearp_dde(ddl_in);
-	clearp_dde(ddl_out);
-
-	nx_history_len = s->history_len;
-
-	/* FC, CRC, HistLen, Table 6-6 */
-	if (s->resuming || (s->dict_len > 0)) {
-		/* Resuming a partially decompressed input.  The key
-		   to resume is supplying the max 32KB dictionary
-		   (history) to NX, which is basically the last 32KB
-		   or less of the output earlier produced. And also
-		   make sure partial checksums are carried forward
-		*/
-		fc = GZIP_FC_DECOMPRESS_RESUME;
-
-		/* Crc of prev job passed to the job to be resumed */
-		put32(cmdp->cpb, in_crc, s->crc32);
-		put32(cmdp->cpb, in_adler, s->adler32);
-
-		/* Round up the sizes to quadword. Section 2.10
-		   Rounding up will not segfault because
-		   nx_alloc_buffer has padding at the beginning */
-
-		if (s->dict_len > 0) {
-			/* lays dict on top of hist */
-			nx_history_len = nx_amend_history_with_dict(s);
-
-			if (s->wrap == HEADER_ZLIB) {
-				/* in the raw mode pass crc as is; in the zlib mode
-				   initialize them */
-				put32(cmdp->cpb, in_crc, INIT_CRC );
-				put32(cmdp->cpb, in_adler, INIT_ADLER);
-				put32(cmdp->cpb, out_crc, INIT_CRC );
-				put32(cmdp->cpb, out_adler, INIT_ADLER);
-			}
-
-			s->last_comp_ratio = NX_MAX( NX_MIN(1000UL, s->last_comp_ratio), 100L );
-
-			print_dbg_info(s, __LINE__);
-		}
-		else {
-			/* no dictionary here */
-			ASSERT( s->dict_len == 0 );
-			nx_history_len = (nx_history_len + NXQWSZ - 1) / NXQWSZ;
-			putnn(cmdp->cpb, in_histlen, nx_history_len);
-			nx_history_len = nx_history_len * NXQWSZ; /* convert to bytes */
-
-			if (nx_history_len > 0) {
-				/* deflate history goes in first */
-				ASSERT(s->cur_out >= nx_history_len);
-				nx_append_dde(ddl_in, s->fifo_out + (s->cur_out - nx_history_len), nx_history_len);
-			}
-			print_dbg_info(s, __LINE__);
-		}
-	}
-	else {
-		/* First decompress job */
-		fc = GZIP_FC_DECOMPRESS;
-
-		nx_history_len = s->history_len = 0;
-		/* writing a 0 clears out subc as well */
-		cmdp->cpb.in_histlen = 0;
-
-		/* initialize the crc values */
-		put32(cmdp->cpb, in_crc, INIT_CRC );
-		put32(cmdp->cpb, in_adler, INIT_ADLER);
-		put32(cmdp->cpb, out_crc, INIT_CRC );
-		put32(cmdp->cpb, out_adler, INIT_ADLER);
-
-		/* We use the most recently measured compression ratio
-		   as a heuristic to estimate the input and output
-		   sizes. If we give too much input, the target buffer
-		   overflows and NX cycles are wasted, and then we
-		   must retry with smaller input size. 1000 is 100% */
-		s->last_comp_ratio = 1000UL;
-	}
-
-	/* clear then copy fc to the crb */
-	cmdp->crb.gzip_fc = 0;
-	putnn(cmdp->crb, gzip_fc, fc);
+	fc = nx_reset_dde(s);
+	nx_history_len = nx_init_dde(s);
 
 	/*
 	 * NX source buffers

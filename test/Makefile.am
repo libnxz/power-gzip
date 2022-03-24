@@ -11,7 +11,7 @@ test_exe = test_adler32 \
 	   test_multithread_stress \
 	   test_pid_reuse
 
-selector_tests = test_stress test_deflate test_inflate test_dict
+selector_tests = test_stress test_deflate test_inflate test_dict test_gz
 other_tests = test_zeroinput
 
 TESTS = $(test_exe) $(test_scripts) \
@@ -56,6 +56,8 @@ test_zeroinput_SOURCES = test_zeroinput.c test_utils.c
 
 test_dict_SOURCES = test_dict.c test_utils.c
 
+test_gz_SOURCES = test_gz.c test_utils.c
+
 ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
 	      --no-comp-dir-path --no-show-locs --type-id-style hash
 
@@ -86,3 +88,6 @@ regen-abi:
 	@echo "    abidw $(ABIDW_FLAGS) /path/to/libz.so > libz.abi"
 
 build-TESTS: $(check_PROGRAMS) $(check_SCRIPTS)
+
+clean-local:
+	-rm -f test_gzfile*.gz

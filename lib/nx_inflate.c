@@ -1090,13 +1090,30 @@ static uint32_t nx_set_dde_out(nx_streamp s) {
  */
 static int nx_inflate_(nx_streamp s, int flush)
 {
-	/* queuing, file ops, byte counting */
-	uint32_t write_sz, source_sz, target_sz;
+	/** \brief Sum of the bytes that may be used by NX as input
+	 *
+	 *  Total amount of bytes sent to the NX to be used as input,
+	 *  i.e. sum of the bytes in next_in and fifo_in.  */
+	uint32_t source_sz;
+
+	/** \brief Sum of the bytes that may be used by NX as output
+	 *
+	 *  Maximum amount of bytes available by the NX to be used as output,
+	 *  i.e. sum of the bytes available in next_out and fifo_out.  */
+	uint32_t target_sz;
+
+	uint32_t write_sz;
 	long loop_cnt = 0, loop_max = 0xffff;
 
 	/** \brief inflate benefits from large jobs; memcopies must be
 	 *  amortized.  */
 	const uint32_t inflate_per_job_len = nx_config.per_job_len;
+
+	/** \brief Estimated value for target_sz. Used to calculate
+	 *  source_sz_expected.  */
+	uint32_t target_sz_expected;
+	/** \brief Estimated value for source_sz.  */
+	uint32_t source_sz_expected;
 
 	/* nx hardware */
 	uint32_t sfbt = 0, subc = 0, spbc, tpbc, nx_ce, fc;
@@ -1251,16 +1268,20 @@ copy_fifo_out_to_next_out:
 	uint32_t len_next_out = s->avail_out;
 
 	/* avail_out plus 32 KB history plus a bit of overhead */
-	uint32_t target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
+	target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
 
 	target_sz_expected = NX_MIN(target_sz_expected, inflate_per_job_len);
 
 	/* e.g. if we want 100KB at the output and if the compression
 	   ratio is 10% we want 10KB if input */
-	uint32_t source_sz_expected = (uint32_t)(((uint64_t)target_sz_expected * s->last_comp_ratio + 1000L)/1000UL);
+	source_sz_expected = (uint32_t) (((uint64_t) target_sz_expected
+					  * s->last_comp_ratio + 1000L)/1000UL);
 
-	prt_info("target_sz_expected %d source_sz_expected %d source_sz %d last_comp_ratio %d nx_history_len %d\n", target_sz_expected, source_sz_expected, source_sz, s->last_comp_ratio, nx_history_len);
 
+	prt_info("%s:%d target_sz_expected %d source_sz_expected %d"
+		 " source_sz %d last_comp_ratio %d nx_history_len %d\n",
+		 __FUNCTION__, __LINE__, target_sz_expected, source_sz_expected,
+		 source_sz, s->last_comp_ratio, nx_history_len);
 	prt_info("%s:%d len_next_out %d len_out %d cur_out %d"
 		 " used_out %d source_sz %d history_len %d\n",
 		 __FUNCTION__, __LINE__, len_next_out, s->len_out, s->cur_out,
@@ -1280,8 +1301,11 @@ restart_nx:
 
 	/* fault in pages */
 	nx_touch_pages_dde(ddl_in, source_sz, nx_config.page_sz, 0);
-	nx_touch_pages_dde(ddl_out, target_sz, nx_config.page_sz, 1);
-	nx_touch_pages( (void *)cmdp, sizeof(nx_gzip_crb_cpb_t), nx_config.page_sz, 0);
+	nx_touch_pages_dde(ddl_out,
+			   target_sz,
+			   nx_config.page_sz, 1);
+	nx_touch_pages((void *) cmdp, sizeof(nx_gzip_crb_cpb_t),
+		       nx_config.page_sz, 0);
 
 	/*
 	 * send job to NX
@@ -1298,9 +1322,9 @@ restart_nx:
 		   faulting address to fsaddr */
 		print_dbg_info(s, __LINE__);
 
-		prt_warn("ERR_NX_AT_FAULT: crb.csb.fsaddr %p source_sz %d ",
-			 (void *)cmdp->crb.csb.fsaddr, source_sz);
-		prt_warn("target_sz %d\n", target_sz);
+		prt_warn("ERR_NX_AT_FAULT: crb.csb.fsaddr %p source_sz %d "
+			 "target_sz %d\n", (void *)cmdp->crb.csb.fsaddr,
+			 source_sz, target_sz);
 #ifdef NX_LOG_SOURCE_TARGET
 		nx_print_dde(ddl_in, "source");
 		nx_print_dde(ddl_out, "target");
@@ -1339,8 +1363,8 @@ restart_nx:
 			if (ticks_total > (timeout_pgfaults * nx_get_freq())) {
 			   /* TODO what to do when page faults are too many?
 			    * Kernel MM would have killed the process. */
-				prt_err("Cannot make progress; too many page");
-				prt_err(" faults cc= %d\n", cc);
+				prt_err("Cannot make progress; too many page"
+					" faults cc= %d\n", cc);
 			}
 			else {
 				prt_warn("ERR_NX_AT_FAULT: more retry\n");
@@ -1397,7 +1421,8 @@ restart_nx:
 		   cover the max expansion of INF_MIN_INPUT_LEN
 		   bytes */
 
-		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data src %d hist %d\n", source_sz, nx_history_len);
+		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data"
+			 " src %d hist %d\n", source_sz, nx_history_len);
 		goto restart_nx;
 
 	case ERR_NX_OK:

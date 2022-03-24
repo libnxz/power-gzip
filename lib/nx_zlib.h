@@ -129,6 +129,8 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg);
 #define zlib_version zlibVersion()
 extern const char *zlibVersion OF((void));
 
+enum virtualization {BAREMETAL=0, POWERVM=1};
+
 /* common config variables for all streams */
 struct nx_config_t {
 	long     page_sz;
@@ -158,6 +160,8 @@ struct nx_config_t {
 				     * dynamic huffman */
 	struct selector mode; /** mode selector: selects between software
 				* and hardware compression. */
+	uint8_t virtualization; /** Indicate the virtualization type being
+				 *  used. */
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;

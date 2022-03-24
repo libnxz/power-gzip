@@ -1048,6 +1048,41 @@ static int nx_init_dde(nx_streamp s) {
 	return nx_history_len;
 }
 
+/** \brief Append input data to DDE
+ *
+ *  @param s nx_streamp to be processed.
+ *
+ *  @return The total amount of bytes appended to DDE
+ */
+static uint32_t nx_set_dde_in(nx_streamp s) {
+	/* Buffered user input is next */
+	if (s->fifo_in != NULL)
+		nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in, s->used_in);
+	/* Then current user input.  */
+	nx_append_dde(s->ddl_in, s->next_in, s->avail_in);
+	/* Total bytes going in to engine.  */
+	return getp32(s->ddl_in, ddebc);
+}
+
+/** \brief Append output data to DDE
+ *
+ *  @param s nx_streamp to be processed.
+ *
+ *  @return The total amount of bytes appended to DDE
+ */
+static uint32_t nx_set_dde_out(nx_streamp s) {
+	/* Decompress to user buffer first.  */
+	nx_append_dde(s->ddl_out, s->next_out, s->avail_out);
+
+	/* Overflow to fifo_out.
+	   used_out == 0 required by definition.  */
+	ASSERT(s->used_out == 0);
+	nx_append_dde(s->ddl_out, s->fifo_out + s->cur_out,
+		      s->len_out - s->cur_out);
+
+	return s->avail_out + s->len_out - s->cur_out;
+}
+
 /** \brief Internal implementation of inflate.
  *
  * @param s nx_streamp to be processed.
@@ -1195,28 +1230,13 @@ copy_fifo_out_to_next_out:
 	/*
 	 * NX source buffers
 	 */
-	/* buffered user input is next */
-	if (s->fifo_in != NULL)
-		nx_append_dde(ddl_in, s->fifo_in + s->cur_in, s->used_in);
-	/* then current user input */
-	nx_append_dde(ddl_in, s->next_in, s->avail_in);
-	source_sz = getp32(ddl_in, ddebc); /* total bytes going in to engine */
-	ASSERT( source_sz > nx_history_len );
+	source_sz = nx_set_dde_in(s);
+	ASSERT(source_sz > nx_history_len);
 
 	/*
 	 * NX target buffers
 	 */
-	ASSERT(s->used_out == 0);
-
-	uint32_t len_next_out = s->avail_out;
-	nx_append_dde(ddl_out, s->next_out, len_next_out); /* decomp in to user buffer */
-
-	/* overflow, used_out == 0 required by definition, +used_out below is unnecessary */
-	nx_append_dde(ddl_out, s->fifo_out + s->cur_out + s->used_out, s->len_out - s->cur_out - s->used_out);
-	target_sz = len_next_out + s->len_out - s->cur_out - s->used_out;
-
-	prt_info("len_next_out %d len_out %d cur_out %d used_out %d source_sz %d history_len %d\n",
-		 len_next_out, s->len_out, s->cur_out, s->used_out, source_sz, nx_history_len);
+	target_sz = nx_set_dde_out(s);
 
 	/* We want exactly the History size amount of 32KB to overflow
 	   in to fifo_out.  If overflow is less, the history spans
@@ -1228,6 +1248,7 @@ copy_fifo_out_to_next_out:
 	   these copies (memcpy) for performance. Therefore, the
 	   heuristic here will estimate the source size for the
 	   desired target size */
+	uint32_t len_next_out = s->avail_out;
 
 	/* avail_out plus 32 KB history plus a bit of overhead */
 	uint32_t target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
@@ -1240,11 +1261,14 @@ copy_fifo_out_to_next_out:
 
 	prt_info("target_sz_expected %d source_sz_expected %d source_sz %d last_comp_ratio %d nx_history_len %d\n", target_sz_expected, source_sz_expected, source_sz, s->last_comp_ratio, nx_history_len);
 
+	prt_info("%s:%d len_next_out %d len_out %d cur_out %d"
+		 " used_out %d source_sz %d history_len %d\n",
+		 __FUNCTION__, __LINE__, len_next_out, s->len_out, s->cur_out,
+		 s->used_out, source_sz, nx_history_len);
+
 	/* do not include input side history in the estimation */
 	source_sz = source_sz - nx_history_len;
-
 	ASSERT(source_sz > 0);
-
 	source_sz = NX_MIN(source_sz, source_sz_expected);
 
 	/* add the history back */

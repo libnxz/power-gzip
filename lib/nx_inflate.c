@@ -945,8 +945,9 @@ static int nx_inflate_(nx_streamp s, int flush)
 	uint32_t write_sz, source_sz, target_sz;
 	long loop_cnt = 0, loop_max = 0xffff;
 
-	/* inflate benefits from large jobs; memcopies must be amortized */
-	uint32_t inflate_per_job_len = 64 * nx_config.per_job_len;
+	/** \brief inflate benefits from large jobs; memcopies must be
+	 *  amortized.  */
+	const uint32_t inflate_per_job_len = nx_config.per_job_len;
 
 	/* nx hardware */
 	uint32_t sfbt = 0, subc = 0, spbc, tpbc, nx_ce, fc;

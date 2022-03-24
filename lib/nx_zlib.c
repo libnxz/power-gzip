@@ -64,6 +64,18 @@
 #include "nx_utils.h"
 #include "nx_zlib.h"
 
+/* Use the following values as maximum length of NX jobs when the OS doesn't
+   provide the value itself, which is the default behavior until Linux 5.17  */
+
+/** \brief Maximum job length on baremetal
+ *
+ *  While the system does allow up-to 2 GiB as the maximum job length, restrict
+ *  it to 64 MiB.
+ */
+#define DEFAULT_MAX_JOB_BAREMETAL 64 * 1024 * 1024
+/** \brief Maximum job length on PowerVM  */
+#define DEFAULT_MAX_JOB_POWERVM   1024 * 1024
+
 struct nx_config_t nx_config;
 static struct nx_dev_t nx_devices[NX_DEVICES_MAX];
 static int nx_dev_count = 0;
@@ -639,8 +651,13 @@ static int nx_query_job_limits()
 		}
 	}
 
-	/* On error return default value of 1 MB */
-	return (1024 * 1024);
+	/* On error return default value.  */
+	switch (nx_config.virtualization) {
+		case BAREMETAL:
+			return DEFAULT_MAX_JOB_BAREMETAL;
+		default:
+			return DEFAULT_MAX_JOB_POWERVM;
+	}
 }
 
 /*
@@ -658,6 +675,9 @@ static int nx_enumerate_engines()
 	char buf[10];
 	int count = 0;
 	size_t n;
+
+	/* Assume baremetal by default.  */
+	nx_config.virtualization = BAREMETAL;
 
 	d = opendir(DEVICE_TREE);
 	if (d == NULL){
@@ -712,6 +732,7 @@ static int nx_enumerate_engines()
 		}
 		/* On PowerVM, there is no concept of multiple NX engines.  */
 		if (strncmp(de->d_name, "ibm,powervm", 11) == 0){
+			nx_config.virtualization = POWERVM;
 			closedir(d);
 			return 1;
 		}

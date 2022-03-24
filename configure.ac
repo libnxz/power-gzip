@@ -13,6 +13,8 @@ LTAGE=0
 SOVERSION="$LTCURRENT:$LTREVISION:$LTAGE"
 AC_SUBST(SOVERSION)
 
+: ${CFLAGS="-O3 -Wall -Werror -g"}
+
 # Defines host_cpu, host_vendor, and host_os variables.
 AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
@@ -32,8 +34,6 @@ AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE([1.10 no-define foreign subdir-objects])
 AM_MAINTAINER_MODE([disable])
 LT_INIT
-
-: ${CFLAGS="-O3 -Wall -Werror -g"}
 
 # Checks for programs.
 AC_CHECK_TARGET_TOOL([AR], [ar], [:])

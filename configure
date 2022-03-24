@@ -2502,6 +2502,8 @@ LTAGE=0
 SOVERSION="$LTCURRENT:$LTREVISION:$LTAGE"
 
 
+: ${CFLAGS="-O3 -Wall -Werror -g"}
+
 # Defines host_cpu, host_vendor, and host_os variables.
 ac_aux_dir=
 for ac_dir in "$srcdir" "$srcdir/.." "$srcdir/../.."; do
@@ -12298,8 +12300,6 @@ CC=$lt_save_CC
 # Only expand once:
 
 
-
-: ${CFLAGS="-O3 -Wall -Werror -g"}
 
 # Checks for programs.
 # Extract the first word of "$target_alias-ar", so it can be a program name with args.

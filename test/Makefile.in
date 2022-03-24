@@ -111,7 +111,7 @@ am__EXEEXT_1 = test_adler32$(EXEEXT) test_buf_error$(EXEEXT) \
 	test_crc32$(EXEEXT) test_inflatesyncpoint$(EXEEXT) \
 	test_multithread_stress$(EXEEXT) test_pid_reuse$(EXEEXT)
 am__EXEEXT_2 = test_stress$(EXEEXT) test_deflate$(EXEEXT) \
-	test_inflate$(EXEEXT) test_dict$(EXEEXT)
+	test_inflate$(EXEEXT) test_dict$(EXEEXT) test_gz$(EXEEXT)
 am__EXEEXT_3 = test_zeroinput$(EXEEXT)
 am_test_adler32_OBJECTS = test_adler32.$(OBJEXT)
 test_adler32_OBJECTS = $(am_test_adler32_OBJECTS)
@@ -143,6 +143,10 @@ am_test_dict_OBJECTS = test_dict.$(OBJEXT) test_utils.$(OBJEXT)
 test_dict_OBJECTS = $(am_test_dict_OBJECTS)
 test_dict_LDADD = $(LDADD)
 test_dict_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
+am_test_gz_OBJECTS = test_gz.$(OBJEXT) test_utils.$(OBJEXT)
+test_gz_OBJECTS = $(am_test_gz_OBJECTS)
+test_gz_LDADD = $(LDADD)
+test_gz_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_test_inflate_OBJECTS = test_inflate.$(OBJEXT) test_utils.$(OBJEXT) \
 	inflate/random_buffer.$(OBJEXT)
 test_inflate_OBJECTS = $(am_test_inflate_OBJECTS)
@@ -192,7 +196,7 @@ am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/test_adler32.Po \
 	./$(DEPDIR)/test_buf_error.Po ./$(DEPDIR)/test_crc32.Po \
 	./$(DEPDIR)/test_deflate.Po ./$(DEPDIR)/test_dict.Po \
-	./$(DEPDIR)/test_inflate.Po \
+	./$(DEPDIR)/test_gz.Po ./$(DEPDIR)/test_inflate.Po \
 	./$(DEPDIR)/test_inflatesyncpoint.Po \
 	./$(DEPDIR)/test_multithread_stress.Po \
 	./$(DEPDIR)/test_pid_reuse.Po ./$(DEPDIR)/test_stress.Po \
@@ -223,14 +227,14 @@ am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(test_adler32_SOURCES) $(test_buf_error_SOURCES) \
 	$(test_crc32_SOURCES) $(test_deflate_SOURCES) \
-	$(test_dict_SOURCES) $(test_inflate_SOURCES) \
-	$(test_inflatesyncpoint_SOURCES) \
+	$(test_dict_SOURCES) $(test_gz_SOURCES) \
+	$(test_inflate_SOURCES) $(test_inflatesyncpoint_SOURCES) \
 	$(test_multithread_stress_SOURCES) $(test_pid_reuse_SOURCES) \
 	$(test_stress_SOURCES) $(test_zeroinput_SOURCES)
 DIST_SOURCES = $(test_adler32_SOURCES) $(test_buf_error_SOURCES) \
 	$(test_crc32_SOURCES) $(test_deflate_SOURCES) \
-	$(test_dict_SOURCES) $(test_inflate_SOURCES) \
-	$(test_inflatesyncpoint_SOURCES) \
+	$(test_dict_SOURCES) $(test_gz_SOURCES) \
+	$(test_inflate_SOURCES) $(test_inflatesyncpoint_SOURCES) \
 	$(test_multithread_stress_SOURCES) $(test_pid_reuse_SOURCES) \
 	$(test_stress_SOURCES) $(test_zeroinput_SOURCES)
 am__can_run_installinfo = \
@@ -442,15 +446,15 @@ am__set_TESTS_bases = \
 RECHECK_LOGS = $(TEST_LOGS)
 AM_RECURSIVE_TARGETS = check recheck
 am__EXEEXT_4 = test_stress.auto test_deflate.auto test_inflate.auto \
-	test_dict.auto
+	test_dict.auto test_gz.auto
 am__EXEEXT_5 = test_stress.sw test_deflate.sw test_inflate.sw \
-	test_dict.sw
+	test_dict.sw test_gz.sw
 am__EXEEXT_6 = test_stress.nx test_deflate.nx test_inflate.nx \
-	test_dict.nx
+	test_dict.nx test_gz.nx
 am__EXEEXT_7 = test_stress.mix test_deflate.mix test_inflate.mix \
-	test_dict.mix
+	test_dict.mix test_gz.mix
 am__EXEEXT_8 = test_stress.mix2 test_deflate.mix2 test_inflate.mix2 \
-	test_dict.mix2
+	test_dict.mix2 test_gz.mix2
 TEST_SUITE_LOG = test-suite.log
 TEST_EXTENSIONS = @EXEEXT@ .test
 LOG_DRIVER = $(SHELL) $(top_srcdir)/test-driver
@@ -634,7 +638,7 @@ test_exe = test_adler32 \
 	   test_multithread_stress \
 	   test_pid_reuse
 
-selector_tests = test_stress test_deflate test_inflate test_dict
+selector_tests = test_stress test_deflate test_inflate test_dict test_gz
 other_tests = test_zeroinput
 check_SCRIPTS = $(test_scripts)
 test_adler32_SOURCES = test_adler32.c
@@ -659,6 +663,7 @@ test_pid_reuse_SOURCES = test_pid_reuse.c
 test_stress_SOURCES = test_stress.c test_utils.c
 test_zeroinput_SOURCES = test_zeroinput.c test_utils.c
 test_dict_SOURCES = test_dict.c test_utils.c
+test_gz_SOURCES = test_gz.c test_utils.c
 ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
 	      --no-comp-dir-path --no-show-locs --type-id-style hash
 
@@ -742,6 +747,10 @@ test_deflate$(EXEEXT): $(test_deflate_OBJECTS) $(test_deflate_DEPENDENCIES) $(EX
 test_dict$(EXEEXT): $(test_dict_OBJECTS) $(test_dict_DEPENDENCIES) $(EXTRA_test_dict_DEPENDENCIES) 
 	@rm -f test_dict$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_dict_OBJECTS) $(test_dict_LDADD) $(LIBS)
+
+test_gz$(EXEEXT): $(test_gz_OBJECTS) $(test_gz_DEPENDENCIES) $(EXTRA_test_gz_DEPENDENCIES)
+	@rm -f test_gz$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_gz_OBJECTS) $(test_gz_LDADD) $(LIBS)
 inflate/$(am__dirstamp):
 	@$(MKDIR_P) inflate
 	@: > inflate/$(am__dirstamp)
@@ -788,6 +797,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_crc32.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_deflate.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_dict.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_gz.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_inflate.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_inflatesyncpoint.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_multithread_stress.Po@am__quote@ # am--include-marker
@@ -1109,6 +1119,13 @@ test_dict.auto.log: test_dict.auto
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_gz.auto.log: test_gz.auto
+	@p='test_gz.auto'; \
+	b='test_gz.auto'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_stress.sw.log: test_stress.sw
 	@p='test_stress.sw'; \
 	b='test_stress.sw'; \
@@ -1133,6 +1150,13 @@ test_inflate.sw.log: test_inflate.sw
 test_dict.sw.log: test_dict.sw
 	@p='test_dict.sw'; \
 	b='test_dict.sw'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_gz.sw.log: test_gz.sw
+	@p='test_gz.sw'; \
+	b='test_gz.sw'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1165,6 +1189,13 @@ test_dict.nx.log: test_dict.nx
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_gz.nx.log: test_gz.nx
+	@p='test_gz.nx'; \
+	b='test_gz.nx'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_stress.mix.log: test_stress.mix
 	@p='test_stress.mix'; \
 	b='test_stress.mix'; \
@@ -1193,6 +1224,13 @@ test_dict.mix.log: test_dict.mix
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_gz.mix.log: test_gz.mix
+	@p='test_gz.mix'; \
+	b='test_gz.mix'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_stress.mix2.log: test_stress.mix2
 	@p='test_stress.mix2'; \
 	b='test_stress.mix2'; \
@@ -1217,6 +1255,13 @@ test_inflate.mix2.log: test_inflate.mix2
 test_dict.mix2.log: test_dict.mix2
 	@p='test_dict.mix2'; \
 	b='test_dict.mix2'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_gz.mix2.log: test_gz.mix2
+	@p='test_gz.mix2'; \
+	b='test_gz.mix2'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1321,7 +1366,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
+clean-am: clean-checkPROGRAMS clean-generic clean-libtool clean-local \
 	mostlyclean-am
 
 distclean: distclean-am
@@ -1330,6 +1375,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/test_crc32.Po
 	-rm -f ./$(DEPDIR)/test_deflate.Po
 	-rm -f ./$(DEPDIR)/test_dict.Po
+	-rm -f ./$(DEPDIR)/test_gz.Po
 	-rm -f ./$(DEPDIR)/test_inflate.Po
 	-rm -f ./$(DEPDIR)/test_inflatesyncpoint.Po
 	-rm -f ./$(DEPDIR)/test_multithread_stress.Po
@@ -1394,6 +1440,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/test_crc32.Po
 	-rm -f ./$(DEPDIR)/test_deflate.Po
 	-rm -f ./$(DEPDIR)/test_dict.Po
+	-rm -f ./$(DEPDIR)/test_gz.Po
 	-rm -f ./$(DEPDIR)/test_inflate.Po
 	-rm -f ./$(DEPDIR)/test_inflatesyncpoint.Po
 	-rm -f ./$(DEPDIR)/test_multithread_stress.Po
@@ -1430,17 +1477,18 @@ uninstall-am:
 
 .PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-TESTS \
 	check-am clean clean-checkPROGRAMS clean-generic clean-libtool \
-	cscopelist-am ctags ctags-am distclean distclean-compile \
-	distclean-generic distclean-libtool distclean-tags distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-dvi install-dvi-am \
-	install-exec install-exec-am install-html install-html-am \
-	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	recheck tags tags-am uninstall uninstall-am
+	clean-local cscopelist-am ctags ctags-am distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am recheck tags tags-am uninstall \
+	uninstall-am
 
 .PRECIOUS: Makefile
 
@@ -1472,6 +1520,9 @@ regen-abi:
 	@echo "    abidw $(ABIDW_FLAGS) /path/to/libz.so > libz.abi"
 
 build-TESTS: $(check_PROGRAMS) $(check_SCRIPTS)
+
+clean-local:
+	-rm -f test_gzfile*.gz
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

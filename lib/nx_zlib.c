@@ -398,7 +398,7 @@ int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 
 		/* touching fewer pages than encoded in the ddebc */
 		if ( total > buf_sz) {
-			buf_len = NX_MIN(buf_len, total - buf_sz);
+			buf_len = buf_sz - (total - buf_len);
 			nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
 			prt_trace("touch loop break len 0x%x ddead %p\n", buf_len, (void *)buf_addr);
 			break;

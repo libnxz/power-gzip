@@ -955,13 +955,6 @@ static int nx_reset_dde(nx_streamp s) {
 	} else {
 		/* First decompress job */
 		fc = GZIP_FC_DECOMPRESS;
-
-		/* We use the most recently measured compression ratio
-		   as a heuristic to estimate the input and output
-		   sizes. If we give too much input, the target buffer
-		   overflows and NX cycles are wasted, and then we
-		   must retry with smaller input size. 1000 is 100% */
-		s->last_comp_ratio = 1000UL;
 	}
 
 	/* clear then copy fc to the crb */
@@ -1051,15 +1044,24 @@ static int nx_init_dde(nx_streamp s) {
 /** \brief Append input data to DDE
  *
  *  @param s nx_streamp to be processed.
+ *  @param source_sz_expected The total amount of bytes expected as input. It
+ *         does not include dictionary or history.
  *
  *  @return The total amount of bytes appended to DDE
  */
-static uint32_t nx_set_dde_in(nx_streamp s) {
+static uint32_t nx_set_dde_in(nx_streamp s, uint32_t source_sz_expected) {
+	uint32_t tmp = 0;
+
 	/* Buffered user input is next */
-	if (s->fifo_in != NULL)
-		nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in, s->used_in);
-	/* Then current user input.  */
-	nx_append_dde(s->ddl_in, s->next_in, s->avail_in);
+	if (s->fifo_in != NULL) {
+		tmp = NX_MIN(s->used_in, source_sz_expected);
+		nx_append_dde(s->ddl_in, s->fifo_in + s->cur_in, tmp);
+	}
+	if (tmp < source_sz_expected) {
+		tmp = NX_MIN(s->avail_in, source_sz_expected - tmp);
+		/* Then current user input.  */
+		nx_append_dde(s->ddl_in, s->next_in, tmp);
+	}
 	/* Total bytes going in to engine.  */
 	return getp32(s->ddl_in, ddebc);
 }
@@ -1067,20 +1069,32 @@ static uint32_t nx_set_dde_in(nx_streamp s) {
 /** \brief Append output data to DDE
  *
  *  @param s nx_streamp to be processed.
+ *  @param target_sz_expected The total amount of bytes expected as output.
  *
  *  @return The total amount of bytes appended to DDE
  */
-static uint32_t nx_set_dde_out(nx_streamp s) {
+static uint32_t nx_set_dde_out(nx_streamp s, uint32_t target_sz_expected) {
+	uint32_t tmp;
+	uint32_t ret;
+
+	ret = NX_MIN(s->avail_out, target_sz_expected);
+
 	/* Decompress to user buffer first.  */
-	nx_append_dde(s->ddl_out, s->next_out, s->avail_out);
+	nx_append_dde(s->ddl_out, s->next_out, ret);
 
-	/* Overflow to fifo_out.
-	   used_out == 0 required by definition.  */
-	ASSERT(s->used_out == 0);
-	nx_append_dde(s->ddl_out, s->fifo_out + s->cur_out,
-		      s->len_out - s->cur_out);
+	if (ret < target_sz_expected) {
+		tmp = NX_MIN(s->len_out - s->cur_out,
+			     target_sz_expected - ret);
 
-	return s->avail_out + s->len_out - s->cur_out;
+		/* Overflow to fifo_out.
+		   used_out == 0 required by definition.  */
+		ASSERT(s->used_out == 0);
+		nx_append_dde(s->ddl_out, s->fifo_out + s->cur_out, tmp);
+
+		ret += tmp;
+	}
+
+	return ret;
 }
 
 /** \brief Internal implementation of inflate.
@@ -1094,7 +1108,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 	 *
 	 *  Total amount of bytes sent to the NX to be used as input,
 	 *  i.e. sum of the bytes in next_in and fifo_in.  */
-	uint32_t source_sz;
+	uint32_t source_sz = 0;
 
 	/** \brief Sum of the bytes that may be used by NX as output
 	 *
@@ -1242,46 +1256,69 @@ copy_fifo_out_to_next_out:
 	/* NX decompresses input data */
 
 	fc = nx_reset_dde(s);
+
+	/** Estimate the amount of data sent to the NX. Ideally, we want
+	 *  exactly the history size amount of 32 KiB to overflow in to fifo_out
+	 *  in order to minimize copies of memory.
+	 *  If overflow is less than 32 KiB, the history spans next_out and
+	 *  fifo_out and must be copied in to fifo_out to setup history for the
+	 *  next job. The fifo_out fraction is also copied back to user's
+	 *  next_out before the next job.
+	 *  If overflow is more, all the overflow must be copied back
+	 *  to user's next_out before the next job.
+	 *  If overflow is much more, we may get an ERR_NX_TARGET_SPACE, forcing
+	 *  us to reduce the source before trying again.  A retry in this case
+	 *  will probably require NX to process much more than 32 KiB, which
+	 *  requires more time than copying 32 KiB of data.
+	 *
+	 *  With that said, we want to minimize unecessary work (i.e. memcpy
+	 *  and retrying NX jobs) for performance. Therefore, the heuristic
+	 *  here will estimate the source size for the desired target size, but
+	 *  it prioritizes avoiding ERR_NX_TARGET_SPACE.  */
+
+	uint32_t len_next_out = s->avail_out;
+	s->last_comp_ratio = NX_MAX(NX_MIN(1000UL, s->last_comp_ratio), 100L);
+
+	/* avail_out plus 32 KiB history plus a bit of overhead */
+	target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
+	target_sz_expected = NX_MIN(target_sz_expected, inflate_per_job_len);
+
+	/** Calculate source_sz_expected based on target_sz_expected and the
+	 *  last compression ratio, e.g. if we want 100KB at the output and if
+	 *  the compression ratio is 10% we want 10KB if input */
+	source_sz_expected = (uint32_t) (((uint64_t) target_sz_expected
+					  * s->last_comp_ratio + 1000L)/1000UL);
+
+	/** After calculating source_sz_expected, try to provide extra
+	 *  target_sz_expected in order to avoid an ERR_NX_TARGET_SPACE.  */
+	target_sz_expected = NX_MIN(len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2),
+				    4 * inflate_per_job_len);
+	prt_info("%s:%d target_sz_expected %d source_sz_expected %d"
+		 " source_sz %d last_comp_ratio %d\n",
+		 __FUNCTION__, __LINE__, target_sz_expected, source_sz_expected,
+		 source_sz, s->last_comp_ratio);
+
+
+init_dde:
 	nx_history_len = nx_init_dde(s);
 
 	/*
 	 * NX source buffers
 	 */
-	source_sz = nx_set_dde_in(s);
+	source_sz = nx_set_dde_in(s, source_sz_expected);
 	ASSERT(source_sz > nx_history_len);
-
-	/*
-	 * NX target buffers
-	 */
-	target_sz = nx_set_dde_out(s);
-
-	/* We want exactly the History size amount of 32KB to overflow
-	   in to fifo_out.  If overflow is less, the history spans
-	   next_out and fifo_out and must be copied in to fifo_out to
-	   setup history for the next job, and the fifo_out fraction is
-	   also copied back to user's next_out before the next job.
-	   If overflow is more, all the overflow must be copied back
-	   to user's next_out before the next job. We want to minimize
-	   these copies (memcpy) for performance. Therefore, the
-	   heuristic here will estimate the source size for the
-	   desired target size */
-	uint32_t len_next_out = s->avail_out;
-
-	/* avail_out plus 32 KB history plus a bit of overhead */
-	target_sz_expected = len_next_out + INF_HIS_LEN + (INF_HIS_LEN >> 2);
-
-	target_sz_expected = NX_MIN(target_sz_expected, inflate_per_job_len);
-
-	/* e.g. if we want 100KB at the output and if the compression
-	   ratio is 10% we want 10KB if input */
-	source_sz_expected = (uint32_t) (((uint64_t) target_sz_expected
-					  * s->last_comp_ratio + 1000L)/1000UL);
-
+	ASSERT(source_sz <= source_sz_expected + nx_history_len);
 
 	prt_info("%s:%d target_sz_expected %d source_sz_expected %d"
 		 " source_sz %d last_comp_ratio %d nx_history_len %d\n",
 		 __FUNCTION__, __LINE__, target_sz_expected, source_sz_expected,
 		 source_sz, s->last_comp_ratio, nx_history_len);
+
+	/*
+	 * NX target buffers
+	 */
+	target_sz = nx_set_dde_out(s, target_sz_expected);
+
 	prt_info("%s:%d len_next_out %d len_out %d cur_out %d"
 		 " used_out %d source_sz %d history_len %d\n",
 		 __FUNCTION__, __LINE__, len_next_out, s->len_out, s->cur_out,
@@ -1345,19 +1382,22 @@ restart_nx:
 			   that is about 2 pages minimum for source and
 			   and 6 pages for target; if the system does not
 			   have 8 free pages then the loop will last forever */
-			source_sz = source_sz - nx_history_len;
-			if (source_sz > (2 * INF_MIN_INPUT_LEN))
-				source_sz = (source_sz + 1) / 2;
-			else if (source_sz > INF_MIN_INPUT_LEN)
-				source_sz = INF_MIN_INPUT_LEN;
+			source_sz_expected = source_sz - nx_history_len;
+			if (source_sz_expected > (2 * INF_MIN_INPUT_LEN))
+				source_sz_expected
+					= (source_sz_expected + 1) / 2;
+			else if (source_sz_expected > INF_MIN_INPUT_LEN)
+				source_sz_expected = INF_MIN_INPUT_LEN;
 
-			/* else if caller gave fewer source bytes, keep it as is */
-			source_sz = source_sz + nx_history_len;
+			/* else if caller gave fewer source bytes, keep it as
+			   is.  */
+			source_sz = source_sz_expected + nx_history_len;
 
-			if (target_sz > (2 * INF_MAX_EXPANSION_BYTES))
-				target_sz = (target_sz + 1) / 2;
-			else if (target_sz > INF_MAX_EXPANSION_BYTES)
-				target_sz = INF_MAX_EXPANSION_BYTES;
+			if (target_sz_expected > (2 * INF_MAX_EXPANSION_BYTES))
+				target_sz_expected
+					= (target_sz_expected + 1) / 2;
+			else if (target_sz_expected > INF_MAX_EXPANSION_BYTES)
+				target_sz_expected = INF_MAX_EXPANSION_BYTES;
 
 			ticks_total = nx_wait_ticks(500, ticks_total, 0);
 			if (ticks_total > (timeout_pgfaults * nx_get_freq())) {
@@ -1368,7 +1408,8 @@ restart_nx:
 			}
 			else {
 				prt_warn("ERR_NX_AT_FAULT: more retry\n");
-				goto restart_nx;
+				fc = nx_reset_dde(s);
+				goto init_dde;
 			}
 		}
 
@@ -1403,18 +1444,17 @@ restart_nx:
 		/* Target buffer not large enough; retry smaller input
 		   data; give at least 1 byte. SPBC/TPBC are not valid */
 		ASSERT( source_sz > nx_history_len );
-		source_sz = ((source_sz - nx_history_len + 1) / 2) + nx_history_len;
+		source_sz_expected = (source_sz - nx_history_len + 1) / 2;
 
-		source_sz = source_sz - nx_history_len;
 		/* reduce large source down to minimum viable; if
 		   source is already small don't change it */
-		if (source_sz > (2 * INF_MIN_INPUT_LEN))
-			source_sz = (source_sz + 1) / 2;
-		else if (source_sz > INF_MIN_INPUT_LEN)
-			source_sz = INF_MIN_INPUT_LEN;
+		if (source_sz_expected > (2 * INF_MIN_INPUT_LEN))
+			source_sz_expected = (source_sz_expected + 1) / 2;
+		else if (source_sz_expected > INF_MIN_INPUT_LEN)
+			source_sz_expected = INF_MIN_INPUT_LEN;
 
 		/* else if caller gave fewer source bytes, keep it as is */
-		source_sz = source_sz + nx_history_len;
+		source_sz = source_sz_expected + nx_history_len;
 
 		/* do not change target size because we allocated a
 		   minimum of INF_MAX_EXPANSION_BYTES which should
@@ -1422,8 +1462,10 @@ restart_nx:
 		   bytes */
 
 		prt_info("ERR_NX_TARGET_SPACE; retry with smaller input data"
-			 " src %d hist %d\n", source_sz, nx_history_len);
-		goto restart_nx;
+			 " source_sz_expected %d nx_history_len %d\n",
+			 source_sz_expected, nx_history_len);
+		fc = nx_reset_dde(s);
+		goto init_dde;
 
 	case ERR_NX_OK:
 

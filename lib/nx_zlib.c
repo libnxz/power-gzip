@@ -982,7 +982,18 @@ void nx_hw_init(void)
 	nx_config.max_byte_count_current = (1UL<<30);
 	nx_config.max_source_dde_count = MAX_DDE_COUNT;
 	nx_config.max_target_dde_count = MAX_DDE_COUNT;
-	nx_config.max_vas_reuse_count = 100;
+	/** On PowerVM, reopening a VAS window takes 300x the time used to
+	 *  process a single stream with the maximum per job length allowed,
+	 *  causing serious performance issues when max_vas_reuse_count is too
+	 *  low. In order to avoid these issues, it has been decided the
+	 *  average impact of reopening a VAS window should be less than 10% of
+	 *  of the time spent processing max_vas_reuse_count streams at
+	 *  maximum per job length.  That means 3000, which we rounded up.
+	 *  Notice that setting this number too high may impact the performance
+	 *  of multithreaded processes with a massive amount of threads. For
+	 *  those cases, it's recommended to use a lower value in the config
+	 *  file. */
+	nx_config.max_vas_reuse_count = 10000;
 	nx_config.per_job_len = nx_query_job_limits(); /* less than suspend limit */
 	nx_config.strm_def_bufsz = (1024 * 1024); /* affect the deflate fifo_out */
 	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */

@@ -1604,6 +1604,20 @@ static int nx_stream_end(nx_streamp s) {
 	return Z_OK;
 }
 
+static void inline nx_switch_to_sw(z_streamp strm)
+{
+		nx_streamp s = (nx_streamp) strm->state;
+		void *temp = s->sw_stream;
+		/* decided to use sw zlib and not switchable */
+		s->switchable = 0;
+		s->sw_stream = NULL;
+
+		int rc = nx_deflateEnd(strm);
+		prt_info("call nx_deflateEnd to clean the hw resource,rc=%d\n",rc);
+
+		strm->state = temp;
+}
+
 /* deflate interface */
 int nx_deflate(z_streamp strm, int flush)
 {
@@ -1626,15 +1640,8 @@ int nx_deflate(z_streamp strm, int flush)
 	/* check for sw deflate first */
 	if( (has_nx_state(strm)) && s->switchable && (0 == use_nx_deflate(strm))){
 		/* Use software zlib, switch the sw and hw state */
-		s = (nx_streamp) strm->state;
-		s->switchable = 0; /* decided to use sw zlib and not switchable */
-		temp  = s->sw_stream;
-		s->sw_stream = NULL;
+		nx_switch_to_sw(strm);
 
-		rc = nx_deflateEnd(strm);
-		prt_info("call nx_deflateEnd to clean the hw resource,rc=%d\n",rc);
-
-		strm->state = temp;
 		prt_info("call software deflate,len=%d\n", strm->avail_in);
 		rc = sw_deflate(strm,flush);
 		prt_info("call software deflate, rc=%d\n", rc);
@@ -1986,6 +1993,16 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 
 	if (s->status == NX_BFINAL_ST || s->status == NX_TRAILER_ST)
 		return Z_STREAM_ERROR;
+
+	/* check for sw deflate first */
+	if ((has_nx_state(strm)) && s->switchable &&
+	    (0 == use_nx_deflate(strm))) {
+		/* Use software zlib, switch the sw and hw state */
+		nx_switch_to_sw(strm);
+
+		cc = sw_deflateSetDictionary(strm, dictionary, dictLength);
+		return cc;
+	}
 
 	if (s->wrap == HEADER_RAW) {
 		/* from zlib.h: When doing raw deflate,

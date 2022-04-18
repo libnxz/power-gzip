@@ -110,11 +110,11 @@ extern int nx_uncompress(unsigned char *dest, ulong *destLen,
 			 const unsigned char *source, ulong sourceLen);
 
 /* nx_gzip.c */
-extern int nx_gzclose(gzFile file);
-extern gzFile nx_gzopen(const char* path, const char *mode);
-extern gzFile nx_gzdopen(int fd, const char *mode);
+extern int nx_gzclose(void* file);
+extern void* nx_gzopen(const char* path, const char *mode);
+extern void* nx_gzdopen(int fd, const char *mode);
 extern int nx_gzread(FILE file, void *buf, unsigned len);
-extern int nx_gzwrite(gzFile file, const void *buf, unsigned len);
+extern int nx_gzwrite(void* file, const void *buf, unsigned len);
 
 extern int deflateInit_(void *strm, int level, const char* version,
 			int stream_size);
@@ -184,10 +184,11 @@ extern int uncompress(unsigned char *dest, ulong *destLen,
 		      const unsigned char *source, ulong sourceLen);
 extern int uncompress2(unsigned char *dest, ulong *destLen,
 		       const unsigned char *source, ulong *sourceLen);
-extern int gzclose(gzFile file);
-extern gzFile gzopen(const char* path, const char *mode);
-extern gzFile gzdopen(int fd, const char *mode);
-extern int gzread(FILE file, void *buf, unsigned len);
-extern int gzwrite(gzFile file, void *buf, unsigned len);
+
+extern int gzclose(void* file);
+extern void* gzopen(const char* path, const char *mode);
+extern void* gzdopen(int fd, const char *mode);
+extern int gzread(void* file, void *buf, unsigned len);
+extern int gzwrite(void* file, void *buf, unsigned len);
 
 #endif /* _LIBNXZ_H */

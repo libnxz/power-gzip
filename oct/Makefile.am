@@ -9,7 +9,11 @@ $(eval include $(srcdir)/tests.mk)
 # db2 tests usually takes ~140m.
 db2_TIMEOUT=280m
 
-check_PROGRAMS = minideflate
+check_PROGRAMS = minideflate minigzipsh
+
+minigzipsh_SOURCES = minigzip.c
+minigzipsh_CFLAGS = -DUSE_MMAP=1
+minigzipsh_LDFLAGS = -lz
 
 all: check
 
@@ -23,6 +27,10 @@ minideflate.c:
 minideflate$(EXEEXT): minideflate.c
 	@sed -i 's/^#include.*zbuild\.h.*$$//g' $<
 	$(CC) -O3 -Wall -DZLIB_COMPAT -D'PREFIX(x)=x' -D'PREFIX3(x)=z_##x' -o $@ $< -lz
+
+minigzip.c:
+	@$(WGET) \
+	https://raw.githubusercontent.com/madler/zlib/master/test/$@
 
 .PRECIOUS: %.uncompressed
 empty.uncompressed:
@@ -53,23 +61,23 @@ zero13M.uncompressed:
 
 .PRECIOUS: %.compress.deflate %.decompress.deflate %.compdecomp.deflate
 %.compress.deflate.test: generate-test.sh config.sh minideflate
-	$(srcdir)/generate-test.sh $@
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 %.decompress.deflate.test: generate-test.sh config.sh minideflate
-	$(srcdir)/generate-test.sh $@
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 %.compdecomp.deflate.test: generate-test.sh config.sh minideflate
-	$(srcdir)/generate-test.sh $@
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 .PRECIOUS: %.compress.gzip %.decompress.gzip %.compdecomp.gzip
-%.compress.gzip.test: generate-test.sh config.sh
-	$(srcdir)/generate-test.sh $@
+%.compress.gzip.test: generate-test.sh config.sh minigzipsh
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
-%.decompress.gzip.test: generate-test.sh config.sh
-	$(srcdir)/generate-test.sh $@
+%.decompress.gzip.test: generate-test.sh config.sh minigzipsh
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
-%.compdecomp.gzip.test: generate-test.sh config.sh
-	$(srcdir)/generate-test.sh $@
+%.compdecomp.gzip.test: generate-test.sh config.sh minigzipsh
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 # Pre-compute the checksum of all files in parallel.
 .PRECIOUS: %.checksum

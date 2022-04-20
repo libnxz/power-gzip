@@ -6,7 +6,7 @@ level=$(echo ${1} | cut -d . -f2)
 action=$(echo ${1} | cut -d . -f3)
 type=$(echo ${1} | cut -d . -f4)
 
-. config.sh
+. ${CONFIG:-config.sh}
 
 case ${type} in
     "deflate")

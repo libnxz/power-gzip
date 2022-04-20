@@ -89,7 +89,7 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 TESTS =
-check_PROGRAMS = minideflate$(EXEEXT)
+check_PROGRAMS = minideflate$(EXEEXT) minigzipsh$(EXEEXT)
 subdir = oct
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_check_compile_flag.m4 \
@@ -112,6 +112,12 @@ AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+am_minigzipsh_OBJECTS = minigzipsh-minigzip.$(OBJEXT)
+minigzipsh_OBJECTS = $(am_minigzipsh_OBJECTS)
+minigzipsh_LDADD = $(LDADD)
+minigzipsh_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(minigzipsh_CFLAGS) \
+	$(CFLAGS) $(minigzipsh_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -127,7 +133,8 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/minideflate.Po
+am__depfiles_remade = ./$(DEPDIR)/minideflate.Po \
+	./$(DEPDIR)/minigzipsh-minigzip.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -147,8 +154,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = minideflate.c
-DIST_SOURCES = minideflate.c
+SOURCES = minideflate.c $(minigzipsh_SOURCES)
+DIST_SOURCES = minideflate.c $(minigzipsh_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -534,6 +541,9 @@ check_SCRIPTS = generate-test.sh generate-source.sh config.sh
 
 # db2 tests usually takes ~140m.
 db2_TIMEOUT = 280m
+minigzipsh_SOURCES = minigzip.c
+minigzipsh_CFLAGS = -DUSE_MMAP=1
+minigzipsh_LDFLAGS = -lz
 all: all-am
 
 .SUFFIXES:
@@ -581,6 +591,10 @@ clean-checkPROGRAMS:
 	echo " rm -f" $$list; \
 	rm -f $$list
 
+minigzipsh$(EXEEXT): $(minigzipsh_OBJECTS) $(minigzipsh_DEPENDENCIES) $(EXTRA_minigzipsh_DEPENDENCIES)
+	@rm -f minigzipsh$(EXEEXT)
+	$(AM_V_CCLD)$(minigzipsh_LINK) $(minigzipsh_OBJECTS) $(minigzipsh_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -588,6 +602,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/minideflate.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/minigzipsh-minigzip.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -618,6 +633,20 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
+
+minigzipsh-minigzip.o: minigzip.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(minigzipsh_CFLAGS) $(CFLAGS) -MT minigzipsh-minigzip.o -MD -MP -MF $(DEPDIR)/minigzipsh-minigzip.Tpo -c -o minigzipsh-minigzip.o `test -f 'minigzip.c' || echo '$(srcdir)/'`minigzip.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/minigzipsh-minigzip.Tpo $(DEPDIR)/minigzipsh-minigzip.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='minigzip.c' object='minigzipsh-minigzip.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(minigzipsh_CFLAGS) $(CFLAGS) -c -o minigzipsh-minigzip.o `test -f 'minigzip.c' || echo '$(srcdir)/'`minigzip.c
+
+minigzipsh-minigzip.obj: minigzip.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(minigzipsh_CFLAGS) $(CFLAGS) -MT minigzipsh-minigzip.obj -MD -MP -MF $(DEPDIR)/minigzipsh-minigzip.Tpo -c -o minigzipsh-minigzip.obj `if test -f 'minigzip.c'; then $(CYGPATH_W) 'minigzip.c'; else $(CYGPATH_W) '$(srcdir)/minigzip.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/minigzipsh-minigzip.Tpo $(DEPDIR)/minigzipsh-minigzip.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='minigzip.c' object='minigzipsh-minigzip.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(minigzipsh_CFLAGS) $(CFLAGS) -c -o minigzipsh-minigzip.obj `if test -f 'minigzip.c'; then $(CYGPATH_W) 'minigzip.c'; else $(CYGPATH_W) '$(srcdir)/minigzip.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -953,6 +982,7 @@ installcheck-am:
 
 maintainer-clean: maintainer-clean-am
 		-rm -f ./$(DEPDIR)/minideflate.Po
+	-rm -f ./$(DEPDIR)/minigzipsh-minigzip.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
@@ -1005,6 +1035,10 @@ minideflate$(EXEEXT): minideflate.c
 	@sed -i 's/^#include.*zbuild\.h.*$$//g' $<
 	$(CC) -O3 -Wall -DZLIB_COMPAT -D'PREFIX(x)=x' -D'PREFIX3(x)=z_##x' -o $@ $< -lz
 
+minigzip.c:
+	@$(WGET) \
+	https://raw.githubusercontent.com/madler/zlib/master/test/$@
+
 .PRECIOUS: %.uncompressed
 empty.uncompressed:
 	dd if=/dev/null bs=1k count=1 of=$@
@@ -1032,23 +1066,23 @@ zero13M.uncompressed:
 
 .PRECIOUS: %.compress.deflate %.decompress.deflate %.compdecomp.deflate
 %.compress.deflate.test: generate-test.sh config.sh minideflate
-	$(srcdir)/generate-test.sh $@
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 %.decompress.deflate.test: generate-test.sh config.sh minideflate
-	$(srcdir)/generate-test.sh $@
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 %.compdecomp.deflate.test: generate-test.sh config.sh minideflate
-	$(srcdir)/generate-test.sh $@
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 .PRECIOUS: %.compress.gzip %.decompress.gzip %.compdecomp.gzip
-%.compress.gzip.test: generate-test.sh config.sh
-	$(srcdir)/generate-test.sh $@
+%.compress.gzip.test: generate-test.sh config.sh minigzipsh
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
-%.decompress.gzip.test: generate-test.sh config.sh
-	$(srcdir)/generate-test.sh $@
+%.decompress.gzip.test: generate-test.sh config.sh minigzipsh
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
-%.compdecomp.gzip.test: generate-test.sh config.sh
-	$(srcdir)/generate-test.sh $@
+%.compdecomp.gzip.test: generate-test.sh config.sh minigzipsh
+	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 # Pre-compute the checksum of all files in parallel.
 .PRECIOUS: %.checksum

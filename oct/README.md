@@ -19,10 +19,3 @@ and time to execute.  In order to run the tests with those files too, set
 ```
 make LARGEFILES=1 -j$(nproc)
 ```
-
-## Requirements
-
-In order to work, oct requires 2 files:
-
-1. Copy libnxz.so.0 to oct/.
-2. Provide shared linked minigzipsh in oct/.

@@ -34,25 +34,25 @@ minigzip.c:
 
 .PRECIOUS: %.uncompressed
 empty.uncompressed:
-	dd if=/dev/null bs=1k count=1 of=$@
+	cd $(srcdir) && dd if=/dev/null bs=1k count=1 of=$@
 
 random4k.uncompressed:
-	dd if=/dev/urandom bs=4k count=1 of=$@
+	cd $(srcdir) && dd if=/dev/urandom bs=4k count=1 of=$@
 
 random13M.uncompressed:
-	dd if=/dev/urandom bs=1M count=13 of=$@
+	cd $(srcdir) && dd if=/dev/urandom bs=1M count=13 of=$@
 
 sparse10M.uncompressed:
-	dd if=/dev/urandom bs=1 count=0 seek=10M of=$@
+	cd $(srcdir) && dd if=/dev/urandom bs=1 count=0 seek=10M of=$@
 
 sparse1000M.uncompressed:
-	dd if=/dev/urandom bs=1 count=0 seek=1000M of=$@
+	cd $(srcdir) && dd if=/dev/urandom bs=1 count=0 seek=1000M of=$@
 
 zero4k.uncompressed:
-	dd if=/dev/zero bs=4k count=1 of=$@
+	cd $(srcdir) && dd if=/dev/zero bs=4k count=1 of=$@
 
 zero13M.uncompressed:
-	dd if=/dev/zero bs=1M count=13 of=$@
+	cd $(srcdir) && dd if=/dev/zero bs=1M count=13 of=$@
 
 
 
@@ -82,7 +82,7 @@ zero13M.uncompressed:
 # Pre-compute the checksum of all files in parallel.
 .PRECIOUS: %.checksum
 %.checksum: %.uncompressed
-	@$(SHA256SUM) $? | $(AWK) '{ print $1 }' > $@
+	@$(SHA256SUM) $(srcdir)/$? | $(AWK) '{ print $1 }' > $@
 
 check-am: all-am
 	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS) $(check_SCRIPTS) \

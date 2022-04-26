@@ -77,13 +77,15 @@ int nx_gzclose(gzFile file)
 		/* Finish the stream.  */
 		stream->next_in = Z_NULL;
 		stream->avail_in = 0;
+		ssize_t w_ret = 0;
 		do {
 			stream->next_out = next_out;
 			stream->avail_out = MAX_LEN;
 
 			ret = nx_deflate(stream, Z_FINISH);
-			write(state->fd, next_out, MAX_LEN - stream->avail_out);
-		} while (ret != Z_STREAM_END);
+			w_ret = write(state->fd, next_out,
+				      MAX_LEN - stream->avail_out);
+		} while (ret != Z_STREAM_END && w_ret >= 0);
 
 		ret = nx_deflateEnd(stream);
 	} else
@@ -232,9 +234,13 @@ int nx_gzwrite (gzFile file, const void *buf, unsigned len)
 	stream->avail_out = len;
 
 	rc = nx_deflate(stream, Z_NO_FLUSH);
-	write(state->fd, next_out, len - stream->avail_out);
+	ssize_t w_ret = write(state->fd, next_out, len - stream->avail_out);
 
 	free(next_out);
+	if (w_ret < 0) {
+		state->err = Z_ERRNO;
+		return 0;
+	}
 	if (rc != Z_OK && rc != Z_STREAM_END){
 		state->err = rc;
 		return 0;

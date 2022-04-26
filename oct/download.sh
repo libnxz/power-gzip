@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. config.sh
+. ${CONFIG:-config.sh}
 
 input=${1}.source
 

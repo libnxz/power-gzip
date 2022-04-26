@@ -1061,8 +1061,8 @@ zero4k.uncompressed:
 zero13M.uncompressed:
 	dd if=/dev/zero bs=1M count=13 of=$@
 
-%.uncompressed: %.source
-	cd $(srcdir) && ./download.sh $*
+%.uncompressed: %.source download.sh config.sh
+	cd $(srcdir) && CONFIG=${abs_builddir}/config.sh ./download.sh $*
 
 .PRECIOUS: %.compress.deflate %.decompress.deflate %.compdecomp.deflate
 %.compress.deflate.test: generate-test.sh config.sh minideflate

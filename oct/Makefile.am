@@ -56,8 +56,8 @@ zero13M.uncompressed:
 
 
 
-%.uncompressed: %.source
-	cd $(srcdir) && ./download.sh $*
+%.uncompressed: %.source download.sh config.sh
+	cd $(srcdir) && CONFIG=${abs_builddir}/config.sh ./download.sh $*
 
 .PRECIOUS: %.compress.deflate %.decompress.deflate %.compdecomp.deflate
 %.compress.deflate.test: generate-test.sh config.sh minideflate

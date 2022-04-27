@@ -1061,27 +1061,27 @@ $(srcdir)/zero4k.uncompressed:
 $(srcdir)/zero13M.uncompressed:
 	cd $(srcdir) && dd if=/dev/zero bs=1M count=13 of=$@
 
-%.uncompressed: %.source download.sh config.sh
+%.uncompressed: %.source | download.sh config.sh
 	cd $(srcdir) && CONFIG=${abs_builddir}/config.sh ./download.sh $*
 
 .PRECIOUS: %.compress.deflate %.decompress.deflate %.compdecomp.deflate
-%.compress.deflate.test: generate-test.sh config.sh minideflate
+%.compress.deflate.test: generate-test.sh config.sh minideflate $(check_FILES)
 	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
-%.decompress.deflate.test: generate-test.sh config.sh minideflate
+%.decompress.deflate.test: generate-test.sh config.sh minideflate $(check_FILES)
 	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
-%.compdecomp.deflate.test: generate-test.sh config.sh minideflate
+%.compdecomp.deflate.test: generate-test.sh config.sh minideflate $(check_FILES)
 	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 .PRECIOUS: %.compress.gzip %.decompress.gzip %.compdecomp.gzip
-%.compress.gzip.test: generate-test.sh config.sh minigzipsh
+%.compress.gzip.test: generate-test.sh config.sh minigzipsh $(check_FILES)
 	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
-%.decompress.gzip.test: generate-test.sh config.sh minigzipsh
+%.decompress.gzip.test: generate-test.sh config.sh minigzipsh $(check_FILES)
 	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
-%.compdecomp.gzip.test: generate-test.sh config.sh minigzipsh
+%.compdecomp.gzip.test: generate-test.sh config.sh minigzipsh $(check_FILES)
 	CONFIG=${abs_builddir}/config.sh $(srcdir)/generate-test.sh $@
 
 # Pre-compute the checksum of all files in parallel.

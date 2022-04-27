@@ -49,7 +49,7 @@ test_inflate_SOURCES = test_inflate.c \
 
 test_inflatesyncpoint_SOURCES = test_inflatesyncpoint.c test_utils.c
 
-test_multithread_stress_SOURCES = test_multithread_stress.c
+test_multithread_stress_SOURCES = test_multithread_stress.c test_utils.c
 
 test_pid_reuse_SOURCES = test_pid_reuse.c
 

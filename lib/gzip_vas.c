@@ -104,9 +104,20 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 	void *addr;
 	struct vas_gzip_setup_attr txattr;
 
+	if (access(devname, F_OK) != 0) {
+		fprintf(stderr, " Device %s does not exist.\n", devname);
+		return -errno;
+	}
+
+	if (access(devname, R_OK | W_OK) != 0) {
+		fprintf(stderr, " Cannot access device %s."
+			" Read or write permission is missing.\n", devname);
+		return -errno;
+	}
+
 	fd = open(devname, O_RDWR);
 	if (fd < 0) {
-		fprintf(stderr, " open device name %s\n", devname);
+		fprintf(stderr, " Failed to open device %s\n", devname);
 		return -errno;
 	}
 

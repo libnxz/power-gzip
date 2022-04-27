@@ -159,7 +159,7 @@ test_inflatesyncpoint_LDADD = $(LDADD)
 test_inflatesyncpoint_DEPENDENCIES = ../lib/libnxz.la \
 	$(am__DEPENDENCIES_1)
 am_test_multithread_stress_OBJECTS =  \
-	test_multithread_stress.$(OBJEXT)
+	test_multithread_stress.$(OBJEXT) test_utils.$(OBJEXT)
 test_multithread_stress_OBJECTS =  \
 	$(am_test_multithread_stress_OBJECTS)
 test_multithread_stress_LDADD = $(LDADD)
@@ -702,7 +702,7 @@ test_inflate_SOURCES = test_inflate.c \
 		       inflate/random_buffer.c
 
 test_inflatesyncpoint_SOURCES = test_inflatesyncpoint.c test_utils.c
-test_multithread_stress_SOURCES = test_multithread_stress.c
+test_multithread_stress_SOURCES = test_multithread_stress.c test_utils.c
 test_pid_reuse_SOURCES = test_pid_reuse.c
 test_stress_SOURCES = test_stress.c test_utils.c
 test_zeroinput_SOURCES = test_zeroinput.c test_utils.c

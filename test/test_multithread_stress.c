@@ -10,6 +10,7 @@
 #include <sys/syscall.h>
 #include <sys/sysinfo.h>
 #include "test.h"
+#include "test_utils.h"
 
 #define THREAD_MAX	176
 #define DATA_NUM	10
@@ -34,33 +35,10 @@ struct stats{
 	int running;
 	unsigned long total_size;
 };
-static struct stats thread_info[THREAD_MAX];
 
 static float get_time_duration(struct timeval e, struct timeval s)
 {
 	return ((e.tv_sec - s.tv_sec) * 1000 + (e.tv_usec - s.tv_usec)/1000.0);
-}
-
-static Byte* generate_allocated_random_data(unsigned int len)
-{
-	assert(len > 0);
-
-	Byte *data = malloc(len);
-	if (data == NULL) return NULL;
-
-	for (int i = 0; i < len; i++) {
-		data[i] = random()%256;
-	}
-	return data;
-}
-
-static int compare_data(Byte* src, Byte* dest, int len)
-{
-	assert(len > 0);
-	if(0!=memcmp(src, dest, len))
-		return TEST_ERROR;
-
-	return TEST_OK;
 }
 
 static int generate_data_buffer(Byte **buffer)
@@ -91,7 +69,7 @@ static int free_data_buffer(Byte **buffer)
 }
 
 /* deflate */
-static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned int compr_len)
+static int _test_compress(Byte* src, unsigned int src_len, Byte* compr, unsigned int compr_len)
 {
 	int rc = 0;
 	uLong sourceLen, destLen;
@@ -108,7 +86,7 @@ static int _test_deflate(Byte* src, unsigned int src_len, Byte* compr, unsigned 
 }
 
 /* infalte */
-static int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr, unsigned int uncomprLen)
+static int _test_decompress(Byte* compr, unsigned int comprLen, Byte* uncompr, unsigned int uncomprLen)
 {
 	int rc = 0;
 	uLong sourceLen, destLen;
@@ -147,8 +125,8 @@ static int run(struct stats* pstats)
 		return TEST_ERROR;
 	}
 
-	if (_test_deflate(src, src_len, compr, compr_len)) goto err;
-	if (_test_inflate(compr, compr_len, uncompr, uncompr_len)) goto err;
+	if (_test_compress(src, src_len, compr, compr_len)) goto err;
+	if (_test_decompress(compr, compr_len, uncompr, uncompr_len)) goto err;
 	if (compare_data(uncompr, src, src_len)) goto err;
 
 	free(compr);
@@ -187,11 +165,44 @@ static int run_case(void* _pstats)
 	return 0;
 }
 
+int get_nthreads(void) {
+	int total_credits, used_credits;
+	int nthreads = get_nprocs();
+
+	if (!is_powervm())
+		/* Running on baremetal, so use more threads */
+		return nthreads*20;
+
+	/* Running on PowerVM */
+	if(read_sysfs_entry(SYSFS_VAS_CAPS "nr_total_credits",
+			    &total_credits) ||
+	   read_sysfs_entry(SYSFS_VAS_CAPS "nr_used_credits",
+			    &used_credits))
+		/* Failed to read from sysfs, so fallback to number of
+		   processors */
+		return nthreads;
+
+	/* Rough estimation of number of credits needed by the test. Each thread
+	   will call nx_open+nx_close twice for each iteration. At least 1
+	   credit will always be used and a new window is allocated when window
+	   reuse has hit max_vas_reuse_count. */
+	int max_credits = 1 + (((uint64_t)nthreads)*test_iterations*2) /
+		DEFAULT_MAX_VAS_REUSE_COUNT;
+	int available_credits = total_credits - used_credits;
+
+	if (available_credits <= 0 || max_credits > available_credits) {
+		printf("Not enough credits to run test\n");
+		exit(TEST_ERROR);
+	}
+
+	return nthreads;
+}
+
 int main(int argc, char **argv)
 {
-
 	int thread_num = 0;
 	unsigned long tsize = 0;
+	struct stats *thread_info;
 	int i;
 
 	if(argc == 4) {
@@ -199,24 +210,27 @@ int main(int argc, char **argv)
 		test_interval = atoi(argv[2]);
 		test_iterations = atoi(argv[3]);
 	} else {
-		char * t = getenv("TEST_NTHREADS");
-		if (t != NULL)
-			thread_num = atoi(t);
-		if (thread_num == 0)
-			thread_num = get_nprocs();
-
 		test_interval = 10;
 		test_iterations = 6;
+
+		char *t = getenv("TEST_NTHREADS");
+
+		if (t != NULL)
+			thread_num = atoi(t);
+		if (thread_num > THREAD_MAX)
+			thread_num = THREAD_MAX;
+		if (thread_num == 0)
+			thread_num = get_nthreads();
+
 	}
-
-
-	if(thread_num > THREAD_MAX) thread_num = THREAD_MAX;
 
 	printf("Thread Number  :\t%d\n", thread_num);
 	printf("Test Interval  :\t%d\n", test_interval);
 	printf("Test Iterations:\t%d\n",test_iterations);
 
-	if (generate_data_buffer(data_buf) != 0) {
+	thread_info = (struct stats *) malloc(thread_num*sizeof(struct stats));
+
+	if (generate_data_buffer(data_buf) != 0 || thread_info == NULL) {
 		free_data_buffer(data_buf);
 		return TEST_ERROR;
 	}
@@ -257,6 +271,7 @@ int main(int argc, char **argv)
 
 	}
 	free_data_buffer(data_buf);
+	free(thread_info);
 
 	printf("Testing finished...\n");
 

@@ -92,6 +92,8 @@ struct selector {
 #define COMPRESS_THRESHOLD	(1024)
 #define DECOMPRESS_THRESHOLD	(1024)
 
+#define DEFAULT_MAX_VAS_REUSE_COUNT 10000
+
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
 

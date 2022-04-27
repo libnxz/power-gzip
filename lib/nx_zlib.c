@@ -1089,7 +1089,7 @@ void nx_hw_init(void)
 	 *  of multithreaded processes with a massive amount of threads. For
 	 *  those cases, it's recommended to use a lower value in the config
 	 *  file. */
-	nx_config.max_vas_reuse_count = 10000;
+	nx_config.max_vas_reuse_count = DEFAULT_MAX_VAS_REUSE_COUNT;
 	nx_config.per_job_len = nx_query_job_limits(); /* less than suspend limit */
 	nx_config.strm_def_bufsz = (1024 * 1024); /* affect the deflate fifo_out */
 	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */

@@ -93,10 +93,13 @@ int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *source
 	int rc;
 
 	if(nx_config.mode.inflate == GZIP_AUTO){
-		if(*sourceLen <= DECOMPRESS_THRESHOLD)
+		if(*sourceLen <= DECOMPRESS_THRESHOLD ||
+		   avg_delay > nx_config.decompress_delay) {
+			decrease_delay();
 			rc = sw_uncompress2(dest, destLen, source, sourceLen);
-		else
+		} else {
 			rc = nx_uncompress2(dest, destLen, source, sourceLen);
+		}
 	}else if(nx_config.mode.inflate == GZIP_NX){
 		rc = nx_uncompress2(dest, destLen, source, sourceLen);
 	}else{
@@ -118,10 +121,13 @@ int uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLe
 	int rc=0;
 
 	if(nx_config.mode.inflate == GZIP_AUTO){
-		if(sourceLen <= DECOMPRESS_THRESHOLD)
+		if(sourceLen <= DECOMPRESS_THRESHOLD ||
+		   avg_delay > nx_config.decompress_delay) {
 			rc = sw_uncompress(dest, destLen, source, sourceLen);
-		else
+			decrease_delay();
+		} else {
 			rc = nx_uncompress(dest, destLen, source, sourceLen);
+		}
 	}else if(nx_config.mode.inflate == GZIP_NX){
 		rc = nx_uncompress(dest, destLen, source, sourceLen);
 	}else{

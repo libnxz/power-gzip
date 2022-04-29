@@ -221,6 +221,8 @@ int nx_inflateInit2_(z_streamp strm, int windowBits, const char *version, int st
 		goto reset_err;
 	}
 
+	s->use_nx = avg_delay <= nx_config.decompress_delay;
+
 	return ret;
 
 reset_err:
@@ -1101,7 +1103,7 @@ static int nx_inflate_(nx_streamp s, int flush)
 	nx_dde_t *ddl_in = s->ddl_in;
 	nx_dde_t *ddl_out = s->ddl_out;
 
-	uint64_t ticks_total = 0;
+	uint64_t start, end, ticks_total = 0;
 	int cc, rc, timeout_pgfaults, partial_bits=0;
 	/** \brief Includes dictionary and history going in to nx-gzip
 	 */
@@ -1309,10 +1311,11 @@ restart_nx:
 	nx_touch_pages((void *) cmdp, sizeof(nx_gzip_crb_cpb_t),
 		       nx_config.page_sz, 0);
 
-	/*
-	 * send job to NX
-	 */
+	/* send job to NX and measure job delay */
+	start = nx_get_time();
 	cc = nx_submit_job(ddl_in, ddl_out, cmdp, s->nxdevp);
+	end = nx_get_time();
+	nx_device_stats(start, end);
 
 	switch (cc) {
 
@@ -2085,9 +2088,11 @@ int inflateEnd(z_streamp strm)
 	zlib_stats_inc(&zlib_stats.inflateEnd);
 
 	if (0 == has_nx_state(strm)){
+		if (0 != avg_delay)
+			decrease_delay();
 		rc = sw_inflateEnd(strm);
 	}else{
-		rc =nx_inflateEnd(strm);
+		rc = nx_inflateEnd(strm);
 	}
 
 	return rc;

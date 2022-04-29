@@ -654,7 +654,7 @@
         <var-decl name='deflate' type-id='b96825af' visibility='default'/>
       </data-member>
     </class-decl>
-    <class-decl name='nx_config_t' size-in-bits='768' is-struct='yes' visibility='default' id='2c339f29'>
+    <class-decl name='nx_config_t' size-in-bits='896' is-struct='yes' visibility='default' id='2c339f29'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='page_sz' type-id='bd54fe1a' visibility='default'/>
       </data-member>
@@ -726,6 +726,12 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='752'>
         <var-decl name='virtualization' type-id='b96825af' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='768'>
+        <var-decl name='decompress_delay' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='832'>
+        <var-decl name='compress_delay' type-id='9c313c2d' visibility='default'/>
       </data-member>
     </class-decl>
     <class-decl name='zlib_stats' size-in-bits='133056' is-struct='yes' visibility='default' id='3c1bf0d8'>
@@ -1005,6 +1011,8 @@
     <var-decl name='nx_dbg' type-id='95e97e5e' visibility='default'/>
     <var-decl name='mutex_log' type-id='7a6844eb' visibility='default'/>
     <var-decl name='nx_config' type-id='2c339f29' visibility='default'/>
+    <var-decl name='avg_delay' type-id='9c313c2d' visibility='default'/>
+    <var-decl name='nx_ticks_per_sec' type-id='9c313c2d' visibility='default'/>
     <var-decl name='zlib_stats_mutex' type-id='7a6844eb' visibility='default'/>
     <var-decl name='zlib_stats' type-id='3c1bf0d8' visibility='default'/>
     <function-decl name='zlibVersion' mangled-name='zlibVersion' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zlibVersion'>

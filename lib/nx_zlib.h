@@ -167,6 +167,10 @@ struct nx_config_t {
 				* and hardware compression. */
 	uint8_t virtualization; /** Indicate the virtualization type being
 				 *  used. */
+	/** time spent before fallbacking to sw */
+	uint64_t decompress_delay;
+	uint64_t compress_delay;
+
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;
@@ -329,9 +333,17 @@ typedef struct nx_stream_s {
 	char            switchable;
 
 	void		*sw_stream;
+	char		use_nx;
 
 } nx_stream;
 typedef struct nx_stream_s *nx_streamp;
+
+/* average delay for a nx job */
+extern uint64_t	avg_delay;
+extern uint64_t nx_ticks_per_sec;
+/* decaying average of past delays
+   larger decay value retains the average longer */
+static const uint64_t decay = 4;
 
 static inline int has_nx_state(z_streamp strm)
 {
@@ -347,17 +359,23 @@ static inline int has_nx_state(z_streamp strm)
 static inline int use_nx_inflate(z_streamp strm)
 {
 	uint64_t rnd;
+	nx_streamp s;
+
 	assert(strm != NULL);
+	s = (struct nx_stream_s *)(strm->state);
 
 	if(nx_config.mode.inflate == GZIP_NX) return 1;
 	if(nx_config.mode.inflate == GZIP_SW) return 0;
 
-	/* #1 Threshold */
+	/* #1 Time spent */
+	if(s->use_nx == 0) return 0;
+
+	/* #2 Threshold */
 	if(strm->avail_in <= DECOMPRESS_THRESHOLD) return 0;
 
 	if(nx_config.mode.inflate == GZIP_AUTO) return 1;
 
-	/* #2 Percentage */
+	/* #3 Percentage */
 	rnd = __ppc_get_timebase();
 	if( rnd%100 < nx_config.nx_ratio){ /* use nx to nx_ratio */
 		return 1; /* nx */
@@ -368,14 +386,28 @@ static inline int use_nx_inflate(z_streamp strm)
 
 static inline int use_nx_deflate(z_streamp strm)
 {
+	nx_streamp s;
+
 	assert(strm != NULL);
+	s = (struct nx_stream_s *)(strm->state);
 
         if(nx_config.mode.deflate == GZIP_NX) return 1;
         if(nx_config.mode.deflate == GZIP_SW) return 0;
 
-	/* #1 Threshold */
+	/* #1 Time spent */
+	if(s->use_nx == 0) return 0;
+
+	/* #2 Threshold */
 	if(strm->avail_in <= COMPRESS_THRESHOLD) return 0;
 	return 1;
+}
+
+/* Decrease avg_delay when using sw to be able to get back to NX and
+   restart measuring delays.  */
+static inline void decrease_delay()
+{
+	uint64_t delay = avg_delay - avg_delay / decay;
+	__atomic_store(&avg_delay, &delay, __ATOMIC_RELAXED);
 }
 
 /* stream pointers and lengths manipulated */
@@ -578,6 +610,7 @@ extern int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *
 extern void nx_hw_init(void);
 extern void nx_hw_done(void);
 extern int nx_read_sysfs_entry(const char *path, int *val);
+extern void nx_device_stats(uint64_t start, uint64_t end);
 
 /* nx_deflate.c */
 extern int nx_deflateInit_(z_streamp strm, int level, const char *version, int stream_size);

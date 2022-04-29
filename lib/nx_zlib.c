@@ -122,6 +122,9 @@ pthread_mutex_t mutex_log;
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
 struct zlib_stats zlib_stats;	/* global statistics */
 
+__attribute__ ((visibility ("hidden"))) uint64_t avg_delay = 0;
+uint64_t	nx_ticks_per_sec;
+
 /* **************************************************************** */
 
 /*
@@ -961,6 +964,8 @@ static int print_nx_config(FILE *fp)
 	fprintf(fp, "timeout_pgfaults: %d\n", nx_config.timeout_pgfaults);
 	fprintf(fp, "soft_copy_threshold: %d\n", nx_config.soft_copy_threshold);
 	fprintf(fp, "cache_threshold: %d\n", nx_config.cache_threshold);
+	fprintf(fp, "decompress_delay: %ld\n", nx_config.decompress_delay);
+	fprintf(fp, "compress_delay: %ld\n", nx_config.compress_delay);
 
 	return 0;
 };
@@ -1001,6 +1006,9 @@ void nx_hw_init(void)
 	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
 	char* soft_copy_threshold = NULL;
 	char* cache_threshold = NULL;
+	char* delay_threshold = NULL;
+	char* compress_delay = NULL;
+	char* decompress_delay = NULL;
 	char *nx_ratio_s     = getenv("NX_GZIP_RATIO"); /* Select the nxgzip ratio(0-100, default is 100%) */
 	char* max_vas_reuse_count = NULL;
 
@@ -1029,6 +1037,8 @@ void nx_hw_init(void)
 	nx_config.soft_copy_threshold = 1024; /* choose memcpy or hwcopy */
 	nx_config.cache_threshold = 8 * 1024; /* Cache input before
 					       *  processing */
+	nx_config.decompress_delay = 17000000;
+	nx_config.compress_delay = 100000000;
 	nx_config.deflate_fifo_in_len = 1<<17; /* default 8M, half used */
 	nx_config.deflate_fifo_out_len = ((1<<21)*2); /* default 16M, half used */
 	nx_config.verbose = 0;
@@ -1073,6 +1083,10 @@ void nx_hw_init(void)
 						   &cfg_tab);
 
 		cache_threshold = nx_get_cfg("cache_threshold", &cfg_tab);
+
+		delay_threshold = nx_get_cfg("delay_threshold", &cfg_tab);
+		decompress_delay = nx_get_cfg("decompress_delay", &cfg_tab);
+		compress_delay = nx_get_cfg("compress_delay", &cfg_tab);
 
 		max_vas_reuse_count = nx_get_cfg("max_vas_reuse_count",
 						   &cfg_tab);
@@ -1121,6 +1135,8 @@ void nx_hw_init(void)
 				: GZIP_AUTO;
 		}
 	}
+
+	nx_ticks_per_sec = nx_get_freq();
 
 	nx_count = nx_enumerate_engines();
 	nx_dev_count = nx_count;
@@ -1216,6 +1232,24 @@ void nx_hw_init(void)
 
 	if (max_vas_reuse_count) {
 		nx_config.max_vas_reuse_count = str_to_num(max_vas_reuse_count);
+	}
+
+	if (delay_threshold) {
+		uint64_t delay = str_to_num(delay_threshold);
+		nx_config.decompress_delay = delay;
+		nx_config.compress_delay = delay;
+	} else {
+		if (decompress_delay)
+			nx_config.decompress_delay =
+				str_to_num(decompress_delay);
+		if (compress_delay)
+			nx_config.compress_delay = str_to_num(compress_delay);
+	}
+
+	/* On baremetal the delay thresholds are higher */
+	if (nx_config.virtualization == BAREMETAL) {
+		nx_config.compress_delay *= 3;
+		nx_config.decompress_delay *= 3;
 	}
 
 	if (nx_dbg >= 1 && nx_gzip_log) {
@@ -1362,4 +1396,31 @@ int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, 
 const char * zlibVersion()
 {
     return ZLIB_VERSION;
+}
+
+/* For estimating device throughput */
+void nx_device_stats(uint64_t start, uint64_t end)
+{
+	/* delay of the last job */
+	uint64_t last_dly = nx_time_diff(start, end);
+
+	/* ignore if the measured delay is too long; either the timer
+	   is broken or the process slept */
+	if (last_dly > nx_ticks_per_sec ||
+	    (last_dly < nx_ticks_per_sec/10000000UL)) {
+		prt_err("Unrealiable delay: %lu tps: %lu\n", last_dly, nx_ticks_per_sec);
+		return; /* unreliable */
+	}
+
+	uint64_t delay = avg_delay;
+	if (delay == 0)
+		delay = last_dly; /* initial value */
+
+	/* exponential moving average forgets older values */
+	delay = (last_dly + decay * delay) / (decay + 1);
+
+	/* this is the job delay through this device */
+	__atomic_store(&avg_delay, &delay, __ATOMIC_RELAXED);
+
+	prt_info("Current average delay: %lu\n", avg_delay);
 }

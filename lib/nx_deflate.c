@@ -708,6 +708,11 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	strm->state = (void *) s; /* remember the hardware state */
 	rc = nx_deflateReset(strm);
 
+	s->sw_stream = NULL;
+	s->switchable = 0;
+
+	s->use_nx = avg_delay <= nx_config.compress_delay;
+
 	return rc;
 }
 
@@ -1208,7 +1213,7 @@ static int nx_compress_block(nx_streamp s, int fc, int limit)
 	int cc, timeout_pgfaults, rc = LIBNX_OK;
 	nx_dde_t *ddl_in, *ddl_out;
 	long pgsz;
-	uint64_t ticks_total = 0;
+	uint64_t start, end, ticks_total = 0;
 
 	prt_info("%s:%d fc %d, limit %d\n", __FUNCTION__, __LINE__, fc, limit);
 
@@ -1253,8 +1258,11 @@ restart:
 	nx_touch_pages_dde(ddl_out, bytes_out, pgsz, 1);
 	nx_touch_pages( (void *)nxcmdp, sizeof(nx_gzip_crb_cpb_t), pgsz, 0);
 
+	/* measure job delay */
+	start = nx_get_time();
 	cc = nx_submit_job(ddl_in, ddl_out, nxcmdp, s->nxdevp);
-	s->nx_cc = cc;
+	end = nx_get_time();
+	nx_device_stats(start, end);
 
 	/** The NX GZIP does not subtract the history length from SPBC when
 	 *  checking for ERR_NX_TPBC_GT_SPBC. So, there are some scenarios
@@ -1272,6 +1280,8 @@ restart:
 		if (tpbc + histlen > spbc)
 			cc = ERR_NX_TPBC_GT_SPBC;
 	}
+
+	s->nx_cc = cc;
 
 	if (s->dry_run && (cc == ERR_NX_TPBC_GT_SPBC || cc == ERR_NX_OK)) {
 		/* only needed for sampling LZcounts (symbol stats) */
@@ -2282,7 +2292,6 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 			s->switchable = 1;
 		}
 
-
 	}else if(nx_config.mode.deflate == GZIP_NX){
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 	}else{
@@ -2328,6 +2337,8 @@ int deflateEnd(z_streamp strm)
 
 
 	if (0 == has_nx_state(strm)){
+		if (0 != avg_delay)
+			decrease_delay();
 		rc = sw_deflateEnd(strm);
 		prt_info("call sw_deflateEnd,rc=%d\n", rc);
 	}else{

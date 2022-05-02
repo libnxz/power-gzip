@@ -40,14 +40,16 @@ uncomp_files = $(addsuffix .uncompressed,$(files))
 test_types = deflate gzip
 levels = 1 2 3 4 5 6 7 8 9
 compress_tests = $(foreach t,$(test_types),\
-		   $(foreach f,$(files),$(f).6.compress.$(t).test))
+		   $(foreach l,$(levels),\
+		     $(foreach f,$(files),$(f).$(l).compress.$(t).test)))
 
 decompress_tests = $(foreach t,$(test_types),\
 		     $(foreach l,$(levels),\
 		       $(foreach f,$(files),$(f).$(l).decompress.$(t).test)))
 
 compdecomp_tests = $(foreach t,$(test_types),\
-		     $(foreach f,$(files),$(f).6.compdecomp.$(t).test))
+		     $(foreach l,$(levels),\
+		       $(foreach f,$(files),$(f).$(l).compdecomp.$(t).test)))
 
 TESTS += $(compress_tests) $(decompress_tests) $(compdecomp_tests)
 check_SCRIPTS += $(compress_tests) $(decompress_tests) $(compdecomp_tests)

@@ -2008,36 +2008,44 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 	zlib_stats_inc(&zlib_stats.inflateInit);
 
 	strm->state = NULL;
-	if(nx_config.mode.inflate == GZIP_AUTO ||
-	   nx_config.mode.inflate == GZIP_MIX){
+	if (nx_config.mode.inflate == GZIP_AUTO ||
+	    nx_config.mode.inflate == GZIP_MIX) {
 		/* Call sw and nx initialization.  */
 		rc = sw_inflateInit2_(strm, windowBits, version, stream_size);
-		if(rc != Z_OK) return rc;
+		if (rc != Z_OK)
+			return rc;
 
 		/*If the stream has been initialized by sw*/
-		if(strm->state && (0 == has_nx_state(strm))){
+		if (strm->state && (0 == has_nx_state(strm))) {
 			temp = (void *)strm->state; /*record the sw context*/
 			strm->state = NULL;
 			prt_info("this stream has been initialized by sw\n");
 		}
 
 		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
-		if(rc != Z_OK){
+		if (rc != Z_OK) {
 			strm->state = temp;
-			sw_inflateEnd(strm);
-			return rc;
-		}
-
-		if(temp){ /* recorded sw context*/
+			if (rc == Z_STREAM_ERROR && errno == EAGAIN) {
+				/* Failed due to lack of credits on POWERVM */
+				prt_info("Falling back to software compression\n");
+				/* Since internal state is already set to
+				   zlib's, there's nothing left to do. */
+				rc = Z_OK;
+			} else {
+				/* release the sw stream */
+				(void) sw_inflateEnd(strm);
+			}
+		} else if (temp) { /* recorded sw context*/
 			s = (nx_streamp) strm->state;
 			s->sw_stream = temp;
 			s->switchable = 1;
 		}
-	}else if(nx_config.mode.inflate == GZIP_NX){
+	} else if (nx_config.mode.inflate == GZIP_NX) {
 		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
-	}else{
+	} else {
 		rc = sw_inflateInit2_(strm, windowBits, version, stream_size);
 	}
+
 	return rc;
 }
 int inflateReset(z_streamp strm)

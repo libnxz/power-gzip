@@ -2,8 +2,6 @@
 # Generate *.source file from a URL.
 # e.g. ./generate-source.sh <URL> > example.source
 
-. config.sh
-
 url=${1}
 
 decompress()
@@ -16,9 +14,9 @@ type=""
 
 set -e
 f=$(mktemp)
-${WGET} -q -L "${url}" -O ${f}
+wget -q -L "${url}" -O ${f}
 
-case "$(${FILE} -bi ${f})" in
+case "$(file -bi ${f})" in
   "application/gzip"*) type="gzip";;
   "application/x-bzip2"*) type="bzip2";;
   "application/x-xz"*) type="xz";;
@@ -31,7 +29,7 @@ case ${type} in
   "xz")    decompress ${XZ}    ${f};;
 esac
 
-checksum=$(${SHA256SUM} ${f} | awk '{print $1}')
+checksum=$(sha256sum ${f} | awk '{print $1}')
 rm ${f}
 
 echo "${url}"

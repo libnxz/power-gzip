@@ -634,22 +634,34 @@ static void nx_close_all()
 	return;
 }
 
-#define SYSFS_GZIP_CAPS "/sys/devices/vio/ibm,compression-v1/nx_gzip_caps/"
-static int nx_query_job_limits()
+int nx_read_sysfs_entry(const char *path, int *val)
 {
 	char buf[32];
-	long val;
-	int fd;
+	long lval;
+	int fd, rc = -1;
 
-	fd = open(SYSFS_GZIP_CAPS "req_max_processed_len", O_RDONLY);
+	fd = open(path, O_RDONLY);
 	if (fd != -1) {
 		if(read(fd, buf, sizeof(buf)) > 0) {
-			val = strtol(buf, NULL, 10);
-			if (!((val == LONG_MIN || val == LONG_MAX) &&
-					errno == ERANGE))
-				return (int) val;
+			lval = strtol(buf, NULL, 10);
+			if (!((lval == LONG_MIN || lval == LONG_MAX) &&
+			      errno == ERANGE)) {
+				*val = (int) lval;
+				rc = 0;
+			}
 		}
 	}
+	(void) close(fd);
+
+	return rc;
+}
+
+static int nx_query_job_limits()
+{
+	int val;
+
+	if(!nx_read_sysfs_entry(SYSFS_GZIP_CAPS "req_max_processed_len", &val))
+		return val;
 
 	/* On error return default value.  */
 	switch (nx_config.virtualization) {

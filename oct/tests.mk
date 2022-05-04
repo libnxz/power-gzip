@@ -21,6 +21,20 @@ source_files = at \
 	       silesia-webster \
 	       silesia-xml \
 	       silesia-x-ray \
+	       snappy-alice29 \
+	       snappy-asyoulik \
+	       snappy-baddata1 \
+	       snappy-baddata2 \
+	       snappy-baddata3 \
+	       snappy-fireworks \
+	       snappy-geo-protodata \
+	       snappy-html \
+	       snappy-html_x_4 \
+	       snappy-kppkn-gtb \
+	       snappy-lcet10 \
+	       snappy-paper-100k-pdf \
+	       snappy-plrabn12 \
+	       snappy-urls-10k \
 	       vmlinux
 
 # Do not enable large files by default.

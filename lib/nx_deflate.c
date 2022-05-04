@@ -2268,34 +2268,43 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	   nx_config.mode.deflate == GZIP_MIX){
 
 		/* call sw and nx initialization */
-		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
-		if(rc != Z_OK)
+		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel,
+				      strategy, version, stream_size);
+		if (rc != Z_OK)
 			return rc;
 
 		/* If the stream has been initialized by sw */
-		if(strm->state && (0 == has_nx_state(strm))){
+		if (strm->state && (0 == has_nx_state(strm))) {
 			temp = (void *)strm->state; /* keep this sw context pointer */
 			strm->state = NULL;
 			prt_info("this stream has been initialized by sw\n");
 		}
 
-		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
-		if(rc != Z_OK){
+		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel,
+				     strategy, version, stream_size);
+		if (rc != Z_OK) {
 			strm->state = temp;
-			sw_deflateEnd(strm); /* release the sw initializtion */
-			return rc;
-		}
-
-		if(temp){ /* record the sw context */
+			if (rc == Z_STREAM_ERROR && errno == EAGAIN) {
+				/* Failed due to lack of credits on POWERVM */
+				prt_info("Falling back to software compression\n");
+				/* Since internal state is already set to
+				   zlib's, there's nothing left to do. */
+				rc = Z_OK;
+			} else {
+				/* release the sw stream */
+				(void) sw_deflateEnd(strm);
+			}
+		} else if (temp) { /* record the sw context */
 			s = (nx_streamp) strm->state;
 			s->sw_stream = temp;
 			s->switchable = 1;
 		}
-
-	}else if(nx_config.mode.deflate == GZIP_NX){
-		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
-	}else{
-		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+	} else if (nx_config.mode.deflate == GZIP_NX) {
+		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel,
+				      strategy, version, stream_size);
+	} else {
+		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel,
+				      strategy, version, stream_size);
 	}
 
 	return rc;

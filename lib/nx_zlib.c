@@ -515,6 +515,18 @@ nx_devp_t nx_open(int nx_id)
 	pid_t my_pid;
 	int ret;
 
+	/* On PowerVM we always leave 1 credit available to help handle paste
+	   failures due to DLPAR operations on the system. Also, when the system
+	   is out of credits we want to reduce window reutilization to make sure
+	   windows get closed faster to free credits for other processes. */
+	if(nx_config.virtualization == POWERVM &&
+	   !nx_read_credits(&total_credits, &used_credits) &&
+	   used_credits >= total_credits - 1) {
+		prt_err("System low on credits, can't allocate or reuse VAS window.\n");
+		errno = EAGAIN;
+		return NULL;
+	}
+
 	my_pid = getpid();
 
 	/* check if we can reuse a saved nx handle */
@@ -615,6 +627,9 @@ success:
 
 int nx_close(nx_devp_t nx_devp)
 {
+	int total_credits, used_credits;
+	bool out_of_credits;
+
 	if (!nx_devp) {
 		prt_err("nx_close got a NULL handle\n");
 		return -1;
@@ -628,11 +643,26 @@ int nx_close(nx_devp_t nx_devp)
 	pthread_mutex_lock(&saved_nx_devp_mutex);
 	nx_devp->open_cnt--;
 
-	if (nx_devp->open_cnt == 0 &&   /* handle is not being reused */
-	    nx_devp != saved_nx_devp) { /* not the current reusable handle */
-		/* This must be an old handle and this is its last user,
-		   so let's free it. */
-		nx_device_free(nx_devp);
+	/* On PowerVM, when we detect the system is running out of credits, we
+	   can voluntarily close our window to hopefully help other processes
+	   trying to open new ones. */
+	out_of_credits = nx_config.virtualization == POWERVM &&
+		!nx_read_credits(&total_credits, &used_credits) &&
+		used_credits >= total_credits - 1;
+
+	/* If handle is not being reused, check if we should free it */
+	if (nx_devp->open_cnt == 0) {
+		if (out_of_credits) {
+			/* Free window to make credit available to other
+			   processes. */
+			saved_nx_devp = NULL;
+			nx_device_free(nx_devp);
+		} else if (nx_devp != saved_nx_devp) {
+			/* Not the current reusable handle, so this must be an
+			   old handle and this is its last user, so let's free
+			   it. */
+			nx_device_free(nx_devp);
+		}
 	}
 
 	/* Otherwise, leave it open */

@@ -220,14 +220,14 @@ struct vas_tx_win_open_attr {
   Number of credits available in LPAR will be available in sysfs.
   Adding the following sysfs interfaces to the user-space:
 
-/sys/kernel/vas/VasCaps/VDefGzip:    (Called default GZIP capabilities)
-	avail_lpar_creds  target_lpar_creds  used_lpar_creds
+/sys/devices/virtual/misc/vas/vas0/gzip/default_capabilities/    (Called default GZIP capabilities)
+	nr_total_credits nr_used_credits
 
   On our development system with 16 cores and dedicated: these entry
-  values are 320 320 0 respectively
+  values are 320 0 respectively
 
-/sys/kernel/vas/VasCaps/VQosGzip    (Called QoS GZIP capabilities)
-	avail_lpar_creds   target_lpar_creds  used_lpar_creds
+/sys/devices/virtual/misc/vas/vas0/gzip/qos_capabilities/        (Called QoS GZIP capabilities)
+	nr_total_credits  nr_used_credits  update_total_credits
 
 
   VAS instances: There is no concept of VAS ID on PowerVM. Instead the
@@ -252,10 +252,11 @@ Limits
   returns this information in the NX-gzip capabilities hcall, and
   Linux provides these values to the user-space through sysfs:
 
-/sys/devices/vio/ibm,compression-v1/NxGzCaps
+/sys/devices/vio/ibm,compression-v1/nx_gzip_caps
 min_compress_len   --- Recommended minimum compress length in bytes
 min_decompress_len --- Recommended minimum decompress length in bytes
 req_max_processed_len ---  Maximum processed length in bytes
+
 On our development system, these values are:
 32768
 32768

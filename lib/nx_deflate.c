@@ -2363,10 +2363,10 @@ int deflate(z_streamp strm, int flush)
 
 		__atomic_fetch_add(&zlib_stats.deflate_len, avail_in,  __ATOMIC_RELAXED);
 
-                t2 = nx_get_time();
-                t_diff = nx_time_to_us(nx_time_diff(t1,t2));
+		t2 = nx_get_time();
+		t_diff = nx_time_to_us(nx_time_diff(t1,t2));
 
-                __atomic_fetch_add(&zlib_stats.deflate_time, t_diff, __ATOMIC_RELAXED);
+		__atomic_fetch_add(&zlib_stats.deflate_time, t_diff, __ATOMIC_RELAXED);
 
 	}
 

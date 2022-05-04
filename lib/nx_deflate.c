@@ -58,6 +58,11 @@
 #include "nx_dbg.h"
 #include "nx_dht.h"
 
+/** @file nx_deflate.c
+ * \brief Implement the deflate function for the NX GZIP accelerator and
+ * related functions.
+ */
+
 #define DEF_MEM_LEVEL 8
 #define nx_deflateInit(strm, level) nx_deflateInit_((strm), (level), ZLIB_VERSION, (int)sizeof(z_stream))
 
@@ -1251,6 +1256,23 @@ restart:
 
 	cc = nx_submit_job(ddl_in, ddl_out, nxcmdp, s->nxdevp);
 	s->nx_cc = cc;
+
+	/** The NX GZIP does not subtract the history length from SPBC when
+	 *  checking for ERR_NX_TPBC_GT_SPBC. So, there are some scenarios
+	 *  where the length of the output is larger than the input, but the
+	 *  NX GZIP can't see this. This is particularly critical when the input
+	 *  length is < 32KiB. So, we have to check for this scenario and fix
+	 *  the result in order to generate better results.
+	 */
+	if (!cc) {
+		uint32_t histlen = getnn(s->nxcmdp->cpb, in_histlen)
+				   * sizeof(nx_qw_t);
+		uint32_t spbc = get_spbc(s, fc);
+		uint32_t tpbc = get32(s->nxcmdp->crb.csb, tpbc);
+
+		if (tpbc + histlen > spbc)
+			cc = ERR_NX_TPBC_GT_SPBC;
+	}
 
 	if (s->dry_run && (cc == ERR_NX_TPBC_GT_SPBC || cc == ERR_NX_OK)) {
 		/* only needed for sampling LZcounts (symbol stats) */

@@ -123,6 +123,10 @@ struct selector {
 
 #define NXQWSZ  (sizeof(nx_qw_t))
 
+/* sysfs directories with useful NX-gzip-related information */
+#define SYSFS_GZIP_CAPS "/sys/devices/vio/ibm,compression-v1/nx_gzip_caps/"
+#define SYSFS_VAS_CAPS  "/sys/devices/virtual/misc/vas/vas0/gzip/default_capabilities/"
+
 #ifdef NX_LOG_SOURCE_TARGET
 void nx_print_dde(nx_dde_t *ddep, const char *msg);
 #endif
@@ -579,6 +583,7 @@ extern int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 extern int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp);
 extern void nx_hw_init(void);
 extern void nx_hw_done(void);
+extern int nx_read_sysfs_entry(const char *path, int *val);
 
 /* nx_deflate.c */
 extern int nx_deflateInit_(z_streamp strm, int level, const char *version, int stream_size);

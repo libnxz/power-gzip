@@ -223,28 +223,41 @@ int nx_gzwrite (gzFile file, const void *buf, unsigned len)
 	z_streamp stream = &(state->strm);
 	int rc;
 	uLong last_total_in = stream->total_in;
-	unsigned char* next_out = malloc(sizeof(char)*len);
-
+	unsigned char* next_out = malloc(len);
 	if (next_out == NULL)
 		return Z_MEM_ERROR;
 
+	/* Under some scenarios (e.g. when compressing random data), the
+	   output will be larger than the input.  While the NX can buffer some
+	   output data that didn't fit in next_out, if the amount of input data
+	   is large enough, the amount of data cached in the output buffer will
+	   keep increasing reaching a point where the amount of cached output
+	   is equal to len.  The following loop is meant to prevent a scenario
+	   where no input will be processed causing nx_gzwrite to return 0,
+	   which is considered to be an error.  */
 	stream->next_in = (z_const Bytef *)buf;
 	stream->avail_in = len;
-	stream->next_out = next_out;
-	stream->avail_out = len;
+	do {
+		stream->next_out = next_out;
+		stream->avail_out = len;
 
-	rc = nx_deflate(stream, Z_NO_FLUSH);
-	ssize_t w_ret = write(state->fd, next_out, len - stream->avail_out);
+		rc = nx_deflate(stream, Z_NO_FLUSH);
+		ssize_t w_ret = write(state->fd, next_out,
+				      len - stream->avail_out);
+
+		if (w_ret < 0) {
+			free(next_out);
+			state->err = Z_ERRNO;
+			return 0;
+		}
+		if (rc != Z_OK && rc != Z_STREAM_END){
+			free(next_out);
+			state->err = rc;
+			return 0;
+		}
+	} while (stream->total_in == last_total_in);
 
 	free(next_out);
-	if (w_ret < 0) {
-		state->err = Z_ERRNO;
-		return 0;
-	}
-	if (rc != Z_OK && rc != Z_STREAM_END){
-		state->err = rc;
-		return 0;
-	}
 	return stream->total_in - last_total_in;
 }
 

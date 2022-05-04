@@ -509,7 +509,9 @@ static inline void nx_device_free(nx_devp_t nx_devp) {
 
 nx_devp_t nx_open(int nx_id)
 {
+	int total_credits, used_credits;
 	nx_devp_t nx_devp, saved;
+	uint64_t ticks_total = 0;
 	pid_t my_pid;
 	int ret;
 
@@ -563,14 +565,33 @@ nx_devp_t nx_open(int nx_id)
 	ret = nx_function_begin(NX_FUNC_COMP_GZIP, nx_id, nx_devp);
 
 	if (ret) {
+		/* This may have failed due to lack of credits */
+		if (nx_config.virtualization == POWERVM &&
+		    !nx_read_credits(&total_credits, &used_credits) &&
+		    total_credits <= used_credits) {
+
+			/* System is out of credits. Wait and retry a few times
+			   just in case some are about to be freed. */
+			for (int i = 0; i < 10 ; i++) {
+				ticks_total = nx_wait_ticks(500, ticks_total, 0);
+				if (!nx_function_begin(NX_FUNC_COMP_GZIP, nx_id,
+						       nx_devp))
+					goto success;
+			}
+			prt_err("Not enough credits to allocate VAS window.\n");
+			errno = EAGAIN;
+		}
+
 		if (nx_config.max_vas_reuse_count > 0)
 			pthread_mutex_unlock(&saved_nx_devp_mutex);
+
 		prt_err("nx_function_begin failed, errno %d\n", errno);
 		free(nx_devp);
 
 		return NULL;
 	}
 
+success:
 	if (nx_config.max_vas_reuse_count > 0) {
 		nx_devp->open_cnt = 1;  /* newly allocated nx_devp, so single
 					   user */
@@ -670,6 +691,16 @@ static int nx_query_job_limits()
 		default:
 			return DEFAULT_MAX_JOB_POWERVM;
 	}
+}
+
+int nx_read_credits(int *total, int *used) {
+	if (nx_read_sysfs_entry(SYSFS_VAS_CAPS "nr_total_credits", total) ||
+	    nx_read_sysfs_entry(SYSFS_VAS_CAPS "nr_used_credits", used)) {
+		prt_info("Failed to read number of credits from sysfs.\n");
+		return -1;
+	}
+
+	return 0;
 }
 
 /*

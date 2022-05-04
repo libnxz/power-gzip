@@ -611,6 +611,7 @@ extern void nx_hw_init(void);
 extern void nx_hw_done(void);
 extern int nx_read_sysfs_entry(const char *path, int *val);
 extern void nx_device_stats(uint64_t start, uint64_t end);
+extern int nx_read_credits(int *total, int *used);
 
 /* nx_deflate.c */
 extern int nx_deflateInit_(z_streamp strm, int level, const char *version, int stream_size);

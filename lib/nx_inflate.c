@@ -2021,6 +2021,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 
 		rc = nx_inflateInit2_(strm, windowBits, version, stream_size);
 		if(rc != Z_OK){
+			strm->state = temp;
 			sw_inflateEnd(strm);
 			return rc;
 		}

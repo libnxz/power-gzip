@@ -2255,6 +2255,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 		if(rc != Z_OK){
+			strm->state = temp;
 			sw_deflateEnd(strm); /* release the sw initializtion */
 			return rc;
 		}

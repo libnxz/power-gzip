@@ -163,7 +163,7 @@ int main()
 	remove(filename);
 	memset(uncompr, 0, uncompr_len);
 
-	printf("Testing nx_gzwread...\n");
+	printf("Testing nx_gzread...\n");
 	if(test_gzwrite(src, src_len, filename))
 		goto err;
 	if(test_nx_gzread(src, uncompr, src_len, filename))

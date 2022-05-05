@@ -34,6 +34,12 @@
  * limitations under the License.
  *
  */
+
+/** @file nx_gzlib.c
+ * \brief Implement the gz* functions for the NX GZIP accelerator and
+ * related functions.
+ */
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -45,8 +51,6 @@
 #define BUF_LEN 1024
 #define DEF_MEM_LEVEL 8
 #define MAX_LEN 4096
-
-gzFile nx_gzopen_(const char* path, int fd, const char *mode);
 
 bool is_deflate;
 
@@ -61,7 +65,7 @@ typedef struct gz_state {
 	uint8_t * cur_buf;
 } *gz_statep;
 
-int nx_gzclose(gzFile file)
+int __gzclose(gzFile file, int force_nx)
 {
 	gz_statep state = (gz_statep) file;
 	z_streamp stream = &(state->strm);
@@ -78,6 +82,16 @@ int nx_gzclose(gzFile file)
 		return Z_MEM_ERROR;
 
 	if (is_deflate) {
+		typeof(deflate) (*def);
+		typeof(deflateEnd) (*defEnd);
+		if (force_nx) {
+			def = &nx_deflate;
+			defEnd = &nx_deflateEnd;
+		} else {
+			def = &deflate;
+			defEnd = &deflateEnd;
+		}
+
 		/* Finish the stream.  */
 		stream->next_in = Z_NULL;
 		stream->avail_in = 0;
@@ -86,14 +100,19 @@ int nx_gzclose(gzFile file)
 			stream->next_out = next_out;
 			stream->avail_out = MAX_LEN;
 
-			ret = nx_deflate(stream, Z_FINISH);
+			ret = (*def)(stream, Z_FINISH);
+
 			w_ret = write(state->fd, next_out,
 				      MAX_LEN - stream->avail_out);
 		} while (ret != Z_STREAM_END && w_ret >= 0);
 
-		ret = nx_deflateEnd(stream);
-	} else
-		ret = nx_inflateEnd(stream);
+		ret = (*defEnd)(stream);
+	} else {
+		if (force_nx)
+			ret = nx_inflateEnd(stream);
+		else
+			ret = inflateEnd(stream);
+	}
 
 	if(state->fp == NULL)
 		close(state->fd);
@@ -108,17 +127,12 @@ int nx_gzclose(gzFile file)
 	return ret;
 }
 
-gzFile nx_gzdopen(int fd, const char *mode)
+int nx_gzclose(gzFile file)
 {
-	return nx_gzopen_(NULL, fd, mode);
+	return __gzclose(file, 1);
 }
 
-gzFile nx_gzopen(const char* path, const char *mode)
-{
-	return nx_gzopen_(path, 0, mode);
-}
-
-gzFile nx_gzopen_(const char* path, int fd, const char *mode)
+gzFile __gzopen(const char* path, int fd, const char *mode, int force_nx)
 {
 	gz_statep state;
 	gzFile file;
@@ -161,8 +175,13 @@ gzFile nx_gzopen_(const char* path, int fd, const char *mode)
 		if (digit != NULL)
 			level = atoi(digit);
 
-		err = nx_deflateInit2(stream, level, Z_DEFLATED, 31,
-					DEF_MEM_LEVEL, strategy);
+		if (force_nx)
+			err = nx_deflateInit2(stream, level, Z_DEFLATED, 31,
+					      DEF_MEM_LEVEL, strategy);
+		else
+			err = deflateInit2(stream, level, Z_DEFLATED, 31,
+					   DEF_MEM_LEVEL, strategy);
+
 		is_deflate = true;
 	} else {
 		err = nx_inflateInit(stream);
@@ -185,14 +204,29 @@ gzFile nx_gzopen_(const char* path, int fd, const char *mode)
 	return file;
 }
 
-int nx_gzread(gzFile file, void *buf, unsigned len)
+gzFile nx_gzdopen(int fd, const char *mode)
+{
+	return __gzopen(NULL, fd, mode, 1);
+}
+
+gzFile nx_gzopen(const char* path, const char *mode)
+{
+	return __gzopen(path, 0, mode, 1);
+}
+
+int __gzread(gzFile file, void *buf, unsigned len, int force_nx)
 {
 	gz_statep state = (gz_statep) file;
 	z_streamp stream = &(state->strm);
 	int ret, err;
 	const uInt max = len > 10? 10 : 1;
 	uLong last_total_out = stream->total_out;
+	typeof(inflate) (*inf);
 
+	if (force_nx)
+		inf = &nx_inflate;
+	else
+		inf = &inflate;
 
 	stream->next_out = buf;
 	stream->avail_out = len;
@@ -207,12 +241,12 @@ int nx_gzread(gzFile file, void *buf, unsigned len)
 		}
 		if (ret == 0){
 			/* Flush all at the end of the file. */
-			err = nx_inflate(stream, Z_FINISH);
+			err = (*inf)(stream, Z_FINISH);
 			break;
 		}
 
 		stream->avail_in = ret;
-		err = nx_inflate(stream, Z_NO_FLUSH);
+		err = (*inf)(stream, Z_NO_FLUSH);
 
 		state->used_buf = stream->avail_in;
 		state->cur_buf  = stream->next_in;
@@ -225,7 +259,21 @@ int nx_gzread(gzFile file, void *buf, unsigned len)
 	return stream->total_out - last_total_out;
 }
 
-int nx_gzwrite (gzFile file, const void *buf, unsigned len)
+int nx_gzread(gzFile file, void *buf, unsigned len) {
+	return __gzread(file, buf, len, 1);
+}
+
+/** \brief Write to a compressed file. Internal implementation.
+ *
+ *  @param file gzip file descriptor to be processed.
+ *  @param buf Buffer containing uncompressed data.
+ *  @param len Amount of bytes in buf.
+ *  @param force_nx True if NX should be enforced, otherwise fallback to
+ *                  configuration settings.
+ *  @return On success, return the number of uncompressed bytes processed from
+ *          buf. On error, return a value less or equal to 0.
+ */
+int __gzwrite (gzFile file, const void *buf, unsigned len, int force_nx)
 {
 	gz_statep state = (gz_statep) file;
 	z_streamp stream = &(state->strm);
@@ -249,7 +297,11 @@ int nx_gzwrite (gzFile file, const void *buf, unsigned len)
 		stream->next_out = next_out;
 		stream->avail_out = len;
 
-		rc = nx_deflate(stream, Z_NO_FLUSH);
+		if (force_nx)
+			rc = nx_deflate(stream, Z_NO_FLUSH);
+		else
+			rc = deflate(stream, Z_NO_FLUSH);
+
 		ssize_t w_ret = write(state->fd, next_out,
 				      len - stream->avail_out);
 
@@ -269,80 +321,31 @@ int nx_gzwrite (gzFile file, const void *buf, unsigned len)
 	return stream->total_in - last_total_in;
 }
 
+int nx_gzwrite (gzFile file, const void *buf, unsigned len) {
+	return __gzwrite(file, buf, len, 1);
+}
+
 int gzclose(gzFile file)
 {
-	uint8_t sel = is_deflate ?
-		      nx_config.mode.deflate : nx_config.mode.inflate;
-
-	if (sel == GZIP_SW)
-		return sw_gzclose(file);
-	else
-		return nx_gzclose(file);
+	return __gzclose(file, 0);
 }
 
 gzFile gzopen(const char *path, const char *mode)
 {
-	uint8_t sel;
-	if (strchr(mode, 'w')) {
-		sel = nx_config.mode.deflate;
-		is_deflate = true;
-	} else {
-		sel = nx_config.mode.inflate;
-		is_deflate = false;
-	}
-
-	if (sel == GZIP_SW)
-		return sw_gzopen(path, mode);
-	else
-		return nx_gzopen(path, mode);
+	return __gzopen(path, 0, mode, 0);
 }
 
 gzFile gzdopen(int fd, const char *mode)
 {
-	uint8_t sel;
-	if (strchr(mode, 'w'))
-		sel = nx_config.mode.deflate;
-	else
-		sel = nx_config.mode.inflate;
-
-	if (sel == GZIP_SW)
-		return sw_gzdopen(fd, mode);
-	else
-		return nx_gzdopen(fd, mode);
+	return __gzopen(NULL, fd, mode, 0);
 }
 
 int gzread(gzFile file, void *buf, unsigned len)
 {
-	int rc;
-
-	if (nx_config.mode.inflate == GZIP_AUTO) {
-		if(len <= DECOMPRESS_THRESHOLD)
-			rc = sw_gzread(file, buf, len);
-		else
-			rc = nx_gzread(file, buf, len);
-	}else if (nx_config.mode.inflate == GZIP_SW) {
-		rc = sw_gzread(file, buf, len);
-	}else {
-		rc = nx_gzread(file, buf, len);
-	}
-
-	return rc;
+	return __gzread(file, buf, len, 0);
 }
 
 int gzwrite(gzFile file, const void *buf, unsigned len)
 {
-	int rc;
-
-	if (nx_config.mode.deflate == GZIP_AUTO) {
-		if (len <= COMPRESS_THRESHOLD)
-			rc = sw_gzwrite(file, buf, len);
-		else
-			rc = nx_gzwrite(file, buf, len);
-	}else if (nx_config.mode.deflate == GZIP_SW) {
-		rc = sw_gzwrite(file, buf, len);
-	}else {
-		rc = nx_gzwrite(file, buf, len);
-	}
-
-	return rc;
+	return __gzwrite(file, buf, len, 0);
 }

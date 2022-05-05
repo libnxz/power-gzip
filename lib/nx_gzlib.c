@@ -42,6 +42,7 @@
 #include <errno.h>
 #include "nx_zlib.h"
 
+#define BUF_LEN 1024
 #define DEF_MEM_LEVEL 8
 #define MAX_LEN 4096
 
@@ -55,6 +56,9 @@ typedef struct gz_state {
 	FILE *fp;
 	int err;
 	z_stream strm;
+	uint8_t * buf;
+	int32_t used_buf;
+	uint8_t * cur_buf;
 } *gz_statep;
 
 int nx_gzclose(gzFile file)
@@ -96,6 +100,8 @@ int nx_gzclose(gzFile file)
 	else
 		fclose(state->fp);
 
+	if (state->buf != NULL)
+		free(state->buf);
 	free(next_out);
 	free(state);
 
@@ -161,6 +167,12 @@ gzFile nx_gzopen_(const char* path, int fd, const char *mode)
 	} else {
 		err = nx_inflateInit(stream);
 		is_deflate = false;
+		if (err == Z_OK) {
+			state->buf = malloc(BUF_LEN);
+			if (state->buf == NULL) {
+				err=Z_NULL;
+			}
+		}
 	}
 	if (err != Z_OK){
 		free(state);
@@ -180,16 +192,19 @@ int nx_gzread(gzFile file, void *buf, unsigned len)
 	int ret, err;
 	const uInt max = len > 10? 10 : 1;
 	uLong last_total_out = stream->total_out;
-	unsigned char* next_in = malloc(sizeof(char)*max);
 
-	if (next_in == NULL)
-		return Z_MEM_ERROR;
 
 	stream->next_out = buf;
 	stream->avail_out = len;
 	do {
-		ret = read(state->fd, next_in, sizeof(char)*max);
-		stream->next_in = next_in;
+		if (state->used_buf == 0) {
+			ret = read(state->fd, state->buf, max);
+			stream->next_in = state->buf;
+		} else {
+			/* There are still data pending in the buffer. */
+			ret = state->used_buf;
+			stream->next_in = state->cur_buf;
+		}
 		if (ret == 0){
 			/* Flush all at the end of the file. */
 			err = nx_inflate(stream, Z_FINISH);
@@ -199,21 +214,14 @@ int nx_gzread(gzFile file, void *buf, unsigned len)
 		stream->avail_in = ret;
 		err = nx_inflate(stream, Z_NO_FLUSH);
 
+		state->used_buf = stream->avail_in;
+		state->cur_buf  = stream->next_in;
 		if (err != Z_OK && err != Z_STREAM_END){
 			state->err = err;
-			free(next_in);
 			return 0;
 		}
 	} while (stream->avail_out != 0);
 
-	/* gzread should return when len bytes are wrote on buf, if we still
-	   have unprocessed data on avail_in we need to save it on fifo_in.  */
-	if (stream->avail_in > 0){
-		nx_streamp s = (nx_streamp) stream->state;
-		copy_data_to_fifo_in(s);
-	}
-
-	free(next_in);
 	return stream->total_out - last_total_out;
 }
 

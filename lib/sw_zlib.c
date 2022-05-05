@@ -176,41 +176,6 @@ int sw_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sou
 	return (* p_uncompress2)(dest, destLen, source, sourceLen);
 }
 
-static int (* p_gzclose)(gzFile file);
-int sw_gzclose(gzFile file)
-{
-	check_sym(p_gzclose, Z_STREAM_ERROR);
-	return (* p_gzclose)(file);
-}
-
-static gzFile (* p_gzopen)(const char * path, const char *mode);
-gzFile sw_gzopen(const char * path, const char *mode)
-{
-	check_sym(p_gzopen, NULL);
-	return (* p_gzopen)(path, mode);
-}
-
-static gzFile (* p_gzdopen)(int fd, const char *mode);
-gzFile sw_gzdopen(int fd, const char *mode)
-{
-	check_sym(p_gzdopen, NULL);
-	return (* p_gzdopen)(fd, mode);
-}
-
-static int (* p_gzread)(gzFile file, void *buf, unsigned len);
-int sw_gzread(gzFile file, void *buf, unsigned len)
-{
-	check_sym(p_gzread, Z_STREAM_ERROR);
-	return (* p_gzread)(file, buf, len);
-}
-
-static int (*p_gzwrite)(gzFile file, const void *buf, unsigned len);
-int sw_gzwrite (gzFile file, const void *buf, unsigned len)
-{
-	check_sym(p_gzwrite, Z_STREAM_ERROR);
-	return (* p_gzwrite)(file, buf, len);
-}
-
 static int (* p_inflateInit_)(z_streamp strm, const char *version, int stream_size);
 int sw_inflateInit_(z_streamp strm, const char *version, int stream_size)
 {
@@ -343,11 +308,6 @@ int sw_zlib_init(void)
 #if ZLIB_VERNUM >= 0x1290
 	register_sym(uncompress2);
 #endif
-	register_sym(gzclose);
-	register_sym(gzopen);
-	register_sym(gzdopen);
-	register_sym(gzread);
-	register_sym(gzwrite);
 	register_sym(inflateInit_);
 	register_sym(inflateInit2_);
 	register_sym(inflateReset);

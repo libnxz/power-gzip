@@ -860,15 +860,6 @@ typedef struct {
 #define INIT_CRC   0  /* crc32(0L, Z_NULL, 0) */
 #define INIT_ADLER 1  /* adler32(0L, Z_NULL, 0)  adler is initialized to 1 */
 
-/* prototypes */
-#ifdef NX_JOB_CALLBACK
-int nxu_run_job(nx_gzip_crb_cpb_t *c, void *handle,
-		int (*callback)(const void *));
-#else
-int nxu_run_job(nx_gzip_crb_cpb_t *c, void *handle);
-#endif
-
-
 /* caller supplies a print buffer 4*sizeof(crb) */
 
 char *nx_crb_str(nx_gzip_crb_t *crb, char *prbuf);

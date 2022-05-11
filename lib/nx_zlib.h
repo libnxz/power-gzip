@@ -180,16 +180,9 @@ struct nx_dev_t {
 	int open_cnt;      /* number of active users */
 	int use_cnt;       /* total number of users */
 	pid_t creator_pid; /* PID of the process that allocated this handle */
-
-	/* https://github.com/sukadev/linux/blob/vas-kern-v8.1/tools/testing/selftests/powerpc/user-nx842/compress.c#L514 */
-	struct {
-		int16_t version;
-		int16_t id;
-		int64_t flags;
-		void *paste_addr;
-		int fd;
-		void *vas_handle;
-	}; /* vas */
+	void *paste_addr;  /* address used to send requests using paste insn */
+	int fd;            /* VAS window file descriptor */
+	int function;      /* NX function code */
 };
 typedef struct nx_dev_t *nx_devp_t;
 #define NX_DEVICES_MAX 256
@@ -561,9 +554,10 @@ extern unsigned long crc32_ppc(unsigned long crc, const unsigned char *buffer,
 
 /* gzip_vas.c */
 extern void *nx_fault_storage_address;
-extern void *nx_function_begin(int function, int pri);
-extern int nx_function_end(void *vas_handle);
+extern int nx_function_begin(int function, int pri, nx_devp_t nxhandle);
+extern int nx_function_end(nx_devp_t nxhandle);
 extern uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int do_sleep);
+extern int nxu_run_job(nx_gzip_crb_cpb_t *c, nx_devp_t nxhandle);
 
 /* zlib crc32.c and adler32.c */
 extern unsigned long nx_crc32_combine(unsigned long crc1, unsigned long crc2, off_t len2);
@@ -577,7 +571,7 @@ extern int nx_close(nx_devp_t nxdevp);
 extern int nx_touch_pages(void *buf, long buf_len, long page_len, int wr);
 extern void *nx_alloc_buffer(uint32_t len, long alignment, int lock);
 extern void nx_free_buffer(void *buf, uint32_t len, int unlock);
-extern int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *handle);
+extern int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle);
 extern int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len);
 extern int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr);
 extern int nx_copy(char *dst, char *src, uint64_t len, uint32_t *crc, uint32_t *adler, nx_devp_t nxdevp);

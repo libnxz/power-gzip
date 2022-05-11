@@ -91,13 +91,7 @@ uint64_t tb_freq=0;
 
 static const uint64_t timeout_seconds = 60;
 
-struct nx_handle {
-	int fd;
-	int function;
-	void *paste_addr;
-};
-
-static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
+static int open_device_nodes(char *devname, int pri, nx_devp_t nxhandle)
 {
 	int rc, fd;
 	void *addr;
@@ -137,8 +131,8 @@ static int open_device_nodes(char *devname, int pri, struct nx_handle *handle)
 		goto out;
 	}
 	/* TODO: document the 0x400 offset */
-	handle->fd = fd;
-	handle->paste_addr = (void *)((char *)addr + 0x400);
+	nxhandle->fd = fd;
+	nxhandle->paste_addr = (void *)((char *)addr + 0x400);
 
 	rc = 0;
 	return rc;
@@ -147,24 +141,15 @@ out:
 	return rc;
 }
 
-void *nx_function_begin(int function, int pri)
+int nx_function_begin(int function, int pri, nx_devp_t nxhandle)
 {
 	int rc;
 	char *devname = "/dev/crypto/nx-gzip";
-	struct nx_handle *nxhandle;
 
 	if (function != NX_FUNC_COMP_GZIP) {
 		errno = EINVAL;
 		fprintf(stderr, " NX_FUNC_COMP_GZIP not found\n");
-		return NULL;
-	}
-
-
-	nxhandle = malloc(sizeof(*nxhandle));
-	if (!nxhandle) {
-		errno = ENOMEM;
-		fprintf(stderr, " No memory\n");
-		return NULL;
+		return -1;
 	}
 
 	nxhandle->function = function;
@@ -172,16 +157,15 @@ void *nx_function_begin(int function, int pri)
 	if (rc < 0) {
 		errno = -rc;
 		fprintf(stderr, " open_device_nodes failed\n");
-		return NULL;
+		return -1;
 	}
 
-	return nxhandle;
+	return 0;
 }
 
-int nx_function_end(void *handle)
+int nx_function_end(nx_devp_t nxhandle)
 {
 	int rc = 0;
-	struct nx_handle *nxhandle = handle;
 
 	rc = munmap(nxhandle->paste_addr - 0x400, 4096);
 	if (rc < 0) {
@@ -189,7 +173,6 @@ int nx_function_end(void *handle)
 		return rc;
 	}
 	close(nxhandle->fd); /* see issue 164 comment */
-	free(nxhandle);
 	return rc;
 }
 
@@ -298,13 +281,12 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 	return 0;
 }
 
-int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, void *handle)
+int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 {
 	int ret=0, retries=0;
-	struct nx_handle *nxhandle = handle;
 	uint64_t ticks_total = 0;
 
-	assert(handle != NULL);
+	assert(nxhandle != NULL);
 
 	while (1) {
 

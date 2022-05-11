@@ -58,7 +58,6 @@
 #include "zlib.h"
 #include "copy-paste.h"
 #include "nxu.h"
-#include "nx.h"
 #include "nx-gzip.h"
 #include "nx_dbg.h"
 #include "nx_utils.h"

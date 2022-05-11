@@ -54,7 +54,6 @@
 #include "copy-paste.h"
 #include "nxu.h"
 #include "nx_zlib.h"
-#include "nx.h"
 #include "nx_dbg.h"
 #include "nx_dht.h"
 

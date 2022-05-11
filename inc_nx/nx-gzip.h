@@ -35,6 +35,9 @@
 
 #include <asm/ioctl.h>
 
+/* NX function codes */
+#define NX_FUNC_COMP_GZIP   2
+
 #define VAS_FLAGS_PIN_WINDOW	0x1
 #define VAS_FLAGS_HIGH_PRI	0x2
 

@@ -457,7 +457,7 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
  *
  * @param cmdp NX command and parameter
  */
-int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *handle)
+int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 {
 	int cc;
 	uint64_t csbaddr;
@@ -481,7 +481,7 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 		nx_print_dde(dst, "target");
 	}
 
-	cc = nxu_run_job(cmdp, ((nx_devp_t)handle)->vas_handle);
+	cc = nxu_run_job(cmdp, nxhandle);
 
 	/* JVM catching signals work around; if handler didn't touch
 	   faulting address nxu_run_job will spin needlessly until
@@ -500,15 +500,15 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *h
 }
 
 static inline void nx_device_free(nx_devp_t nx_devp) {
-	nx_function_end(nx_devp->vas_handle);
+	nx_function_end(nx_devp);
 	free(nx_devp);
 }
 
 nx_devp_t nx_open(int nx_id)
 {
 	nx_devp_t nx_devp, saved;
-	void *vas_handle;
 	pid_t my_pid;
+	int ret;
 
 	my_pid = getpid();
 
@@ -557,9 +557,9 @@ nx_devp_t nx_open(int nx_id)
 	if ((nx_id < -1) || (nx_id >= nx_dev_count))
 		nx_id = -1;
 
-	vas_handle = nx_function_begin(NX_FUNC_COMP_GZIP, nx_id);
+	ret = nx_function_begin(NX_FUNC_COMP_GZIP, nx_id, nx_devp);
 
-	if (!vas_handle) {
+	if (ret) {
 		if (nx_config.max_vas_reuse_count > 0)
 			pthread_mutex_unlock(&saved_nx_devp_mutex);
 		prt_err("nx_function_begin failed, errno %d\n", errno);
@@ -567,8 +567,6 @@ nx_devp_t nx_open(int nx_id)
 
 		return NULL;
 	}
-
-	nx_devp->vas_handle = vas_handle;
 
 	if (nx_config.max_vas_reuse_count > 0) {
 		nx_devp->open_cnt = 1;  /* newly allocated nx_devp, so single
@@ -593,7 +591,7 @@ nx_devp_t nx_open(int nx_id)
 
 int nx_close(nx_devp_t nx_devp)
 {
-	if (!nx_devp || !nx_devp->vas_handle) {
+	if (!nx_devp) {
 		prt_err("nx_close got a NULL handle\n");
 		return -1;
 	}

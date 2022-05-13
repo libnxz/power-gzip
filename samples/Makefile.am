@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -I$(top_srcdir)/inc_nx
+AM_CPPFLAGS = -I$(top_srcdir)/inc_nx -I$(top_srcdir)/lib
 LDFLAGS = -static-libtool-libs
 
 STATIC_LIBNXZ = ../lib/libnxz.la

@@ -58,8 +58,8 @@
 #include <errno.h>
 #include <signal.h>
 #include "nxu.h"
-#include "nx.h"
 #include "nx_dbg.h"
+#include "nx_zlib.h"
 
 #define ASSERT(X) assert(X)
 
@@ -73,6 +73,8 @@ struct _nx_time_dbg {
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
 
+#define NX_FUNC_COMP_GZIP 2
+
 #define mb()     asm volatile("sync" ::: "memory")
 
 const int fifo_in_len = 1<<24;
@@ -83,16 +85,13 @@ const int window_max = 1<<15;
 const int retry_max = 50;
 
 extern void *nx_fault_storage_address;
-extern void *nx_function_begin(int function, int pri);
-extern int nx_function_end(void *handle);
-
 /*
   Fault in pages prior to NX job submission.  wr=1 may be required to
   touch writeable pages. System zero pages do not fault-in the page as
   intended.  Typically set wr=1 for NX target pages and set wr=0 for
   NX source pages.
 */
-static int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
+static int _nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 {
 	char *begin = buf;
 	char *end = (char *)buf + buf_len - 1;
@@ -179,7 +178,7 @@ static void nx_print_dde(nx_dde_t *ddep, const char *msg)
    nx_dde_t *ddl.  If N addresses are required in the scatter-gather
    list, the ddl array must have N+1 entries minimum.
 */
-static inline uint32_t nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
+static inline uint32_t _nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 {
 	uint32_t ddecnt;
 	uint32_t bytes;
@@ -189,7 +188,7 @@ static inline uint32_t nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 		return 0;
 	}
 
-	NXPRT( fprintf(stderr, "%d: nx_append_dde addr %p len %x\n", __LINE__, addr, len ) );
+	NXPRT( fprintf(stderr, "%d: _nx_append_dde addr %p len %x\n", __LINE__, addr, len ) );
 	
 	/* number of ddes in the dde list ; == 0 when it is a direct dde */
 	ddecnt = getpnn(ddl, dde_count); 
@@ -245,7 +244,7 @@ static inline uint32_t nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
    
    Set buf_sz = 0 to touch all pages described by the ddep.
 */
-static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
+static int _nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 {
 	uint32_t indirect_count;
 	uint32_t buf_len;
@@ -258,7 +257,7 @@ static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 	
 	indirect_count = getpnn(ddep, dde_count);
 
-	NXPRT( fprintf(stderr, "nx_touch_pages_dde dde_count %d request len 0x%lx\n", indirect_count, buf_sz) ); 
+	NXPRT( fprintf(stderr, "_nx_touch_pages_dde dde_count %d request len 0x%lx\n", indirect_count, buf_sz) );
 	
 	if (indirect_count == 0) {
 		/* direct dde */
@@ -268,9 +267,9 @@ static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 		NXPRT( fprintf(stderr, "touch direct ddebc 0x%x ddead %p\n", buf_len, (void *)buf_addr) ); 
 		
 		if (buf_sz == 0)
-			nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
+			_nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
 		else 
-			nx_touch_pages((void *)buf_addr, NX_MIN(buf_len, buf_sz), page_sz, wr);		
+			_nx_touch_pages((void *)buf_addr, NX_MIN(buf_len, buf_sz), page_sz, wr);
 
 		return ERR_NX_OK;
 	}
@@ -296,11 +295,11 @@ static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
 		/* touching fewer pages than encoded in the ddebc */
 		if ( total > buf_sz) {
 			buf_len = NX_MIN(buf_len, total - buf_sz);
-			nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
+			_nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
 			NXPRT( fprintf(stderr, "touch loop break len 0x%x ddead %p\n", buf_len, (void *)buf_addr) ); 			
 			break;
 		}
-		nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);		
+		_nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
 	}
 	return ERR_NX_OK;
 }
@@ -309,7 +308,7 @@ static int nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
    Src and dst buffers are supplied in scatter gather lists. 
    NX function code and other parameters supplied in cmdp 
 */
-static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, void *handle)
+static int _nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, nx_devp_t handle)
 {
 	int cc;
 	uint64_t csbaddr;
@@ -361,7 +360,7 @@ static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 #define fifo_used_last_offset(cur)             (0)	
 
 
-int decompress_file(int argc, char **argv, void *devhandle)
+int decompress_file(int argc, char **argv, nx_devp_t devhandle)
 {
 #ifdef NX_MMAP
 	int inpf = 0;
@@ -558,7 +557,7 @@ int decompress_file(int argc, char **argv, void *devhandle)
 	assert( NULL != (fifo_in  = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_in_len + page_sz) ) );
 	assert( NULL != (fifo_out = (char *)(uintptr_t)aligned_alloc(line_sz, fifo_out_len + page_sz + line_sz) ) );
 	fifo_out = fifo_out + line_sz; /* leave unused space due to history rounding rules */
-	nx_touch_pages(fifo_out, fifo_out_len, page_sz, 1);		
+	_nx_touch_pages(fifo_out, fifo_out_len, page_sz, 1);
 #endif
 	
 	ddl_in  = &dde_in[0];
@@ -792,15 +791,15 @@ decomp_state:
 		if (history_len > 0) {
 			/* Chain in the history buffer to the DDE list */
 			if ( cur_out >= history_len ) {
-				nx_append_dde(ddl_in, fifo_out + (cur_out - history_len),
+				_nx_append_dde(ddl_in, fifo_out + (cur_out - history_len),
 					      history_len);
 			}
 			else {
-				nx_append_dde(ddl_in, fifo_out + ((fifo_out_len + cur_out) - history_len),
+				_nx_append_dde(ddl_in, fifo_out + ((fifo_out_len + cur_out) - history_len),
 					      history_len - cur_out);
 #ifndef NX_MMAP			
 				/* Up to 32KB history wraps around fifo_out */
-				nx_append_dde(ddl_in, fifo_out, cur_out);
+				_nx_append_dde(ddl_in, fifo_out, cur_out);
 #endif				
 			}
 
@@ -842,10 +841,10 @@ decomp_state:
 #endif
 	
 	if (first_used > 0)
-		nx_append_dde(ddl_in, fifo_in + cur_in, first_used);
+		_nx_append_dde(ddl_in, fifo_in + cur_in, first_used);
 		
 	if (last_used > 0)
-		nx_append_dde(ddl_in, fifo_in, last_used);
+		_nx_append_dde(ddl_in, fifo_in, last_used);
 
 	/*
 	 * NX target buffers
@@ -868,14 +867,14 @@ decomp_state:
 	first_free = NX_MIN(target_max, first_free);
 	if (first_free > 0) {
 		first_offset = fifo_free_first_offset(cur_out, used_out);		
-		nx_append_dde(ddl_out, fifo_out + first_offset, first_free);
+		_nx_append_dde(ddl_out, fifo_out + first_offset, first_free);
 	}
 
 	if (last_free > 0) {
 		last_free = NX_MIN(target_max - first_free, last_free); 
 		if (last_free > 0) {
 			last_offset = fifo_free_last_offset(cur_out, used_out, fifo_out_len);
-			nx_append_dde(ddl_out, fifo_out + last_offset, last_free);
+			_nx_append_dde(ddl_out, fifo_out + last_offset, last_free);
 		}
 	}
 
@@ -931,8 +930,8 @@ restart_nx:
 	NX_CLK( (td.touch1 = nx_get_time()) );	
 	
 	/* fault in pages */
-	nx_touch_pages_dde(ddl_in, 0, page_sz, 0);
-	nx_touch_pages_dde(ddl_out, target_sz_estimate, page_sz, 1);
+	_nx_touch_pages_dde(ddl_in, 0, page_sz, 0);
+	_nx_touch_pages_dde(ddl_out, target_sz_estimate, page_sz, 1);
 
 	NX_CLK( (td.touch2 += (nx_get_time() - td.touch1)) );	
 
@@ -940,7 +939,7 @@ restart_nx:
 	NX_CLK( (td.subc += 1) );
 	
 	/* send job to NX */
-	cc = nx_submit_job(ddl_in, ddl_out, cmdp, devhandle);
+	cc = _nx_submit_job(ddl_in, ddl_out, cmdp, devhandle);
 
 	NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );	
 	
@@ -955,7 +954,7 @@ restart_nx:
 		NX_CLK( (td.faultc += 1) );
 
 		/* Touch 1 byte, read-only  */
-		nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, page_sz, 0);
+		_nx_touch_pages( (void *)cmdp->crb.csb.fsaddr, 1, page_sz, 0);
 
 		if (pgfault_retries == retry_max) {
 			/* try once with exact number of pages */
@@ -1250,7 +1249,7 @@ int main(int argc, char **argv)
 {
     int rc;
     struct sigaction act;
-    void *handle;
+    struct nx_dev_t handle;
 
     act.sa_handler = 0;
     act.sa_sigaction = sigsegv_handler;
@@ -1259,15 +1258,15 @@ int main(int argc, char **argv)
     sigemptyset(&act.sa_mask);
     sigaction(SIGSEGV, &act, NULL);
 
-    handle = nx_function_begin( NX_FUNC_COMP_GZIP, 0);
-    if (!handle) {
+    rc = nx_function_begin( NX_FUNC_COMP_GZIP, 0, &handle);
+    if (rc) {
 	fprintf( stderr, "Unable to init NX, errno %d\n", errno);
 	exit(-1);
     }
 
-    rc = decompress_file(argc, argv, handle);
+    rc = decompress_file(argc, argv, &handle);
 
-    nx_function_end(handle);
+    nx_function_end(&handle);
     
     return rc;
 }

@@ -63,13 +63,15 @@
 #include <signal.h>
 #include "nxu.h"
 #include "nx_dht.h"
-#include "nx.h"
 #include "nx_dbg.h"
+#include "nx_zlib.h"
 
 /* #define SAVE_LZCOUNTS  define only when printing a builtin dht */
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))
+
+#define NX_FUNC_COMP_GZIP 2
 
 /* maximum of 5% of input and the nbyte value is used to sample symbols towards dht statistics */
 #define NX_LZ_SAMPLE_PERCENT  5
@@ -86,7 +88,7 @@ struct _nx_time_dbg {
 } td;
 
 static int compress_dht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
-			       int with_count, nx_gzip_crb_cpb_t *cmdp, void *handle)
+			       int with_count, nx_gzip_crb_cpb_t *cmdp, nx_devp_t handle)
 {
 	int cc;
 	uint32_t fc;
@@ -240,7 +242,7 @@ int append_sync_flush(char *buf, int tebc, int final)
   intended.  Typically set wr=1 for NX target pages and set wr=0 for
   NX source pages.
 */
-static int nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
+static int _nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 {
 	char *begin = buf;
 	char *end = (char *)buf + buf_len - 1;
@@ -279,7 +281,7 @@ static void set_bfinal(void *buf, int bfinal)
 		*b = *b & (unsigned char) 0xfe;
 }
 
-int compress_file(int argc, char **argv, void *handle)
+int compress_file(int argc, char **argv, nx_devp_t handle)
 {
 	char *inbuf, *outbuf, *srcbuf, *dstbuf;
 	char outname[1024];
@@ -307,7 +309,7 @@ int compress_file(int argc, char **argv, void *handle)
 	outlen = 2*inlen + 1024; /* 1024 for header and crap */
 
 	assert(NULL != (outbuf = (char *)malloc(outlen))); /* generous malloc for testing */
-	nx_touch_pages(outbuf, outlen, pagelen, 1);
+	_nx_touch_pages(outbuf, outlen, pagelen, 1);
 
 	NX_CLK( memset(&td, 0, sizeof(td)) );
 	NX_CLK( (td.freq = nx_get_freq())  );
@@ -381,9 +383,9 @@ int compress_file(int argc, char **argv, void *handle)
 		   many pages but would try to estimate the
 		   compression ratio and adjust both the src and dst
 		   touch amounts */
-		nx_touch_pages (cmdp, sizeof(*cmdp), pagelen, 0);
-		nx_touch_pages (srcbuf, srclen, pagelen, 0);
-		nx_touch_pages (dstbuf, dstlen, pagelen, 1);	    
+		_nx_touch_pages (cmdp, sizeof(*cmdp), pagelen, 0);
+		_nx_touch_pages (srcbuf, srclen, pagelen, 0);
+		_nx_touch_pages (dstbuf, dstlen, pagelen, 1);
 
 		NX_CLK( (td.touch2 += (nx_get_time() - td.touch1)) );	
 
@@ -504,10 +506,6 @@ int compress_file(int argc, char **argv, void *handle)
 	return 0;
 }
 
-extern void *nx_fault_storage_address;
-extern void *nx_function_begin(int function, int pri);
-extern int nx_function_end(void *handle);
-
 void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 {
 	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
@@ -522,8 +520,8 @@ int main(int argc, char **argv)
 {
 	int rc;
 	struct sigaction act;
-	void *handle;
-	
+	struct nx_dev_t handle;
+
 	act.sa_handler = 0;
 	act.sa_sigaction = sigsegv_handler;
 	act.sa_flags = SA_SIGINFO;
@@ -531,15 +529,15 @@ int main(int argc, char **argv)
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
 	
-	handle = nx_function_begin(NX_FUNC_COMP_GZIP, 0);
-	if (!handle) {
+	rc = nx_function_begin(NX_FUNC_COMP_GZIP, 0, &handle);
+	if (rc) {
 		fprintf(stderr, "Unable to init NX, errno %d\n", errno);
 		exit(-1);
 	}
 
-	rc = compress_file(argc, argv, handle);
+	rc = compress_file(argc, argv, &handle);
 
-	nx_function_end(handle);
+	nx_function_end(&handle);
 
 	return rc;
 }

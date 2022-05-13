@@ -397,7 +397,7 @@ target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CPPFLAGS = -I$(top_srcdir)/inc_nx
+AM_CPPFLAGS = -I$(top_srcdir)/inc_nx -I$(top_srcdir)/lib
 STATIC_LIBNXZ = ../lib/libnxz.la
 EXTRATESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th \
 	bad_irq_check rand_pfault_check

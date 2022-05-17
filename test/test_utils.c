@@ -27,7 +27,7 @@ static char dict[] = {
 /* Map to convert between a zlib return error code to its string
    equivalent. Should always be used with an index offset of 6.
    E.g. zret2str[ret+6] */
-static const char *zret2str[] = {
+static const char *ret_strings[] = {
 	"Z_VERSION_ERROR",
 	"Z_BUF_ERROR",
 	"Z_MEM_ERROR",
@@ -37,7 +37,15 @@ static const char *zret2str[] = {
 	"Z_OK",
 	"Z_STREAM_END",
 	"Z_NEED_DICT",
+	"UNKNOWN",
 };
+
+const char *zret2str(int retval) {
+	if (retval < -6 || retval > 2)
+		return ret_strings[sizeof(*ret_strings)-1];
+
+	return ret_strings[retval+6];
+}
 
 /* Check the return code of a zlib/libnxz API call with pretty printing */
 void zcheck_internal(int retval, int expected, char* file, int line) {
@@ -48,7 +56,7 @@ void zcheck_internal(int retval, int expected, char* file, int line) {
 	}
 	if (retval != expected) {
 		printf("%s:%d ERROR: Expected %s but got %s\n", file, line,
-			zret2str[expected+6], zret2str[retval+6]);
+			zret2str(expected), zret2str(retval));
 			exit(TEST_ERROR);
 	}
 }

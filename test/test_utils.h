@@ -25,6 +25,7 @@ extern Byte* generate_allocated_random_data(unsigned int len);
 extern void generate_all_data(int len, char digit);
 extern int compare_data(Byte* src, Byte* dest, int len);
 
+extern const char *zret2str(int retval);
 void zcheck_internal(int retval, int expected, char* file, int line);
 #define zcheck(val,exp) zcheck_internal((val),(exp),__FILE__,__LINE__)
 

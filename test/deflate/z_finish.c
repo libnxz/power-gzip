@@ -10,19 +10,22 @@ static int _test_nx_deflatef(Byte* src, unsigned int src_len, Byte* compr,
 {
 	int err;
 	z_stream c_stream;
-	
+	unsigned long bound;
+
 	c_stream.zalloc = zalloc;
 	c_stream.zfree = zfree;
 	c_stream.opaque = (voidpf)0;
-	
+
 	err = nx_deflateInit(&c_stream, Z_DEFAULT_COMPRESSION);
 	if (err != 0) {
 		printf("nx_deflateInit err %d\n", err);
 		return TEST_ERROR;
 	}
-	
+
 	c_stream.next_in  = (z_const unsigned char *)src;
 	c_stream.next_out = compr;
+
+	bound = deflateBound(&c_stream, src_len);
 
 	c_stream.avail_in = src_len;
 	c_stream.avail_out = compr_len;
@@ -30,6 +33,7 @@ static int _test_nx_deflatef(Byte* src, unsigned int src_len, Byte* compr,
 
 	assert(c_stream.total_in == src_len);
 	assert(err == Z_STREAM_END);
+	assert(c_stream.total_out <= bound);
 
 	err = nx_deflateEnd(&c_stream);
 	if (err != 0) {
@@ -108,4 +112,3 @@ int run_case34()
 {
 	return run(1024*1024*20, 1024*1024*20, __func__);
 }
-

@@ -112,6 +112,7 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 {
 	int err;
 	z_stream c_stream;
+	unsigned long bound;
 
 	c_stream.zalloc = zalloc;
 	c_stream.zfree = zfree;
@@ -136,6 +137,8 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	if (time != NULL)
 		gettimeofday(&time->start, NULL);
 
+	bound = deflateBound(&c_stream, src_len);
+
 	while (c_stream.total_in != src_len
 	       && c_stream.total_out < *compr_len) {
 		step = (step < (src_len - c_stream.total_in))
@@ -159,6 +162,8 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 			return TEST_ERROR;
 		}
 	}
+
+	assert(c_stream.total_out <= bound);
 
 	if (time != NULL)
 		gettimeofday(&time->end, NULL);

@@ -183,6 +183,8 @@ struct nx_dev_t {
 	int nx_id;         /* unique */
 	int open_cnt;      /* number of active users */
 	int use_cnt;       /* total number of users */
+	int init_total_credits; /* total number of credits on window creation.
+	                           Meaningful only to PowerVM. */
 	pid_t creator_pid; /* PID of the process that allocated this handle */
 	void *paste_addr;  /* address used to send requests using paste insn */
 	int fd;            /* VAS window file descriptor */

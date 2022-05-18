@@ -462,7 +462,7 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
  */
 int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 {
-	int cc;
+	int ret;
 	uint64_t csbaddr;
 
 	memset( (void *)&cmdp->crb.csb, 0, sizeof(cmdp->crb.csb) );
@@ -484,22 +484,15 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, nx_devp
 		nx_print_dde(dst, "target");
 	}
 
-	cc = nxu_run_job(cmdp, nxhandle);
-
-	/* JVM catching signals work around; if handler didn't touch
-	   faulting address nxu_run_job will spin needlessly until
-	   times out */
-	if (cc) {
-		prt_err("%s:%d job did not complete in allotted time, cc %d\n", __FUNCTION__, __LINE__, cc);
-		cc = ERR_NX_AT_FAULT; /* this will force resubmit */
-		/* return cc; */
-		exit(-1); /* safely exit and let hadoop deal with dead job */
+	ret = nxu_run_job(cmdp, nxhandle);
+	if (ret) {
+		prt_err("%s:%d job did not complete in allotted time, ret %d\n",
+			__FUNCTION__, __LINE__, ret);
+		/* Panic! Don't know what to do */
+		exit(-1);
 	}
 
-	if( !cc )
-		cc = getnn( cmdp->crb.csb, csb_cc );	/* CC Table 6-8 */
-
-	return cc;
+	return getnn(cmdp->crb.csb, csb_cc); /* CC Table 6-8 */
 }
 
 static inline void nx_device_free(nx_devp_t nx_devp) {
@@ -604,6 +597,10 @@ nx_devp_t nx_open(int nx_id)
 	}
 
 success:
+	/* This will help us identify when DLPAR core add/remove operations have
+	   happened */
+	nx_devp->init_total_credits = total_credits;
+
 	if (nx_config.max_vas_reuse_count > 0) {
 		nx_devp->open_cnt = 1;  /* newly allocated nx_devp, so single
 					   user */

@@ -86,6 +86,10 @@
 #define cpu_pri_low()      ((void)(0))
 #endif
 
+/* When receiving consecutive paste failures, wait this number of timebase ticks
+   before checking if VAS window may be suspended. */
+#define SUSPENDED_TIME_THRESHOLD (nx_get_freq() >> 5)
+
 void *nx_fault_storage_address;
 uint64_t tb_freq=0;
 
@@ -119,7 +123,7 @@ static int open_device_nodes(char *devname, int pri, nx_devp_t nxhandle)
 	txattr.vas_id = pri;
 	rc = ioctl(fd, VAS_GZIP_TX_WIN_OPEN, (unsigned long)&txattr);
 	if (rc < 0) {
-		fprintf(stderr, "ioctl() n %d, error %d\n", rc, errno);
+		fprintf(stderr, "ioctl() n %d, error %s\n", rc, strerror(errno));
 		rc = -errno;
 		goto out;
 	}
@@ -167,12 +171,20 @@ int nx_function_end(nx_devp_t nxhandle)
 {
 	int rc = 0;
 
-	rc = munmap(nxhandle->paste_addr - 0x400, 4096);
-	if (rc < 0) {
-		fprintf(stderr, "munmap() failed, errno %d\n", errno);
-		return rc;
+	if (nxhandle->paste_addr != NULL) {
+		rc = munmap(nxhandle->paste_addr - 0x400, 4096);
+		if (rc < 0) {
+			fprintf(stderr, "munmap() failed, errno %d\n", errno);
+			return rc;
+		}
 	}
-	close(nxhandle->fd); /* see issue 164 comment */
+
+	if (nxhandle->fd != 0) {
+		rc = close(nxhandle->fd);
+		if (rc < 0)
+			fprintf(stderr, "close() failed, errno %d\n", errno);
+	}
+
 	return rc;
 }
 
@@ -283,8 +295,10 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 
 int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 {
-	int ret=0, retries=0;
-	uint64_t ticks_total = 0;
+	int ret=0, retries=0, wait_count=0;
+	uint64_t ticks_total = 0, wait_ticks = 0;
+	uint64_t freq = nx_get_freq();
+	int used_credits, total_credits;
 
 	assert(nxhandle != NULL);
 
@@ -319,28 +333,88 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 				return ret;
 			}
 		}
-		else {
-			/* paste has failed; should happen when NX
-			   queue is full or the paste buffer in the
-			   cache was being used
-			*/
-			/* If the NX queue was full, it should complete at
-			   least 2 requests after 50 timebase ticks.
-			   If the system is under very high load, we might see
-			   a couple of failures. In that case, it is a good
-			   idea to sleep this thread in order to give the other
-			   threads/processes CPU time to complete their
-			   execution. */
-			ticks_total = nx_wait_ticks(500, ticks_total, 0);
 
-			if (ticks_total > (timeout_seconds * nx_get_freq()))
-				return -ETIMEDOUT;
+		/* Paste has failed. Can happen for a few reasons:
+		   1. NX queue is full
+		   2. paste buffer in the cache was being used
 
-			++retries;
-			if (retries % 1000 == 0) {
-				prt_err("Paste attempt %d, failed pid= %d\n", retries, getpid());
-			}
+		   These apply exclusively to PowerVM:
+		   3. VAS window suspended after a DLPAR core remove op
+		   4. partition migration is in progress */
+		++retries;
+		if (retries % 1000 == 0) {
+			prt_err("Paste attempt %d, failed pid= %d\n", retries,
+				getpid());
 		}
+
+		/* On PowerVM, the failures may be caused by a suspended window.
+		   Try a few times and then check the number of credits. If the
+		   system is oversubscribed or the number of total credits
+		   reduced from the time the window was created, then our window
+		   may be suspended. There's no way to be sure, so be
+		   pessimistic and assume it is. */
+		if (nx_config.virtualization == POWERVM &&
+		    ticks_total > SUSPENDED_TIME_THRESHOLD &&
+		    !nx_read_credits(&total_credits, &used_credits) &&
+		    (used_credits > total_credits - 1 ||
+		     nxhandle->init_total_credits > total_credits)) {
+
+			/* If our window is suspended, it will remain that way
+			   until more credits are added back, which may never
+			   happen. So try to open a new one. */
+			prt_err("%s:%d window may be suspended. Trying to open a new one\n",
+				__FUNCTION__, __LINE__);
+
+			/* We need to close our window first because the kernel
+			   won't allow new window allocations if any suspended
+			   windows exist. */
+			/* TODO: What if other threads are reusing this handle
+			   when we free it? */
+			(void) nx_function_end(nxhandle);
+			nxhandle->fd = 0;
+			nxhandle->paste_addr = NULL;
+
+			while(1) {
+				ret = nx_function_begin(NX_FUNC_COMP_GZIP, -1,
+							nxhandle);
+				if (!ret)
+					break;
+				/* Backoff for 31 ms, 62 ms, 125 ms and circle
+				   back. */
+				wait_ticks = freq >> (5 - (wait_count % 3));
+				ticks_total = nx_wait_ticks(wait_ticks,
+							    ticks_total, 0);
+				wait_count++;
+
+				if (ticks_total + wait_ticks >
+				    timeout_seconds*freq)
+					return -ETIMEDOUT;
+			}
+
+			/* Update number of total credits  */
+			nx_read_sysfs_entry(SYSFS_VAS_CAPS "nr_total_credits",
+					    &total_credits);
+			nxhandle->init_total_credits = total_credits;
+
+			prt_err("%s:%d Got a new window after %d tries, resuming...\n",
+				__FUNCTION__, __LINE__, wait_count);
+
+			ticks_total = 0;
+			continue;
+		}
+
+		/* If the NX queue was full, it should complete at least 2
+		   requests after 50 timebase ticks. If the system is under very
+		   high load, we might see a couple of failures. In that case,
+		   it is a good idea to sleep this thread in order to give the
+		   other threads/processes CPU time to complete their
+		   execution. */
+		ticks_total = nx_wait_ticks(500, ticks_total, 0);
+
+		if (ticks_total > timeout_seconds*freq)
+			return -ETIMEDOUT;
+
 	}
+
 	return ret;
 }

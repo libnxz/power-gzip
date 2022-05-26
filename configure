@@ -2664,6 +2664,8 @@ ac_config_files="$ac_config_files samples/Makefile"
 
 ac_config_files="$ac_config_files test/Makefile"
 
+ac_config_files="$ac_config_files test/serial-tests/Makefile"
+
 
 ac_config_headers="$ac_config_headers config.h"
 
@@ -18220,6 +18222,7 @@ do
     "oct/Makefile") CONFIG_FILES="$CONFIG_FILES oct/Makefile" ;;
     "samples/Makefile") CONFIG_FILES="$CONFIG_FILES samples/Makefile" ;;
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
+    "test/serial-tests/Makefile") CONFIG_FILES="$CONFIG_FILES test/serial-tests/Makefile" ;;
     "config.h") CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;

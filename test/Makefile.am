@@ -2,6 +2,9 @@ AM_COLOR_TESTS=always
 AM_CFLAGS = -I$(top_srcdir)/lib -I$(top_srcdir)/inc_nx
 LDADD = ../lib/libnxz.la $(PTHREAD_LIBS) -ldl
 
+# The . forces tests in the current directory to run first
+SUBDIRS = . serial-tests
+
 test_scripts = test_abi
 
 test_exe = test_adler32 \

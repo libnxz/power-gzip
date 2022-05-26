@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+test_mode() {
+    executable="$1"
+    name="$2"
+    value="$3"
+    expected_ret=$4
+
+    echo "~> Testing ${name} mode"
+
+    NX_GZIP_TYPE_SELECTOR=$value $executable
+    if [ $? -ne $expected_ret ]; then
+	echo "  Failed! Expected ${expected_ret} but got $?"
+	exit 1
+    fi
+
+    # Wait some time to until all secondary process finish
+    sleep 2
+    echo
+}
+
+# The credit system is only used by PowerVM. So skip otherwise.
+if [ ! -f "/sys/firmware/devicetree/base/ibm,powervm-partition" ]; then
+    echo "Not on PowerVM. Skipping."
+    exit 77
+fi
+
+echo "=== Testing zlib API ==="
+# Return code 0 means no failures should occur
+test_mode ./exhaust_credits "AUTO" 0 0
+
+# Return code 1 means the number of used should not be N-1
+test_mode ./exhaust_credits "SW" 1 1
+
+# Return code 18 means deflateInit and inflateInit should fail
+test_mode ./exhaust_credits "NX" 2 18
+
+# Return code 2 means only deflateInit should fail
+test_mode ./exhaust_credits "MIX2" 4 2
+
+echo "=== Testing libnxz API ==="
+
+# deflateInit and inflateInit should fail for all cases (ret = 18), except for SW
+test_mode ./exhaust_credits_nx "AUTO" 0 18
+test_mode ./exhaust_credits_nx "SW" 1 1
+test_mode ./exhaust_credits_nx "NX" 2 18
+test_mode ./exhaust_credits_nx "MIX2" 4 18

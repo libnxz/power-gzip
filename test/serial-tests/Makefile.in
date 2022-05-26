@@ -88,11 +88,8 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-TESTS = $(am__EXEEXT_1) $(test_scripts) $(am__EXEEXT_4) \
-	$(am__EXEEXT_5) $(am__EXEEXT_6) $(am__EXEEXT_7) \
-	$(am__EXEEXT_8) test_zeroinput.nx
-check_PROGRAMS = $(am__EXEEXT_1) $(am__EXEEXT_2) $(am__EXEEXT_3)
-subdir = test
+check_PROGRAMS = exhaust_credits$(EXEEXT) exhaust_credits_nx$(EXEEXT)
+subdir = test/serial-tests
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_check_compile_flag.m4 \
 	$(top_srcdir)/m4/ax_pthread.m4 \
@@ -107,77 +104,26 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-am__EXEEXT_1 = test_adler32$(EXEEXT) test_buf_error$(EXEEXT) \
-	test_crc32$(EXEEXT) test_inflatesyncpoint$(EXEEXT) \
-	test_multithread_stress$(EXEEXT) test_pid_reuse$(EXEEXT)
-am__EXEEXT_2 = test_stress$(EXEEXT) test_deflate$(EXEEXT) \
-	test_inflate$(EXEEXT) test_dict$(EXEEXT) test_gz$(EXEEXT)
-am__EXEEXT_3 = test_zeroinput$(EXEEXT)
-am_test_adler32_OBJECTS = test_adler32.$(OBJEXT)
-test_adler32_OBJECTS = $(am_test_adler32_OBJECTS)
-test_adler32_LDADD = $(LDADD)
+am__dirstamp = $(am__leading_dot)dirstamp
+am_exhaust_credits_OBJECTS = exhaust_credits.$(OBJEXT) \
+	credit_utils.$(OBJEXT) ../test_utils.$(OBJEXT)
+exhaust_credits_OBJECTS = $(am_exhaust_credits_OBJECTS)
+exhaust_credits_LDADD = $(LDADD)
 am__DEPENDENCIES_1 =
-test_adler32_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
+exhaust_credits_DEPENDENCIES = ../../lib/libnxz.la \
+	$(am__DEPENDENCIES_1)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-am_test_buf_error_OBJECTS = test_buf_error.$(OBJEXT) \
-	test_utils.$(OBJEXT)
-test_buf_error_OBJECTS = $(am_test_buf_error_OBJECTS)
-test_buf_error_LDADD = $(LDADD)
-test_buf_error_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am_test_crc32_OBJECTS = test_crc32.$(OBJEXT)
-test_crc32_OBJECTS = $(am_test_crc32_OBJECTS)
-test_crc32_LDADD = $(LDADD)
-test_crc32_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am__dirstamp = $(am__leading_dot)dirstamp
-am_test_deflate_OBJECTS = test_deflate.$(OBJEXT) test_utils.$(OBJEXT) \
-	deflate/0.$(OBJEXT) deflate/compress.$(OBJEXT) \
-	deflate/hello.$(OBJEXT) deflate/perf.$(OBJEXT) \
-	deflate/random_buffer.$(OBJEXT) deflate/z_finish.$(OBJEXT)
-test_deflate_OBJECTS = $(am_test_deflate_OBJECTS)
-test_deflate_LDADD = $(LDADD)
-test_deflate_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am_test_dict_OBJECTS = test_dict.$(OBJEXT) test_utils.$(OBJEXT)
-test_dict_OBJECTS = $(am_test_dict_OBJECTS)
-test_dict_LDADD = $(LDADD)
-test_dict_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am_test_gz_OBJECTS = test_gz.$(OBJEXT) test_utils.$(OBJEXT)
-test_gz_OBJECTS = $(am_test_gz_OBJECTS)
-test_gz_LDADD = $(LDADD)
-test_gz_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am_test_inflate_OBJECTS = test_inflate.$(OBJEXT) test_utils.$(OBJEXT) \
-	inflate/random_buffer.$(OBJEXT)
-test_inflate_OBJECTS = $(am_test_inflate_OBJECTS)
-test_inflate_LDADD = $(LDADD)
-test_inflate_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am_test_inflatesyncpoint_OBJECTS = test_inflatesyncpoint.$(OBJEXT) \
-	test_utils.$(OBJEXT)
-test_inflatesyncpoint_OBJECTS = $(am_test_inflatesyncpoint_OBJECTS)
-test_inflatesyncpoint_LDADD = $(LDADD)
-test_inflatesyncpoint_DEPENDENCIES = ../lib/libnxz.la \
+am_exhaust_credits_nx_OBJECTS =  \
+	exhaust_credits_nx-exhaust_credits.$(OBJEXT) \
+	exhaust_credits_nx-credit_utils.$(OBJEXT) \
+	../exhaust_credits_nx-test_utils.$(OBJEXT)
+exhaust_credits_nx_OBJECTS = $(am_exhaust_credits_nx_OBJECTS)
+exhaust_credits_nx_LDADD = $(LDADD)
+exhaust_credits_nx_DEPENDENCIES = ../../lib/libnxz.la \
 	$(am__DEPENDENCIES_1)
-am_test_multithread_stress_OBJECTS =  \
-	test_multithread_stress.$(OBJEXT)
-test_multithread_stress_OBJECTS =  \
-	$(am_test_multithread_stress_OBJECTS)
-test_multithread_stress_LDADD = $(LDADD)
-test_multithread_stress_DEPENDENCIES = ../lib/libnxz.la \
-	$(am__DEPENDENCIES_1)
-am_test_pid_reuse_OBJECTS = test_pid_reuse.$(OBJEXT)
-test_pid_reuse_OBJECTS = $(am_test_pid_reuse_OBJECTS)
-test_pid_reuse_LDADD = $(LDADD)
-test_pid_reuse_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am_test_stress_OBJECTS = test_stress.$(OBJEXT) test_utils.$(OBJEXT)
-test_stress_OBJECTS = $(am_test_stress_OBJECTS)
-test_stress_LDADD = $(LDADD)
-test_stress_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am_test_zeroinput_OBJECTS = test_zeroinput.$(OBJEXT) \
-	test_utils.$(OBJEXT)
-test_zeroinput_OBJECTS = $(am_test_zeroinput_OBJECTS)
-test_zeroinput_LDADD = $(LDADD)
-test_zeroinput_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -193,19 +139,11 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/test_adler32.Po \
-	./$(DEPDIR)/test_buf_error.Po ./$(DEPDIR)/test_crc32.Po \
-	./$(DEPDIR)/test_deflate.Po ./$(DEPDIR)/test_dict.Po \
-	./$(DEPDIR)/test_gz.Po ./$(DEPDIR)/test_inflate.Po \
-	./$(DEPDIR)/test_inflatesyncpoint.Po \
-	./$(DEPDIR)/test_multithread_stress.Po \
-	./$(DEPDIR)/test_pid_reuse.Po ./$(DEPDIR)/test_stress.Po \
-	./$(DEPDIR)/test_utils.Po ./$(DEPDIR)/test_zeroinput.Po \
-	deflate/$(DEPDIR)/0.Po deflate/$(DEPDIR)/compress.Po \
-	deflate/$(DEPDIR)/hello.Po deflate/$(DEPDIR)/perf.Po \
-	deflate/$(DEPDIR)/random_buffer.Po \
-	deflate/$(DEPDIR)/z_finish.Po \
-	inflate/$(DEPDIR)/random_buffer.Po
+am__depfiles_remade = ../$(DEPDIR)/exhaust_credits_nx-test_utils.Po \
+	../$(DEPDIR)/test_utils.Po ./$(DEPDIR)/credit_utils.Po \
+	./$(DEPDIR)/exhaust_credits.Po \
+	./$(DEPDIR)/exhaust_credits_nx-credit_utils.Po \
+	./$(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -225,39 +163,14 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(test_adler32_SOURCES) $(test_buf_error_SOURCES) \
-	$(test_crc32_SOURCES) $(test_deflate_SOURCES) \
-	$(test_dict_SOURCES) $(test_gz_SOURCES) \
-	$(test_inflate_SOURCES) $(test_inflatesyncpoint_SOURCES) \
-	$(test_multithread_stress_SOURCES) $(test_pid_reuse_SOURCES) \
-	$(test_stress_SOURCES) $(test_zeroinput_SOURCES)
-DIST_SOURCES = $(test_adler32_SOURCES) $(test_buf_error_SOURCES) \
-	$(test_crc32_SOURCES) $(test_deflate_SOURCES) \
-	$(test_dict_SOURCES) $(test_gz_SOURCES) \
-	$(test_inflate_SOURCES) $(test_inflatesyncpoint_SOURCES) \
-	$(test_multithread_stress_SOURCES) $(test_pid_reuse_SOURCES) \
-	$(test_stress_SOURCES) $(test_zeroinput_SOURCES)
-RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
-	ctags-recursive dvi-recursive html-recursive info-recursive \
-	install-data-recursive install-dvi-recursive \
-	install-exec-recursive install-html-recursive \
-	install-info-recursive install-pdf-recursive \
-	install-ps-recursive install-recursive installcheck-recursive \
-	installdirs-recursive pdf-recursive ps-recursive \
-	tags-recursive uninstall-recursive
+SOURCES = $(exhaust_credits_SOURCES) $(exhaust_credits_nx_SOURCES)
+DIST_SOURCES = $(exhaust_credits_SOURCES) \
+	$(exhaust_credits_nx_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
-RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
-  distclean-recursive maintainer-clean-recursive
-am__recursive_targets = \
-  $(RECURSIVE_TARGETS) \
-  $(RECURSIVE_CLEAN_TARGETS) \
-  $(am__extra_recursive_targets)
-AM_RECURSIVE_TARGETS = $(am__recursive_targets:-recursive=) TAGS CTAGS \
-	check recheck distdir distdir-am
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -460,16 +373,7 @@ am__set_TESTS_bases = \
   bases=`for i in $$bases; do echo $$i; done | sed 's/\.log$$//'`; \
   bases=`echo $$bases`
 RECHECK_LOGS = $(TEST_LOGS)
-am__EXEEXT_4 = test_stress.auto test_deflate.auto test_inflate.auto \
-	test_dict.auto test_gz.auto
-am__EXEEXT_5 = test_stress.sw test_deflate.sw test_inflate.sw \
-	test_dict.sw test_gz.sw
-am__EXEEXT_6 = test_stress.nx test_deflate.nx test_inflate.nx \
-	test_dict.nx test_gz.nx
-am__EXEEXT_7 = test_stress.mix test_deflate.mix test_inflate.mix \
-	test_dict.mix test_gz.mix
-am__EXEEXT_8 = test_stress.mix2 test_deflate.mix2 test_inflate.mix2 \
-	test_dict.mix2 test_gz.mix2
+AM_RECURSIVE_TARGETS = check recheck
 TEST_SUITE_LOG = test-suite.log
 TEST_EXTENSIONS = @EXEEXT@ .test
 LOG_DRIVER = $(SHELL) $(top_srcdir)/test-driver
@@ -490,35 +394,9 @@ TEST_LOGS = $(am__test_logs2:.test.log=.log)
 TEST_LOG_DRIVER = $(SHELL) $(top_srcdir)/test-driver
 TEST_LOG_COMPILE = $(TEST_LOG_COMPILER) $(AM_TEST_LOG_FLAGS) \
 	$(TEST_LOG_FLAGS)
-DIST_SUBDIRS = $(SUBDIRS)
 am__DIST_COMMON = $(srcdir)/Makefile.in $(top_srcdir)/depcomp \
 	$(top_srcdir)/test-driver
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
-am__relativize = \
-  dir0=`pwd`; \
-  sed_first='s,^\([^/]*\)/.*$$,\1,'; \
-  sed_rest='s,^[^/]*/*,,'; \
-  sed_last='s,^.*/\([^/]*\)$$,\1,'; \
-  sed_butlast='s,/*[^/]*$$,,'; \
-  while test -n "$$dir1"; do \
-    first=`echo "$$dir1" | sed -e "$$sed_first"`; \
-    if test "$$first" != "."; then \
-      if test "$$first" = ".."; then \
-        dir2=`echo "$$dir0" | sed -e "$$sed_last"`/"$$dir2"; \
-        dir0=`echo "$$dir0" | sed -e "$$sed_butlast"`; \
-      else \
-        first2=`echo "$$dir2" | sed -e "$$sed_first"`; \
-        if test "$$first2" = "$$first"; then \
-          dir2=`echo "$$dir2" | sed -e "$$sed_rest"`; \
-        else \
-          dir2="../$$dir2"; \
-        fi; \
-        dir0="$$dir0"/"$$first"; \
-      fi; \
-    fi; \
-    dir1=`echo "$$dir1" | sed -e "$$sed_rest"`; \
-  done; \
-  reldir="$$dir2"
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
@@ -669,49 +547,13 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_COLOR_TESTS = always
-AM_CFLAGS = -I$(top_srcdir)/lib -I$(top_srcdir)/inc_nx
-LDADD = ../lib/libnxz.la $(PTHREAD_LIBS) -ldl
-
-# The . forces tests in the current directory to run first
-SUBDIRS = . serial-tests
-test_scripts = test_abi
-test_exe = test_adler32 \
-	   test_buf_error \
-	   test_crc32 \
-	   test_inflatesyncpoint \
-	   test_multithread_stress \
-	   test_pid_reuse
-
-selector_tests = test_stress test_deflate test_inflate test_dict test_gz
-other_tests = test_zeroinput
-check_SCRIPTS = $(test_scripts)
-test_adler32_SOURCES = test_adler32.c
-test_buf_error_SOURCES = test_buf_error.c test_utils.c
-test_crc32_SOURCES = test_crc32.c
-test_deflate_SOURCES = test_deflate.c \
-		       test_utils.c \
-		       deflate/0.c \
-		       deflate/compress.c \
-		       deflate/hello.c \
-		       deflate/perf.c \
-		       deflate/random_buffer.c \
-		       deflate/z_finish.c
-
-test_inflate_SOURCES = test_inflate.c \
-		       test_utils.c \
-		       inflate/random_buffer.c
-
-test_inflatesyncpoint_SOURCES = test_inflatesyncpoint.c test_utils.c
-test_multithread_stress_SOURCES = test_multithread_stress.c
-test_pid_reuse_SOURCES = test_pid_reuse.c
-test_stress_SOURCES = test_stress.c test_utils.c
-test_zeroinput_SOURCES = test_zeroinput.c test_utils.c
-test_dict_SOURCES = test_dict.c test_utils.c
-test_gz_SOURCES = test_gz.c test_utils.c
-ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
-	      --no-comp-dir-path --no-show-locs --type-id-style hash
-
-all: all-recursive
+AM_CFLAGS = -I$(top_srcdir)/lib -I$(top_srcdir)/inc_nx -I$(top_srcdir)/test
+LDADD = ../../lib/libnxz.la $(PTHREAD_LIBS) -ldl
+TESTS = test_exhaust_credits
+exhaust_credits_SOURCES = exhaust_credits.c credit_utils.c ../test_utils.c
+exhaust_credits_nx_SOURCES = exhaust_credits.c credit_utils.c ../test_utils.c
+exhaust_credits_nx_CPPFLAGS = -DWITHPREFIX
+all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .c .lo .log .o .obj .test .test$(EXEEXT) .trs
@@ -724,9 +566,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__confi
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign test/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign test/serial-tests/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign test/Makefile
+	  $(AUTOMAKE) --foreign test/serial-tests/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -753,109 +595,38 @@ clean-checkPROGRAMS:
 	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
 	echo " rm -f" $$list; \
 	rm -f $$list
+../$(am__dirstamp):
+	@$(MKDIR_P) ..
+	@: > ../$(am__dirstamp)
+../$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) ../$(DEPDIR)
+	@: > ../$(DEPDIR)/$(am__dirstamp)
+../test_utils.$(OBJEXT): ../$(am__dirstamp) \
+	../$(DEPDIR)/$(am__dirstamp)
 
-test_adler32$(EXEEXT): $(test_adler32_OBJECTS) $(test_adler32_DEPENDENCIES) $(EXTRA_test_adler32_DEPENDENCIES) 
-	@rm -f test_adler32$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_adler32_OBJECTS) $(test_adler32_LDADD) $(LIBS)
+exhaust_credits$(EXEEXT): $(exhaust_credits_OBJECTS) $(exhaust_credits_DEPENDENCIES) $(EXTRA_exhaust_credits_DEPENDENCIES) 
+	@rm -f exhaust_credits$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(exhaust_credits_OBJECTS) $(exhaust_credits_LDADD) $(LIBS)
+../exhaust_credits_nx-test_utils.$(OBJEXT): ../$(am__dirstamp) \
+	../$(DEPDIR)/$(am__dirstamp)
 
-test_buf_error$(EXEEXT): $(test_buf_error_OBJECTS) $(test_buf_error_DEPENDENCIES) $(EXTRA_test_buf_error_DEPENDENCIES) 
-	@rm -f test_buf_error$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_buf_error_OBJECTS) $(test_buf_error_LDADD) $(LIBS)
-
-test_crc32$(EXEEXT): $(test_crc32_OBJECTS) $(test_crc32_DEPENDENCIES) $(EXTRA_test_crc32_DEPENDENCIES) 
-	@rm -f test_crc32$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_crc32_OBJECTS) $(test_crc32_LDADD) $(LIBS)
-deflate/$(am__dirstamp):
-	@$(MKDIR_P) deflate
-	@: > deflate/$(am__dirstamp)
-deflate/$(DEPDIR)/$(am__dirstamp):
-	@$(MKDIR_P) deflate/$(DEPDIR)
-	@: > deflate/$(DEPDIR)/$(am__dirstamp)
-deflate/0.$(OBJEXT): deflate/$(am__dirstamp) \
-	deflate/$(DEPDIR)/$(am__dirstamp)
-deflate/compress.$(OBJEXT): deflate/$(am__dirstamp) \
-	deflate/$(DEPDIR)/$(am__dirstamp)
-deflate/hello.$(OBJEXT): deflate/$(am__dirstamp) \
-	deflate/$(DEPDIR)/$(am__dirstamp)
-deflate/perf.$(OBJEXT): deflate/$(am__dirstamp) \
-	deflate/$(DEPDIR)/$(am__dirstamp)
-deflate/random_buffer.$(OBJEXT): deflate/$(am__dirstamp) \
-	deflate/$(DEPDIR)/$(am__dirstamp)
-deflate/z_finish.$(OBJEXT): deflate/$(am__dirstamp) \
-	deflate/$(DEPDIR)/$(am__dirstamp)
-
-test_deflate$(EXEEXT): $(test_deflate_OBJECTS) $(test_deflate_DEPENDENCIES) $(EXTRA_test_deflate_DEPENDENCIES) 
-	@rm -f test_deflate$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_deflate_OBJECTS) $(test_deflate_LDADD) $(LIBS)
-
-test_dict$(EXEEXT): $(test_dict_OBJECTS) $(test_dict_DEPENDENCIES) $(EXTRA_test_dict_DEPENDENCIES) 
-	@rm -f test_dict$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_dict_OBJECTS) $(test_dict_LDADD) $(LIBS)
-
-test_gz$(EXEEXT): $(test_gz_OBJECTS) $(test_gz_DEPENDENCIES) $(EXTRA_test_gz_DEPENDENCIES) 
-	@rm -f test_gz$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_gz_OBJECTS) $(test_gz_LDADD) $(LIBS)
-inflate/$(am__dirstamp):
-	@$(MKDIR_P) inflate
-	@: > inflate/$(am__dirstamp)
-inflate/$(DEPDIR)/$(am__dirstamp):
-	@$(MKDIR_P) inflate/$(DEPDIR)
-	@: > inflate/$(DEPDIR)/$(am__dirstamp)
-inflate/random_buffer.$(OBJEXT): inflate/$(am__dirstamp) \
-	inflate/$(DEPDIR)/$(am__dirstamp)
-
-test_inflate$(EXEEXT): $(test_inflate_OBJECTS) $(test_inflate_DEPENDENCIES) $(EXTRA_test_inflate_DEPENDENCIES) 
-	@rm -f test_inflate$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_inflate_OBJECTS) $(test_inflate_LDADD) $(LIBS)
-
-test_inflatesyncpoint$(EXEEXT): $(test_inflatesyncpoint_OBJECTS) $(test_inflatesyncpoint_DEPENDENCIES) $(EXTRA_test_inflatesyncpoint_DEPENDENCIES) 
-	@rm -f test_inflatesyncpoint$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_inflatesyncpoint_OBJECTS) $(test_inflatesyncpoint_LDADD) $(LIBS)
-
-test_multithread_stress$(EXEEXT): $(test_multithread_stress_OBJECTS) $(test_multithread_stress_DEPENDENCIES) $(EXTRA_test_multithread_stress_DEPENDENCIES) 
-	@rm -f test_multithread_stress$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_multithread_stress_OBJECTS) $(test_multithread_stress_LDADD) $(LIBS)
-
-test_pid_reuse$(EXEEXT): $(test_pid_reuse_OBJECTS) $(test_pid_reuse_DEPENDENCIES) $(EXTRA_test_pid_reuse_DEPENDENCIES) 
-	@rm -f test_pid_reuse$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_pid_reuse_OBJECTS) $(test_pid_reuse_LDADD) $(LIBS)
-
-test_stress$(EXEEXT): $(test_stress_OBJECTS) $(test_stress_DEPENDENCIES) $(EXTRA_test_stress_DEPENDENCIES) 
-	@rm -f test_stress$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_stress_OBJECTS) $(test_stress_LDADD) $(LIBS)
-
-test_zeroinput$(EXEEXT): $(test_zeroinput_OBJECTS) $(test_zeroinput_DEPENDENCIES) $(EXTRA_test_zeroinput_DEPENDENCIES) 
-	@rm -f test_zeroinput$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(test_zeroinput_OBJECTS) $(test_zeroinput_LDADD) $(LIBS)
+exhaust_credits_nx$(EXEEXT): $(exhaust_credits_nx_OBJECTS) $(exhaust_credits_nx_DEPENDENCIES) $(EXTRA_exhaust_credits_nx_DEPENDENCIES) 
+	@rm -f exhaust_credits_nx$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(exhaust_credits_nx_OBJECTS) $(exhaust_credits_nx_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
-	-rm -f deflate/*.$(OBJEXT)
-	-rm -f inflate/*.$(OBJEXT)
+	-rm -f ../*.$(OBJEXT)
 
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_adler32.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_buf_error.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_crc32.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_deflate.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_dict.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_gz.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_inflate.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_inflatesyncpoint.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_multithread_stress.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_pid_reuse.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_stress.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_utils.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_zeroinput.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@deflate/$(DEPDIR)/0.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@deflate/$(DEPDIR)/compress.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@deflate/$(DEPDIR)/hello.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@deflate/$(DEPDIR)/perf.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@deflate/$(DEPDIR)/random_buffer.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@deflate/$(DEPDIR)/z_finish.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@inflate/$(DEPDIR)/random_buffer.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@../$(DEPDIR)/exhaust_credits_nx-test_utils.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@../$(DEPDIR)/test_utils.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/credit_utils.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/exhaust_credits.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/exhaust_credits_nx-credit_utils.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -887,67 +658,62 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
 
+exhaust_credits_nx-exhaust_credits.o: exhaust_credits.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT exhaust_credits_nx-exhaust_credits.o -MD -MP -MF $(DEPDIR)/exhaust_credits_nx-exhaust_credits.Tpo -c -o exhaust_credits_nx-exhaust_credits.o `test -f 'exhaust_credits.c' || echo '$(srcdir)/'`exhaust_credits.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/exhaust_credits_nx-exhaust_credits.Tpo $(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='exhaust_credits.c' object='exhaust_credits_nx-exhaust_credits.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o exhaust_credits_nx-exhaust_credits.o `test -f 'exhaust_credits.c' || echo '$(srcdir)/'`exhaust_credits.c
+
+exhaust_credits_nx-exhaust_credits.obj: exhaust_credits.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT exhaust_credits_nx-exhaust_credits.obj -MD -MP -MF $(DEPDIR)/exhaust_credits_nx-exhaust_credits.Tpo -c -o exhaust_credits_nx-exhaust_credits.obj `if test -f 'exhaust_credits.c'; then $(CYGPATH_W) 'exhaust_credits.c'; else $(CYGPATH_W) '$(srcdir)/exhaust_credits.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/exhaust_credits_nx-exhaust_credits.Tpo $(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='exhaust_credits.c' object='exhaust_credits_nx-exhaust_credits.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o exhaust_credits_nx-exhaust_credits.obj `if test -f 'exhaust_credits.c'; then $(CYGPATH_W) 'exhaust_credits.c'; else $(CYGPATH_W) '$(srcdir)/exhaust_credits.c'; fi`
+
+exhaust_credits_nx-credit_utils.o: credit_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT exhaust_credits_nx-credit_utils.o -MD -MP -MF $(DEPDIR)/exhaust_credits_nx-credit_utils.Tpo -c -o exhaust_credits_nx-credit_utils.o `test -f 'credit_utils.c' || echo '$(srcdir)/'`credit_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/exhaust_credits_nx-credit_utils.Tpo $(DEPDIR)/exhaust_credits_nx-credit_utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='credit_utils.c' object='exhaust_credits_nx-credit_utils.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o exhaust_credits_nx-credit_utils.o `test -f 'credit_utils.c' || echo '$(srcdir)/'`credit_utils.c
+
+exhaust_credits_nx-credit_utils.obj: credit_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT exhaust_credits_nx-credit_utils.obj -MD -MP -MF $(DEPDIR)/exhaust_credits_nx-credit_utils.Tpo -c -o exhaust_credits_nx-credit_utils.obj `if test -f 'credit_utils.c'; then $(CYGPATH_W) 'credit_utils.c'; else $(CYGPATH_W) '$(srcdir)/credit_utils.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/exhaust_credits_nx-credit_utils.Tpo $(DEPDIR)/exhaust_credits_nx-credit_utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='credit_utils.c' object='exhaust_credits_nx-credit_utils.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o exhaust_credits_nx-credit_utils.obj `if test -f 'credit_utils.c'; then $(CYGPATH_W) 'credit_utils.c'; else $(CYGPATH_W) '$(srcdir)/credit_utils.c'; fi`
+
+../exhaust_credits_nx-test_utils.o: ../test_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ../exhaust_credits_nx-test_utils.o -MD -MP -MF ../$(DEPDIR)/exhaust_credits_nx-test_utils.Tpo -c -o ../exhaust_credits_nx-test_utils.o `test -f '../test_utils.c' || echo '$(srcdir)/'`../test_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ../$(DEPDIR)/exhaust_credits_nx-test_utils.Tpo ../$(DEPDIR)/exhaust_credits_nx-test_utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='../test_utils.c' object='../exhaust_credits_nx-test_utils.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ../exhaust_credits_nx-test_utils.o `test -f '../test_utils.c' || echo '$(srcdir)/'`../test_utils.c
+
+../exhaust_credits_nx-test_utils.obj: ../test_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ../exhaust_credits_nx-test_utils.obj -MD -MP -MF ../$(DEPDIR)/exhaust_credits_nx-test_utils.Tpo -c -o ../exhaust_credits_nx-test_utils.obj `if test -f '../test_utils.c'; then $(CYGPATH_W) '../test_utils.c'; else $(CYGPATH_W) '$(srcdir)/../test_utils.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ../$(DEPDIR)/exhaust_credits_nx-test_utils.Tpo ../$(DEPDIR)/exhaust_credits_nx-test_utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='../test_utils.c' object='../exhaust_credits_nx-test_utils.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(exhaust_credits_nx_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ../exhaust_credits_nx-test_utils.obj `if test -f '../test_utils.c'; then $(CYGPATH_W) '../test_utils.c'; else $(CYGPATH_W) '$(srcdir)/../test_utils.c'; fi`
+
 mostlyclean-libtool:
 	-rm -f *.lo
 
 clean-libtool:
 	-rm -rf .libs _libs
 
-# This directory's subdirectories are mostly independent; you can cd
-# into them and run 'make' without going through this Makefile.
-# To change the values of 'make' variables: instead of editing Makefiles,
-# (1) if the variable is set in 'config.status', edit 'config.status'
-#     (which will cause the Makefiles to be regenerated when you run 'make');
-# (2) otherwise, pass the desired values on the 'make' command line.
-$(am__recursive_targets):
-	@fail=; \
-	if $(am__make_keepgoing); then \
-	  failcom='fail=yes'; \
-	else \
-	  failcom='exit 1'; \
-	fi; \
-	dot_seen=no; \
-	target=`echo $@ | sed s/-recursive//`; \
-	case "$@" in \
-	  distclean-* | maintainer-clean-*) list='$(DIST_SUBDIRS)' ;; \
-	  *) list='$(SUBDIRS)' ;; \
-	esac; \
-	for subdir in $$list; do \
-	  echo "Making $$target in $$subdir"; \
-	  if test "$$subdir" = "."; then \
-	    dot_seen=yes; \
-	    local_target="$$target-am"; \
-	  else \
-	    local_target="$$target"; \
-	  fi; \
-	  ($(am__cd) $$subdir && $(MAKE) $(AM_MAKEFLAGS) $$local_target) \
-	  || eval $$failcom; \
-	done; \
-	if test "$$dot_seen" = "no"; then \
-	  $(MAKE) $(AM_MAKEFLAGS) "$$target-am" || exit 1; \
-	fi; test -z "$$fail"
-
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
-tags: tags-recursive
+tags: tags-am
 TAGS: tags
 
 tags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
 	set x; \
 	here=`pwd`; \
-	if ($(ETAGS) --etags-include --version) >/dev/null 2>&1; then \
-	  include_option=--etags-include; \
-	  empty_fix=.; \
-	else \
-	  include_option=--include; \
-	  empty_fix=; \
-	fi; \
-	list='$(SUBDIRS)'; for subdir in $$list; do \
-	  if test "$$subdir" = .; then :; else \
-	    test ! -f $$subdir/TAGS || \
-	      set "$$@" "$$include_option=$$here/$$subdir/TAGS"; \
-	  fi; \
-	done; \
 	$(am__define_uniq_tagged_files); \
 	shift; \
 	if test -z "$(ETAGS_ARGS)$$*$$unique"; then :; else \
@@ -960,7 +726,7 @@ tags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
 	      $$unique; \
 	  fi; \
 	fi
-ctags: ctags-recursive
+ctags: ctags-am
 
 CTAGS: ctags
 ctags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
@@ -973,7 +739,7 @@ GTAGS:
 	here=`$(am__cd) $(top_builddir) && pwd` \
 	  && $(am__cd) $(top_srcdir) \
 	  && gtags -i $(GTAGS_ARGS) "$$here"
-cscopelist: cscopelist-recursive
+cscopelist: cscopelist-am
 
 cscopelist-am: $(am__tagged_files)
 	list='$(am__tagged_files)'; \
@@ -1112,7 +878,7 @@ $(TEST_SUITE_LOG): $(TEST_LOGS)
 	fi;								\
 	$$success || exit 1
 
-check-TESTS: $(check_PROGRAMS) $(check_SCRIPTS)
+check-TESTS: $(check_PROGRAMS)
 	@list='$(RECHECK_LOGS)';           test -z "$$list" || rm -f $$list
 	@list='$(RECHECK_LOGS:.log=.trs)'; test -z "$$list" || rm -f $$list
 	@test -z "$(TEST_SUITE_LOG)" || rm -f $(TEST_SUITE_LOG)
@@ -1122,7 +888,7 @@ check-TESTS: $(check_PROGRAMS) $(check_SCRIPTS)
 	log_list=`echo $$log_list`; trs_list=`echo $$trs_list`; \
 	$(MAKE) $(AM_MAKEFLAGS) $(TEST_SUITE_LOG) TEST_LOGS="$$log_list"; \
 	exit $$?;
-recheck: all $(check_PROGRAMS) $(check_SCRIPTS)
+recheck: all $(check_PROGRAMS)
 	@test -z "$(TEST_SUITE_LOG)" || rm -f $(TEST_SUITE_LOG)
 	@set +e; $(am__set_TESTS_bases); \
 	bases=`for i in $$bases; do echo $$i; done \
@@ -1133,233 +899,9 @@ recheck: all $(check_PROGRAMS) $(check_SCRIPTS)
 	        am__force_recheck=am--force-recheck \
 	        TEST_LOGS="$$log_list"; \
 	exit $$?
-test_adler32.log: test_adler32$(EXEEXT)
-	@p='test_adler32$(EXEEXT)'; \
-	b='test_adler32'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_buf_error.log: test_buf_error$(EXEEXT)
-	@p='test_buf_error$(EXEEXT)'; \
-	b='test_buf_error'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_crc32.log: test_crc32$(EXEEXT)
-	@p='test_crc32$(EXEEXT)'; \
-	b='test_crc32'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_inflatesyncpoint.log: test_inflatesyncpoint$(EXEEXT)
-	@p='test_inflatesyncpoint$(EXEEXT)'; \
-	b='test_inflatesyncpoint'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_multithread_stress.log: test_multithread_stress$(EXEEXT)
-	@p='test_multithread_stress$(EXEEXT)'; \
-	b='test_multithread_stress'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_pid_reuse.log: test_pid_reuse$(EXEEXT)
-	@p='test_pid_reuse$(EXEEXT)'; \
-	b='test_pid_reuse'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_abi.log: test_abi
-	@p='test_abi'; \
-	b='test_abi'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_stress.auto.log: test_stress.auto
-	@p='test_stress.auto'; \
-	b='test_stress.auto'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_deflate.auto.log: test_deflate.auto
-	@p='test_deflate.auto'; \
-	b='test_deflate.auto'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_inflate.auto.log: test_inflate.auto
-	@p='test_inflate.auto'; \
-	b='test_inflate.auto'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_dict.auto.log: test_dict.auto
-	@p='test_dict.auto'; \
-	b='test_dict.auto'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_gz.auto.log: test_gz.auto
-	@p='test_gz.auto'; \
-	b='test_gz.auto'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_stress.sw.log: test_stress.sw
-	@p='test_stress.sw'; \
-	b='test_stress.sw'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_deflate.sw.log: test_deflate.sw
-	@p='test_deflate.sw'; \
-	b='test_deflate.sw'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_inflate.sw.log: test_inflate.sw
-	@p='test_inflate.sw'; \
-	b='test_inflate.sw'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_dict.sw.log: test_dict.sw
-	@p='test_dict.sw'; \
-	b='test_dict.sw'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_gz.sw.log: test_gz.sw
-	@p='test_gz.sw'; \
-	b='test_gz.sw'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_stress.nx.log: test_stress.nx
-	@p='test_stress.nx'; \
-	b='test_stress.nx'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_deflate.nx.log: test_deflate.nx
-	@p='test_deflate.nx'; \
-	b='test_deflate.nx'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_inflate.nx.log: test_inflate.nx
-	@p='test_inflate.nx'; \
-	b='test_inflate.nx'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_dict.nx.log: test_dict.nx
-	@p='test_dict.nx'; \
-	b='test_dict.nx'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_gz.nx.log: test_gz.nx
-	@p='test_gz.nx'; \
-	b='test_gz.nx'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_stress.mix.log: test_stress.mix
-	@p='test_stress.mix'; \
-	b='test_stress.mix'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_deflate.mix.log: test_deflate.mix
-	@p='test_deflate.mix'; \
-	b='test_deflate.mix'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_inflate.mix.log: test_inflate.mix
-	@p='test_inflate.mix'; \
-	b='test_inflate.mix'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_dict.mix.log: test_dict.mix
-	@p='test_dict.mix'; \
-	b='test_dict.mix'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_gz.mix.log: test_gz.mix
-	@p='test_gz.mix'; \
-	b='test_gz.mix'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_stress.mix2.log: test_stress.mix2
-	@p='test_stress.mix2'; \
-	b='test_stress.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_deflate.mix2.log: test_deflate.mix2
-	@p='test_deflate.mix2'; \
-	b='test_deflate.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_inflate.mix2.log: test_inflate.mix2
-	@p='test_inflate.mix2'; \
-	b='test_inflate.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_dict.mix2.log: test_dict.mix2
-	@p='test_dict.mix2'; \
-	b='test_dict.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_gz.mix2.log: test_gz.mix2
-	@p='test_gz.mix2'; \
-	b='test_gz.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_zeroinput.nx.log: test_zeroinput.nx
-	@p='test_zeroinput.nx'; \
-	b='test_zeroinput.nx'; \
+test_exhaust_credits.log: test_exhaust_credits
+	@p='test_exhaust_credits'; \
+	b='test_exhaust_credits'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1412,47 +954,21 @@ distdir-am: $(DISTFILES)
 	    || exit 1; \
 	  fi; \
 	done
-	@list='$(DIST_SUBDIRS)'; for subdir in $$list; do \
-	  if test "$$subdir" = .; then :; else \
-	    $(am__make_dryrun) \
-	      || test -d "$(distdir)/$$subdir" \
-	      || $(MKDIR_P) "$(distdir)/$$subdir" \
-	      || exit 1; \
-	    dir1=$$subdir; dir2="$(distdir)/$$subdir"; \
-	    $(am__relativize); \
-	    new_distdir=$$reldir; \
-	    dir1=$$subdir; dir2="$(top_distdir)"; \
-	    $(am__relativize); \
-	    new_top_distdir=$$reldir; \
-	    echo " (cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) top_distdir="$$new_top_distdir" distdir="$$new_distdir" \\"; \
-	    echo "     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)"; \
-	    ($(am__cd) $$subdir && \
-	      $(MAKE) $(AM_MAKEFLAGS) \
-	        top_distdir="$$new_top_distdir" \
-	        distdir="$$new_distdir" \
-		am__remove_distdir=: \
-		am__skip_length_check=: \
-		am__skip_mode_fix=: \
-	        distdir) \
-	      || exit 1; \
-	  fi; \
-	done
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS) $(check_SCRIPTS)
+	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
 	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
-check: check-recursive
+check: check-am
 all-am: Makefile
-installdirs: installdirs-recursive
-installdirs-am:
-install: install-recursive
-install-exec: install-exec-recursive
-install-data: install-data-recursive
-uninstall: uninstall-recursive
+installdirs:
+install: install-am
+install-exec: install-exec-am
+install-data: install-data-am
+uninstall: uninstall-am
 
 install-am: all-am
 	@$(MAKE) $(AM_MAKEFLAGS) install-exec-am install-data-am
 
-installcheck: installcheck-recursive
+installcheck: installcheck-am
 install-strip:
 	if test -z '$(STRIP)'; then \
 	  $(MAKE) $(AM_MAKEFLAGS) INSTALL_PROGRAM="$(INSTALL_STRIP_PROGRAM)" \
@@ -1473,128 +989,97 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
-	-rm -f deflate/$(DEPDIR)/$(am__dirstamp)
-	-rm -f deflate/$(am__dirstamp)
-	-rm -f inflate/$(DEPDIR)/$(am__dirstamp)
-	-rm -f inflate/$(am__dirstamp)
+	-rm -f ../$(DEPDIR)/$(am__dirstamp)
+	-rm -f ../$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-clean: clean-recursive
+clean: clean-am
 
-clean-am: clean-checkPROGRAMS clean-generic clean-libtool clean-local \
+clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
 	mostlyclean-am
 
-distclean: distclean-recursive
-		-rm -f ./$(DEPDIR)/test_adler32.Po
-	-rm -f ./$(DEPDIR)/test_buf_error.Po
-	-rm -f ./$(DEPDIR)/test_crc32.Po
-	-rm -f ./$(DEPDIR)/test_deflate.Po
-	-rm -f ./$(DEPDIR)/test_dict.Po
-	-rm -f ./$(DEPDIR)/test_gz.Po
-	-rm -f ./$(DEPDIR)/test_inflate.Po
-	-rm -f ./$(DEPDIR)/test_inflatesyncpoint.Po
-	-rm -f ./$(DEPDIR)/test_multithread_stress.Po
-	-rm -f ./$(DEPDIR)/test_pid_reuse.Po
-	-rm -f ./$(DEPDIR)/test_stress.Po
-	-rm -f ./$(DEPDIR)/test_utils.Po
-	-rm -f ./$(DEPDIR)/test_zeroinput.Po
-	-rm -f deflate/$(DEPDIR)/0.Po
-	-rm -f deflate/$(DEPDIR)/compress.Po
-	-rm -f deflate/$(DEPDIR)/hello.Po
-	-rm -f deflate/$(DEPDIR)/perf.Po
-	-rm -f deflate/$(DEPDIR)/random_buffer.Po
-	-rm -f deflate/$(DEPDIR)/z_finish.Po
-	-rm -f inflate/$(DEPDIR)/random_buffer.Po
+distclean: distclean-am
+		-rm -f ../$(DEPDIR)/exhaust_credits_nx-test_utils.Po
+	-rm -f ../$(DEPDIR)/test_utils.Po
+	-rm -f ./$(DEPDIR)/credit_utils.Po
+	-rm -f ./$(DEPDIR)/exhaust_credits.Po
+	-rm -f ./$(DEPDIR)/exhaust_credits_nx-credit_utils.Po
+	-rm -f ./$(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
 
-dvi: dvi-recursive
+dvi: dvi-am
 
 dvi-am:
 
-html: html-recursive
+html: html-am
 
 html-am:
 
-info: info-recursive
+info: info-am
 
 info-am:
 
 install-data-am:
 
-install-dvi: install-dvi-recursive
+install-dvi: install-dvi-am
 
 install-dvi-am:
 
 install-exec-am:
 
-install-html: install-html-recursive
+install-html: install-html-am
 
 install-html-am:
 
-install-info: install-info-recursive
+install-info: install-info-am
 
 install-info-am:
 
 install-man:
 
-install-pdf: install-pdf-recursive
+install-pdf: install-pdf-am
 
 install-pdf-am:
 
-install-ps: install-ps-recursive
+install-ps: install-ps-am
 
 install-ps-am:
 
 installcheck-am:
 
-maintainer-clean: maintainer-clean-recursive
-		-rm -f ./$(DEPDIR)/test_adler32.Po
-	-rm -f ./$(DEPDIR)/test_buf_error.Po
-	-rm -f ./$(DEPDIR)/test_crc32.Po
-	-rm -f ./$(DEPDIR)/test_deflate.Po
-	-rm -f ./$(DEPDIR)/test_dict.Po
-	-rm -f ./$(DEPDIR)/test_gz.Po
-	-rm -f ./$(DEPDIR)/test_inflate.Po
-	-rm -f ./$(DEPDIR)/test_inflatesyncpoint.Po
-	-rm -f ./$(DEPDIR)/test_multithread_stress.Po
-	-rm -f ./$(DEPDIR)/test_pid_reuse.Po
-	-rm -f ./$(DEPDIR)/test_stress.Po
-	-rm -f ./$(DEPDIR)/test_utils.Po
-	-rm -f ./$(DEPDIR)/test_zeroinput.Po
-	-rm -f deflate/$(DEPDIR)/0.Po
-	-rm -f deflate/$(DEPDIR)/compress.Po
-	-rm -f deflate/$(DEPDIR)/hello.Po
-	-rm -f deflate/$(DEPDIR)/perf.Po
-	-rm -f deflate/$(DEPDIR)/random_buffer.Po
-	-rm -f deflate/$(DEPDIR)/z_finish.Po
-	-rm -f inflate/$(DEPDIR)/random_buffer.Po
+maintainer-clean: maintainer-clean-am
+		-rm -f ../$(DEPDIR)/exhaust_credits_nx-test_utils.Po
+	-rm -f ../$(DEPDIR)/test_utils.Po
+	-rm -f ./$(DEPDIR)/credit_utils.Po
+	-rm -f ./$(DEPDIR)/exhaust_credits.Po
+	-rm -f ./$(DEPDIR)/exhaust_credits_nx-credit_utils.Po
+	-rm -f ./$(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
-mostlyclean: mostlyclean-recursive
+mostlyclean: mostlyclean-am
 
 mostlyclean-am: mostlyclean-compile mostlyclean-generic \
 	mostlyclean-libtool
 
-pdf: pdf-recursive
+pdf: pdf-am
 
 pdf-am:
 
-ps: ps-recursive
+ps: ps-am
 
 ps-am:
 
 uninstall-am:
 
-.MAKE: $(am__recursive_targets) check-am install-am install-strip
+.MAKE: check-am install-am install-strip
 
-.PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am \
-	am--depfiles check check-TESTS check-am clean \
-	clean-checkPROGRAMS clean-generic clean-libtool clean-local \
+.PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-TESTS \
+	check-am clean clean-checkPROGRAMS clean-generic clean-libtool \
 	cscopelist-am ctags ctags-am distclean distclean-compile \
 	distclean-generic distclean-libtool distclean-tags distdir dvi \
 	dvi-am html html-am info info-am install install-am \
@@ -1602,45 +1087,19 @@ uninstall-am:
 	install-exec install-exec-am install-html install-html-am \
 	install-info install-info-am install-man install-pdf \
 	install-pdf-am install-ps install-ps-am install-strip \
-	installcheck installcheck-am installdirs installdirs-am \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am recheck tags tags-am uninstall \
-	uninstall-am
+	installcheck installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	recheck tags tags-am uninstall uninstall-am
 
 .PRECIOUS: Makefile
 
 
-%.auto:
-	@$(srcdir)/gen_test.sh 0 $(*F) > $@
-	@chmod +x $@
+# The tests listed here can cause other tests running in parallel to fail, so
+# they need to be run serially
+.NOTPARALLEL:
 
-%.sw:
-	@$(srcdir)/gen_test.sh 1 $(*F) > $@
-	@chmod +x $@
-
-%.nx:
-	@$(srcdir)/gen_test.sh 2 $(*F) > $@
-	@chmod +x $@
-
-%.mix:
-	@$(srcdir)/gen_test.sh 3 $(*F) > $@
-	@chmod +x $@
-
-%.mix2:
-	@$(srcdir)/gen_test.sh 4 $(*F) > $@
-	@chmod +x $@
-
-regen-abi:
-	@rm -f $(srcdir)/libnxz.abi
-	abidw $(ABIDW_FLAGS) ../lib/.libs/libnxz.so > $(srcdir)/libnxz.abi
-	@echo "To regenerate libz.abi, build zlib or find system's libz.so and do:"
-	@echo "    abidw $(ABIDW_FLAGS) /path/to/libz.so > libz.abi"
-
-build-TESTS: $(check_PROGRAMS) $(check_SCRIPTS)
-
-clean-local:
-	-rm -f test_gzfile*.gz
+test_exhaust_credits: exhaust_credits exhaust_credits_nx
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

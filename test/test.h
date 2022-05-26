@@ -15,6 +15,7 @@
 
 #define TEST_OK    0
 #define TEST_ERROR 1
+#define TEST_SKIP 77
 
 #define DEBUG 1
 #define dbg_printf(format, ...) do { if (DEBUG) printf(format, ##__VA_ARGS__); } while(0)

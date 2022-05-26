@@ -11,6 +11,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <endian.h>
+#include <limits.h>
 #include "test.h"
 #include "test_utils.h"
 
@@ -59,6 +60,34 @@ void zcheck_internal(int retval, int expected, char* file, int line) {
 			zret2str(expected), zret2str(retval));
 			exit(TEST_ERROR);
 	}
+}
+
+int is_powervm(void) {
+	const char *dtpath = "/sys/firmware/devicetree/base/ibm,powervm-partition";
+	return !access(dtpath, F_OK);
+}
+
+int read_sysfs_entry(const char *path, int *val)
+{
+	char buf[32];
+	long lval;
+	int fd;
+	int rc = -1;
+
+	fd = open(path, O_RDONLY);
+	if (fd != -1) {
+		if(read(fd, buf, sizeof(buf)) > 0) {
+			lval = strtol(buf, NULL, 10);
+			if (!((lval == LONG_MIN || lval == LONG_MAX) &&
+			      errno == ERANGE)) {
+				*val = (int) lval;
+				rc = 0;
+			}
+		}
+	}
+	(void) close(fd);
+
+	return rc;
 }
 
 void generate_all_data(int len, char digit)

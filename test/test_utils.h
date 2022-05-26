@@ -29,6 +29,9 @@ extern const char *zret2str(int retval);
 void zcheck_internal(int retval, int expected, char* file, int line);
 #define zcheck(val,exp) zcheck_internal((val),(exp),__FILE__,__LINE__)
 
+int is_powervm(void);
+int read_sysfs_entry(const char *path, int *val);
+
 int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 		     unsigned int* compr_len, int step,
 		     struct f_interval * time);

@@ -6,12 +6,14 @@ LDADD = ../../lib/libnxz.la $(PTHREAD_LIBS) -ldl
 # they need to be run serially
 .NOTPARALLEL:
 
-TESTS = test_exhaust_credits
+TESTS = test_exhaust_credits test_window_suspend
 
-check_PROGRAMS = exhaust_credits exhaust_credits_nx
+check_PROGRAMS = exhaust_credits exhaust_credits_nx test_window_suspend
 
 exhaust_credits_SOURCES = exhaust_credits.c credit_utils.c ../test_utils.c
 exhaust_credits_nx_SOURCES = exhaust_credits.c credit_utils.c ../test_utils.c
 exhaust_credits_nx_CPPFLAGS = -DWITHPREFIX
+
+test_window_suspend_SOURCES = test_window_suspend.c credit_utils.c ../test_utils.c
 
 test_exhaust_credits: exhaust_credits exhaust_credits_nx

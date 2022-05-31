@@ -102,22 +102,24 @@ static int nx_query_job_limits()
 }
 
 /* LZ counts returned in the user supplied nx_gzip_crb_cpb_t structure */
-static int compress_fht_sample(char *src, uint32_t srclen, char *dst, uint32_t dstlen,
-			       int with_count, nx_gzip_crb_cpb_t *cmdp, nx_devp_t handle)
+static int compress_fht_sample(char *src, uint32_t srclen, char *dst,
+				uint32_t dstlen, int with_count,
+				nx_gzip_crb_cpb_t *cmdp, nx_devp_t handle)
 {
 	int cc;
 	uint32_t fc;
 
 	assert(!!cmdp);
 
-	/* memset(&cmdp->crb, 0, sizeof(cmdp->crb)); */ /* cc=21 error; revisit clearing below */
 	put32(cmdp->crb, gzip_fc, 0);   /* clear */
-	fc = (with_count) ? GZIP_FC_COMPRESS_RESUME_FHT_COUNT : GZIP_FC_COMPRESS_RESUME_FHT;
+	fc = (with_count) ? GZIP_FC_COMPRESS_RESUME_FHT_COUNT :
+		GZIP_FC_COMPRESS_RESUME_FHT;
 	putnn(cmdp->crb, gzip_fc, fc);
 	putnn(cmdp->cpb, in_histlen, 0); /* resuming with no history */
 	memset((void *)&cmdp->crb.csb, 0, sizeof(cmdp->crb.csb));
 
-	/* Section 6.6 programming notes; spbc may be in two different places depending on FC */
+	/* Section 6.6 programming notes;s
+	   spbc may be in two different places depending on FC */
 	if (!with_count)
 		put32(cmdp->cpb, out_spbc_comp, 0);
 	else
@@ -267,9 +269,9 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 	uint32_t pagelen = 65536; /* should get this with syscall */
 	int fault_tries=50;
 
-	cmdp = (void *)(uintptr_t)aligned_alloc(sizeof(nx_gzip_crb_t),sizeof(nx_gzip_crb_cpb_t));
+	cmdp = (void *) (uintptr_t)aligned_alloc(sizeof(nx_gzip_crb_t),
+						 sizeof(nx_gzip_crb_cpb_t));
 	fprintf(stderr, "crb %p\n", cmdp);
-
 
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <fname>\n", argv[0]);
@@ -284,7 +286,7 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 	assert(NULL != (outbuf = (char *)malloc(outlen))); /* generous malloc for testing */
 	_nx_touch_pages(outbuf, outlen, pagelen, 1);
 
-	NX_CLK( memset(&td, 0, sizeof(td)) );
+	NX_CLK(memset(&td, 0, sizeof(td)));
 	NX_CLK((td.freq = __ppc_get_timebase_freq()));
 
 	/* compress piecemeal in small chunks */
@@ -312,7 +314,7 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 		/* supply large target in case data expands */
 		dstlen = NX_MIN(2*srclen, outlen);
 
-		NX_CLK( (td.touch1 = nx_get_time()) );
+		NX_CLK((td.touch1 = nx_get_time()));
 
 		/* Page faults are handled by the user code */
 
@@ -324,34 +326,38 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 		_nx_touch_pages (srcbuf, srclen, pagelen, 0);
 		_nx_touch_pages (dstbuf, dstlen, pagelen, 1);
 
-		NX_CLK( (td.touch2 += (nx_get_time() - td.touch1)) );
+		NX_CLK((td.touch2 += (nx_get_time() - td.touch1)));
 
-		NX_CLK( (td.sub1 = nx_get_time()) );
-		NX_CLK( (td.subc += 1) );
+		NX_CLK((td.sub1 = nx_get_time()));
+		NX_CLK((td.subc += 1));
 
 		cc = compress_fht_sample(
 			srcbuf, srclen,
 			dstbuf, dstlen,
 			lzcounts, cmdp, handle);
 
-		NX_CLK( (td.sub2 += (nx_get_time() - td.sub1)) );
+		NX_CLK((td.sub2 += (nx_get_time() - td.sub1)));
 
-		if (cc != ERR_NX_OK && cc != ERR_NX_TPBC_GT_SPBC && cc != ERR_NX_AT_FAULT) {
+		if (cc != ERR_NX_OK && cc != ERR_NX_TPBC_GT_SPBC &&
+		    cc != ERR_NX_AT_FAULT) {
 			fprintf(stderr, "nx error: cc= %d\n", cc);
 			exit(-1);
 		}
 
 		/* Page faults are handled by the user code */
 		if (cc == ERR_NX_AT_FAULT) {
-			NXPRT( fprintf(stderr, "page fault: cc= %d, try= %d, fsa= %08llx\n", cc, fault_tries, (long long unsigned) cmdp->crb.csb.fsaddr) );
-			NX_CLK( (td.fault += 1) );
+			NXPRT(fprintf(stderr, "page fault: cc= %d, try= %d, "
+				"fsa= %08llx\n", cc, fault_tries,
+				(long long unsigned) cmdp->crb.csb.fsaddr));
+			NX_CLK((td.fault += 1));
 
 			fault_tries --;
 			if (fault_tries > 0) {
 				continue;
 			}
 			else {
-				fprintf(stderr, "error: cannot progress; too many faults\n");
+				fprintf(stderr, "error: cannot progress; too "
+					"many faults\n");
 				exit(-1);
 			};
 		}
@@ -369,7 +375,8 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 
 		tpbc = get32(cmdp->crb.csb, tpbc);  /* target byte count */
 		tebc = getnn(cmdp->cpb, out_tebc);  /* target ending bit count */
-		NXPRT( fprintf(stderr, "compressed chunk %d to %d bytes, tebc= %d\n", spbc, tpbc, tebc) );
+		NXPRT(fprintf(stderr, "compressed chunk %d to %d bytes, tebc= "
+			"%d\n", spbc, tpbc, tebc));
 
 		if (inlen > 0) { /* more chunks to go */
 			set_bfinal(dstbuf, 0);
@@ -382,7 +389,8 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 			dsttotlen = dsttotlen + flushlen;
 			outlen    = outlen - flushlen;
 			dstbuf    = dstbuf + flushlen;
-			NXPRT( fprintf(stderr, "added deflate sync_flush %d bytes\n", flushlen) );
+			NXPRT(fprintf(stderr, "added deflate sync_flush %d "
+				"bytes\n", flushlen));
 		}
 		else {  /* done */
 			/* set the BFINAL bit of the last block per deflate std */
@@ -398,7 +406,7 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 		put32(cmdp->cpb, in_crc, crc);
 		crc = be32toh(crc);
 
-		NX_CLK( (td.sub3 += (nx_get_time() - td.sub1)) );
+		NX_CLK((td.sub3 += (nx_get_time() - td.sub1)));
 	}
 
 	/* append CRC32 and ISIZE to the end */
@@ -414,15 +422,18 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 		exit(-1);
 	}
 
-	fprintf(stderr, "compressed %ld to %ld bytes total, crc32=%08x\n", srctotlen, dsttotlen, crc);
+	fprintf(stderr, "compressed %ld to %ld bytes total, crc32=%08x\n",
+		srctotlen, dsttotlen, crc);
 
-	NX_CLK( fprintf(stderr, "COMP ofile %s ", outname) );
-	NX_CLK( fprintf(stderr, "ibytes %ld obytes %ld ", srctotlen, dsttotlen) );
-	NX_CLK( fprintf(stderr, "freq   %ld ticks/sec ", td.freq)    );
-	NX_CLK( fprintf(stderr, "sub %ld %ld ticks %ld count ", td.sub2, td.sub3, td.subc) );
-	NX_CLK( fprintf(stderr, "touch %ld ticks ", td.touch2)     );
-	NX_CLK( fprintf(stderr, "fault %ld ticks ", td.fault)     );
-	NX_CLK( fprintf(stderr, "%g byte/s\n", (double)srctotlen/((double)td.sub2/(double)td.freq)) );
+	NX_CLK(fprintf(stderr, "COMP ofile %s ", outname));
+	NX_CLK(fprintf(stderr, "ibytes %ld obytes %ld ", srctotlen, dsttotlen));
+	NX_CLK(fprintf(stderr, "freq   %ld ticks/sec ", td.freq));
+	NX_CLK(fprintf(stderr, "sub %ld %ld ticks %ld count ", td.sub2, td.sub3,
+			td.subc));
+	NX_CLK(fprintf(stderr, "touch %ld ticks ", td.touch2));
+	NX_CLK(fprintf(stderr, "fault %ld ticks ", td.fault));
+	NX_CLK(fprintf(stderr, "%g byte/s\n",
+			(double)srctotlen/((double)td.sub2/(double)td.freq)));
 
 	if (NULL != inbuf) free(inbuf);
 	if (NULL != outbuf) free(outbuf);

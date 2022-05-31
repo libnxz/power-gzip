@@ -132,7 +132,6 @@ typedef struct thread_args_t {
 
 pthread_barrier_t barr;
 
-
 void *comp_file_multith(void *argsv)
 {
 	char *inbuf;
@@ -163,7 +162,8 @@ void *comp_file_multith(void *argsv)
 	compdata_len = compbuf_len;
 	/* compdata_len is the buffer length before the call; returned
 	   as actual compressed data len on return */
-	if (Z_OK != compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf, (uLong)inlen) ) {
+	if (Z_OK != compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf,
+	    (uLong)inlen)) {
 		fprintf(stderr, "tid %d: compress error\n", tid);
 		return (void *) -1;
 	}
@@ -175,7 +175,8 @@ void *comp_file_multith(void *argsv)
 	decompdata_len = decompbuf_len;
 	/* decompdata_len is the buffer length before the call;
 	   returned as actual uncompressed data len on return */
-	if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len, (Bytef *)compbuf, (uLong)compdata_len) ) {
+	if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len,
+	    (Bytef *)compbuf, (uLong)compdata_len)) {
 		fprintf(stderr, "tid %d: uncompress error\n", tid);
 		return (void *) -1;
 	}
@@ -192,13 +193,15 @@ void *comp_file_multith(void *argsv)
 
 	for (i = 0; i < iterations; i++) {
 		compdata_len = compbuf_len;
-		if (Z_OK != compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf, (uLong)inlen) ) {
+		if (Z_OK != compress((Bytef *)compbuf, &compdata_len,
+		    (Bytef *)inbuf, (uLong)inlen)) {
 			fprintf(stderr, "tid %d: compress error\n", tid);
 			return (void *) -1;
 		}
 	}
 
-	/* wait all threads to finish; min max not useful anymore since timer is after this barrier */
+	/* wait all threads to finish; min max not useful anymore since timer is
+	   after this barrier */
 	pthread_barrier_wait(&barr);
 
 	gettimeofday(&te, NULL);
@@ -208,15 +211,14 @@ void *comp_file_multith(void *argsv)
 	argsp->elapsed_time = elapsed;
 
 	if (tid == 0)
-		fprintf(stderr, "tid %d: compressed %ld bytes %ld times in %7.4g seconds\n",
-			tid, (long)inlen, iterations, elapsed);
+		fprintf(stderr, "tid %d: compressed %ld bytes %ld times in "
+			"%7.4g seconds\n", tid, (long)inlen, iterations, elapsed);
 
 	free(decompbuf);
 	free(compbuf);
 
 	return (void *) -1;
 }
-
 
 void *decomp_file_multith(void *argsv)
 {
@@ -251,19 +253,22 @@ void *decomp_file_multith(void *argsv)
 	compdata_len = compbuf_len;
 	/* compdata_len is the buffer length before the call; returned
 	   as actual compressed data len on return */
-	if (Z_OK != compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf, (uLong)inlen) ) {
+	if (Z_OK != compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf,
+	    (uLong)inlen)) {
 		fprintf(stderr, "tid %d: compress error\n", tid);
 		return (void *) -1;
 	}
 
-	/* wait all threads to finish their first runs; want this for pretty printing */
+	/* wait all threads to finish their first runs;
+	   want this for pretty printing */
 	pthread_barrier_wait(&barr);
 
 	/* uncompress */
 	decompdata_len = decompbuf_len;
 	/* decompdata_len is the buffer length before the call;
 	   returned as actual uncompressed data len on return */
-	if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len, (Bytef *)compbuf, (uLong)compdata_len) ) {
+	if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len,
+	    (Bytef *)compbuf, (uLong)compdata_len)) {
 		fprintf(stderr, "uncompress error\n");
 		return (void *) -1;
 	}
@@ -282,7 +287,8 @@ void *decomp_file_multith(void *argsv)
 		decompdata_len = decompbuf_len;
 		/* decompdata_len is the buffer length before the call;
 		   returned as actual uncompressed data len on return */
-		if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len, (Bytef *)compbuf, (uLong)compdata_len) ) {
+		if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len,
+		    (Bytef *)compbuf, (uLong)compdata_len)) {
 			fprintf(stderr, "tid %d: uncompress error\n", tid);
 			return (void *) -1;
 		}
@@ -296,7 +302,8 @@ void *decomp_file_multith(void *argsv)
 
 	}
 
-	/* wait all threads to finish; min max not useful anymore since timer is after this barrier */
+	/* wait all threads to finish; min max not useful anymore since timer is
+	   after this barrier */
 	pthread_barrier_wait(&barr);
 
 	gettimeofday(&te, NULL);
@@ -306,13 +313,14 @@ void *decomp_file_multith(void *argsv)
 	argsp->elapsed_time = elapsed;
 
 	if (tid == 0)
-		fprintf(stderr, "tid %d: uncompressed to %ld bytes %ld times in %7.4g seconds\n",
-			tid, (long)decompdata_len, iterations, elapsed);
+		fprintf(stderr, "tid %d: uncompressed to %ld bytes %ld times in"
+			" %7.4g seconds\n", tid, (long)decompdata_len, iterations,
+			elapsed);
 
 #ifdef SIMPLE_CHECKSUM
 	cksum = 1;
 	cksum = crc32(cksum, decompbuf, decompdata_len);
-	assert( cksum == argsp->checksum );
+	assert(cksum == argsp->checksum);
 #endif
 
 	free(decompbuf);
@@ -336,7 +344,8 @@ int main(int argc, char **argv)
 	double sum;
 
 	if (argc != 3 && argc != 4) {
-		fprintf(stderr, "usage: %s <fname> <thread_count> [<iterations>]\n", argv[0]);
+		fprintf(stderr, "usage: %s <fname> <thread_count> [<iterations>]"
+			"\n", argv[0]);
 		exit(-1);
 	}
 	assert( (num_threads = atoi(argv[2])) <= MAX_THREADS);
@@ -356,10 +365,12 @@ int main(int argc, char **argv)
 	unsigned long cksum = 1;
 #ifdef SIMPLE_CHECKSUM
 	cksum = crc32(cksum, inbuf, inlen);
-	fprintf(stderr, "source checksum %08lx; note: checksum verif will reduce throughput; assert thrown on mismatch\n", cksum);
+	fprintf(stderr, "source checksum %08lx; note: checksum verif will reduce"
+		" throughput; assert thrown on mismatch\n", cksum);
 #endif
 
-	fprintf(stderr, "starting %d compress threads %ld iterations\n", num_threads, iterations);
+	fprintf(stderr, "starting %d compress threads %ld iterations\n",
+		num_threads, iterations);
 	for (i = 0; i < num_threads; i++) {
 		th_args[i].inbuf = inbuf;
 		th_args[i].inlen = inlen;
@@ -367,7 +378,8 @@ int main(int argc, char **argv)
 		th_args[i].my_id = i;
 		th_args[i].iterations = iterations;
 
-		rc = pthread_create(&threads[i], NULL, comp_file_multith, (void *)&th_args[i]);
+		rc = pthread_create(&threads[i], NULL, comp_file_multith,
+				    (void *)&th_args[i]);
 		if (rc != 0) {
 			fprintf(stderr, "error: pthread_create %d\n", rc);
 			return rc;
@@ -378,7 +390,8 @@ int main(int argc, char **argv)
 	for (i = 0; i < num_threads; i++) {
 		rc = pthread_join(threads[i], &ret);
 		if (rc != 0) {
-			fprintf(stderr, "error: pthread %d cannot be joined %p\n", i, ret);
+			fprintf(stderr, "error: pthread %d cannot be joined %p\n",
+				i, ret);
 			return rc;
 		}
 	}
@@ -388,14 +401,17 @@ int main(int argc, char **argv)
 	double maxbw = 0;
 	double minbw = 1.0e20;
 	for (i=0; i < num_threads; i++) {
-		double gbps = (double)th_args[i].inlen * (double)th_args[i].iterations /
+		double gbps = (double)th_args[i].inlen *
+			(double)th_args[i].iterations /
 			(double)th_args[i].elapsed_time / 1.0e9;
 		sum += gbps;
 		if (gbps < minbw) minbw = gbps;
 		if (gbps > maxbw) maxbw = gbps;
 	}
-	fprintf(stderr, "\nTotal compress throughput GB/s %7.4g, bytes %ld, iterations %ld, threads %d, per thread maxbw %7.4g, minbw %7.4g\n\n",
-		sum, th_args[0].inlen, th_args[0].iterations, num_threads, maxbw, minbw);
+	fprintf(stderr, "\nTotal compress throughput GB/s %7.4g, bytes %ld,"
+		" iterations %ld, threads %d, per thread maxbw %7.4g, minbw "
+		"%7.4g\n\n", sum, th_args[0].inlen, th_args[0].iterations,
+		num_threads, maxbw, minbw);
 
 	fprintf(stderr, "starting %d uncompress threads\n", num_threads);
 	for (i = 0; i < num_threads; i++) {
@@ -405,7 +421,8 @@ int main(int argc, char **argv)
 		th_args[i].my_id = i;
 		th_args[i].iterations = iterations;
 
-		rc = pthread_create(&threads[i], NULL, decomp_file_multith, (void *)&th_args[i]);
+		rc = pthread_create(&threads[i], NULL, decomp_file_multith,
+				    (void *)&th_args[i]);
 		if (rc != 0) {
 			fprintf(stderr, "error: pthread_create %d\n", rc);
 			return rc;
@@ -416,7 +433,8 @@ int main(int argc, char **argv)
 	for (i = 0; i < num_threads; i++) {
 		rc = pthread_join(threads[i], &ret);
 		if (rc != 0) {
-			fprintf(stderr, "error: pthread %d cannot be joined %p\n", i, ret);
+			fprintf(stderr, "error: pthread %d cannot be joined %p\n",
+				i, ret);
 			return rc;
 		}
 
@@ -427,14 +445,17 @@ int main(int argc, char **argv)
 	maxbw = 0;
 	minbw = 1.0e20;
 	for (i=0; i < num_threads; i++) {
-		double gbps = (double)th_args[i].inlen * (double)th_args[i].iterations /
+		double gbps = (double)th_args[i].inlen *
+			(double)th_args[i].iterations /
 			(double)th_args[i].elapsed_time / 1.0e9;
 		sum += gbps;
 		if (gbps < minbw) minbw = gbps;
 		if (gbps > maxbw) maxbw = gbps;
 	}
-	fprintf(stderr, "\nTotal uncompress throughput GB/s %7.4g, bytes %ld, iterations %ld, threads %d, per thread maxbw %7.4g, minbw %7.4g\n\n",
-		sum, th_args[0].inlen, th_args[0].iterations, num_threads, maxbw, minbw);
+	fprintf(stderr, "\nTotal uncompress throughput GB/s %7.4g, bytes %ld,"
+		" iterations %ld, threads %d, per thread maxbw %7.4g, minbw "
+		"%7.4g\n\n", sum, th_args[0].inlen, th_args[0].iterations,
+		num_threads, maxbw, minbw);
 
 	return rc;
 }

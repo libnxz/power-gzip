@@ -79,8 +79,6 @@ int def(FILE *source, FILE *dest, int level)
     } while (flush != Z_FINISH);
     assert(ret == Z_STREAM_END);        /* stream will be complete */
 
-    /* fprintf(stderr, "adler %08lx\n", strm.adler); */
-
     /* clean up and return */
     (void)deflateEnd(&strm);
     return Z_OK;
@@ -142,8 +140,6 @@ int inf(FILE *source, FILE *dest)
 
 	/* done when inflate() says it's done */
     } while (ret != Z_STREAM_END);
-
-    /* fprintf(stderr, "adler %08lx\n", strm.adler); */
 
     /* clean up and return */
     (void)inflateEnd(&strm);

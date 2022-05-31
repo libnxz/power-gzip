@@ -610,7 +610,8 @@ int main(int argc, char **argv)
 
 	if (strstr(prog, "gunzip") != 0) {
 		compress = false;
-		CHUNK_o *= 4; /* adjust default output buffer size to avoid memcpy */
+		/* adjust default output buffer size to avoid memcpy */
+		CHUNK_o *= 4;
 	}
 
 	while (1) {
@@ -869,8 +870,6 @@ int main(int argc, char **argv)
 				free(extra);
 				goto err_out;
 			}
-
-			//hexdump(stderr, extra, extra_len);
 		}
 
 		/* --------------- DEFALTE ----------------- */
@@ -928,7 +927,7 @@ int main(int argc, char **argv)
 
 		deflateEnd(&strm);
 	} else {
-		/* --------------- INFALTE ----------------- */
+		/* --------------- INFLATE ----------------- */
 		strm.avail_in = 0;
 		strm.next_in = Z_NULL;
 		rc = inflateInit2(&strm, window_bits);

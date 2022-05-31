@@ -28,16 +28,17 @@ int main()
 
     /* read the definition of the sticky bit S_ISVTX; I don't
      * understand how it's used but I put it here anyway */
-    if ( chmod("/tmp/nx.log", (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH | S_ISVTX)) ) {
+    if (chmod("/tmp/nx.log", (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
+		S_IWOTH | S_ISVTX))) {
 	perror("cannot chmod but will continue\n");
     }
-    
+
     fprintf(nx_gzip_log, "this is a test, pid=%d uid=%d\n", getpid(), getuid());
     fflush(nx_gzip_log);
-    
+
     sleep(100);
 
-    if ( fclose(nx_gzip_log) ) {
+    if (fclose(nx_gzip_log)) {
 	perror("file close error\n");
 	return -1;
     }

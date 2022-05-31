@@ -46,7 +46,8 @@ int main () {
 		inflateEnd_sum += timebase_diff(start, __ppc_get_timebase());
 	}
 
-	printf("Avg. deflateInit (us),Avg. deflateEnd (us),Avg. inflateInit (us),Avg. inflateEnd (us)\n");
+	printf("Avg. deflateInit (us),Avg. deflateEnd (us),Avg. inflateInit"
+		" (us),Avg. inflateEnd (us)\n");
 	printf("%.3f,%.3f,%.3f,%.3f\n",
 		timebase_average_us(deflateInit_sum, rounds),
 		timebase_average_us(deflateEnd_sum, rounds),

@@ -7,17 +7,17 @@ int main(int argc, char **argv)
 {
     long i,j,scan;
     char *p;
-    
+
     if (argc != 3) {
 	printf("usage %s <num> <GB>\n", argv[0]);
 	printf(" produce <num> processes with <GB> memory\n");
 	return -1;
     }
     long gb = atoi(argv[2]);
-    long num = atoi(argv[1]); 
+    long num = atoi(argv[1]);
 
     gb = gb * (1L<<30);
-    
+
  rpt:
 
     p = (char *) malloc(gb);
@@ -55,4 +55,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-

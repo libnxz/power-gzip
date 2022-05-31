@@ -42,9 +42,11 @@
 #endif
 
 typedef struct {
-    int z_hist_sz;    /* file format use -15 for raw deflate; use 15 for zlib; 31 for gzip */
+    /* file format use -15 for raw deflate; use 15 for zlib; 31 for gzip */
+    int z_hist_sz;
     int z_strategy;   /* Z_DEFAULT_STRATEGY Z_FIXED Z_HUFFMAN_ONLY Z_RLE */
-    int z_flush_type; /* Z_SYNC_FLUSH Z_NO_FLUSH Z_PARTIAL_FLUSH Z_FULL_FLUSH Z_BLOCK */
+    /* Z_SYNC_FLUSH Z_NO_FLUSH Z_PARTIAL_FLUSH Z_FULL_FLUSH Z_BLOCK */
+    int z_flush_type;
     long compressed_bytes_total;
 } gzcfg_t;
 
@@ -68,9 +70,12 @@ static int get_file_format(int n)
     else if (n == 1) return 15;
     else if (n == 2) return -15;
     else if (n == 47) return n;
-    else if (n >= 9  && n <= 15) return n;  /* zlib with window size 2^9 to 2^15 */
-    else if (n >= 25 && n <= 31) return n;  /* gzip with window size 2^9 to 2^15 */
-    else if (n >= -15 && n <= -9) return n; /* raw with window size 2^9 to 2^15 */
+    /* zlib with window size 2^9 to 2^15 */
+    else if (n >= 9  && n <= 15) return n;
+    /* gzip with window size 2^9 to 2^15 */
+    else if (n >= 25 && n <= 31) return n;
+    /* raw with window size 2^9 to 2^15 */
+    else if (n >= -15 && n <= -9) return n;
     else             return Z_ERRNO;
 }
 /* usage() helpers */
@@ -146,11 +151,14 @@ int def(FILE *source, FILE *dest, int level, gzcfg_t *cf)
 	do {
 	    strm.avail_out = CHUNK;
 	    strm.next_out = out;
-	    DEBG( fprintf(stderr, "Before deflate call: input size: %d. ", strm.avail_in) );
+	    DEBG(fprintf(stderr, "Before deflate call: input size: %d. ",
+			 strm.avail_in));
 	    ret = deflate(&strm, flush);    /* no bad return value */
 	    assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
 	    have = CHUNK - strm.avail_out;
-	    DEBG( fprintf(stderr, "After deflate call: input data remaining: %d; output data to write: %d, rc: %d\n", strm.avail_in, have, ret) );
+	    DEBG(fprintf(stderr, "After deflate call: input data remaining: "
+			 "%d; output data to write: %d, rc: %d\n",
+			 strm.avail_in, have, ret));
 	    cf->compressed_bytes_total += have;
 	    if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
 		(void)deflateEnd(&strm);
@@ -159,7 +167,7 @@ int def(FILE *source, FILE *dest, int level, gzcfg_t *cf)
 	} while (strm.avail_out == 0);
 	assert(strm.avail_in == 0);     /* all input will be used */
 
-	/* done when last data in file processed */
+    /* done when last data in file processed */
     } while (flush != Z_FINISH);
     assert(ret == Z_STREAM_END);        /* stream will be complete */
 
@@ -187,7 +195,7 @@ int inf(FILE *source, FILE *dest, gzcfg_t *cf)
     strm.avail_in = 0;
     strm.next_in = Z_NULL;
 
-    ret = inflateInit2( &strm, cf->z_hist_sz );
+    ret = inflateInit2(&strm, cf->z_hist_sz);
     if (ret != Z_OK)
 	return ret;
 
@@ -206,7 +214,8 @@ int inf(FILE *source, FILE *dest, gzcfg_t *cf)
 	do {
 	    strm.avail_out = CHUNK;
 	    strm.next_out = out;
-	    DEBG( fprintf(stderr, "Before inflate call: input size: %d. ", strm.avail_in) );
+	    DEBG(fprintf(stderr, "Before inflate call: input size: %d. ",
+			 strm.avail_in));
 	    ret = inflate(&strm, Z_NO_FLUSH);
 	    assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
 	    switch (ret) {
@@ -218,14 +227,16 @@ int inf(FILE *source, FILE *dest, gzcfg_t *cf)
 		return ret;
 	    }
 	    have = CHUNK - strm.avail_out;
-	    DEBG( fprintf(stderr, "After inflate call: input data remaining: %d; output data to write: %d, rc: %d\n", strm.avail_in, have, ret) );
+	    DEBG(fprintf(stderr, "After inflate call: input data remaining: %d; "
+			 "output data to write: %d, rc: %d\n", strm.avail_in,
+			 have, ret));
 	    if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
 		(void)inflateEnd(&strm);
 		return Z_ERRNO;
 	    }
 	} while (strm.avail_out == 0);
 
-	/* done when inflate() says it's done */
+    /* done when inflate() says it's done */
     } while (ret != Z_STREAM_END);
 
     /* clean up and return */
@@ -260,8 +271,8 @@ void zerr(int ret)
 
 void usage(int argc, char **argv)
 {
-    fprintf(stderr, "usage: %s [-d] [-t t] < source > dest\n", argv[0] );
-    fprintf(stderr, "usage: %s [-s s] [-t t] [-f f] < source > dest\n", argv[0] );
+    fprintf(stderr, "usage: %s [-d] [-t t] < source > dest\n", argv[0]);
+    fprintf(stderr, "usage: %s [-s s] [-t t] [-f f] < source > dest\n", argv[0]);
     fprintf(stderr, "   -s followed by one of ints: %s\n", strategy_str);
     fprintf(stderr, "   -t followed by one of ints: %s\n", file_format_str);
     fprintf(stderr, "or -t followed by one of ints: %s\n", window_sz_str);
@@ -289,7 +300,7 @@ int main(int argc, char **argv)
 	ret = def(stdin, stdout, COMPRESS_LEVEL, &cf);
 	if (ret != Z_OK)
 	    zerr(ret);
-	DEBG( fprintf(stderr, "compressed bytes: %ld\n", cf.compressed_bytes_total ) );
+	DEBG(fprintf(stderr, "compressed bytes: %ld\n", cf.compressed_bytes_total));
 	return ret;
     }
 
@@ -313,24 +324,28 @@ int main(int argc, char **argv)
 	while (i<argc) {
 	    int e=0;
 	    if (strcmp(argv[i], "-s") == 0) {
-		if (Z_ERRNO == (cf.z_strategy = get_strategy( atoi(argv[i+1]) )))  ++ e;
+		if (Z_ERRNO == (cf.z_strategy = get_strategy(atoi(argv[i+1]))))
+			++e;
 		if (fn == 'd') ++e; /* cannot combine -d and -s */
 		i = i + 2;
 	    }
 	    else if (strcmp(argv[i], "-t") == 0) {
-		if (Z_ERRNO == (cf.z_hist_sz = get_file_format( atoi(argv[i+1]) ))) ++ e;
-		if (cf.z_hist_sz == 47 && fn == 'c') ++e; /* autodetect is inflate only */
+		if (Z_ERRNO == (cf.z_hist_sz = get_file_format( atoi(argv[i+1]))))
+			++e;
+		/* autodetect is inflate only */
+		if (cf.z_hist_sz == 47 && fn == 'c') ++e;
 		i = i + 2;
 	    }
 	    else if (strcmp(argv[i], "-f") == 0) {
-		if (Z_ERRNO == (cf.z_flush_type = get_flush_type( atoi(argv[i+1]) ))) ++ e;
+		if (Z_ERRNO == (cf.z_flush_type = get_flush_type(atoi(argv[i+1]))))
+			++e;
 		i = i + 2;
 	    }
 	    else if (strcmp(argv[i], "-d") == 0) {
-		++ e; /* -d must be first */
+		++e; /* -d must be first */
 	    }
 	    else {
-		++ e;
+		++e;
 	    }
 	    if (e>0) {
 		usage(argc, argv);
@@ -338,9 +353,8 @@ int main(int argc, char **argv)
 	    }
 	}
 
-	if( fn == 'c' ) {
+	if (fn == 'c') {
 	    ret = def(stdin, stdout, COMPRESS_LEVEL, &cf);
-	    /* fprintf(stderr, "compressed bytes: %ld\n", cf.compressed_bytes_total ); */
 	}
 	else {
 	    ret = inf(stdin, stdout, &cf);
@@ -351,7 +365,6 @@ int main(int argc, char **argv)
     }
     return 1;
 }
-
 
 /* sample def code that doesn't use FILE I/O but memory buffers
    Note:  size_of_data is the source bytes when called, and the
@@ -383,13 +396,11 @@ int def_mb(char *source, char *dest, int *size_of_data, gzcfg_t *cf)
     /* compress until end of file */
     do {
 	int nbyte;
-	/* strm.avail_in = fread(in, 1, CHUNK, source); */
 	strm.avail_in = nbyte = (remainder > CHUNK) ? CHUNK : remainder;
 	memcpy( in, source, nbyte );
 	remainder = remainder - nbyte;
 	source = source + nbyte;
 
-	/* flush = feof(source) ? Z_FINISH : cf->z_flush_type; */
 	flush = ( remainder == 0 ) ? Z_FINISH : cf->z_flush_type;
 	strm.next_in = in;
 
@@ -398,23 +409,22 @@ int def_mb(char *source, char *dest, int *size_of_data, gzcfg_t *cf)
 	do {
 	    strm.avail_out = CHUNK;
 	    strm.next_out = out;
-	    DEBG( fprintf(stderr, "Before deflate call: input size: %d. ", strm.avail_in) );
+	    DEBG(fprintf(stderr, "Before deflate call: input size: %d. ",
+			 strm.avail_in));
 	    ret = deflate(&strm, flush);    /* no bad return value */
 	    assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
 	    have = CHUNK - strm.avail_out;
-	    DEBG( fprintf(stderr, "After deflate call: input data remaining: %d; output data to write: %d, rc: %d\n", strm.avail_in, have, ret) );
+	    DEBG(fprintf(stderr, "After deflate call: input data remaining: %d;"
+			 " output data to write: %d, rc: %d\n", strm.avail_in,
+			 have, ret));
 	    cf->compressed_bytes_total += have;
-	    /* if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
-		(void)deflateEnd(&strm);
-		return Z_ERRNO;
-	    } */
 	    memcpy( dest, out, have );
 	    dest = dest + have;
 
 	} while (strm.avail_out == 0);
 	assert(strm.avail_in == 0);     /* all input will be used */
 
-	/* done when last data in file processed */
+    /* done when last data in file processed */
     } while (flush != Z_FINISH);
     assert(ret == Z_STREAM_END);        /* stream will be complete */
 

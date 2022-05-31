@@ -112,8 +112,9 @@ CONFIG_CLEAN_VPATH_FILES =
 am_bad_irq_check_OBJECTS = bad_irq_check.$(OBJEXT) \
 	compdecomp_th.$(OBJEXT)
 bad_irq_check_OBJECTS = $(am_bad_irq_check_OBJECTS)
+bad_irq_check_LDADD = $(LDADD)
 am__DEPENDENCIES_1 =
-bad_irq_check_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
+bad_irq_check_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
@@ -123,42 +124,58 @@ bad_irq_check_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(bad_irq_check_LDFLAGS) $(LDFLAGS) -o $@
 am_bench_initend_OBJECTS = bench_initend.$(OBJEXT)
 bench_initend_OBJECTS = $(am_bench_initend_OBJECTS)
-bench_initend_DEPENDENCIES =
+bench_initend_LDADD = $(LDADD)
+bench_initend_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_compdecomp_OBJECTS = compdecomp.$(OBJEXT)
 compdecomp_OBJECTS = $(am_compdecomp_OBJECTS)
-compdecomp_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
+compdecomp_LDADD = $(LDADD)
+compdecomp_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_compdecomp_th_OBJECTS = compdecomp_th.$(OBJEXT)
 compdecomp_th_OBJECTS = $(am_compdecomp_th_OBJECTS)
-compdecomp_th_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
+compdecomp_th_LDADD = $(LDADD)
+compdecomp_th_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_crc_perf_test_vmx_OBJECTS = crc_perf_test.$(OBJEXT)
 crc_perf_test_vmx_OBJECTS = $(am_crc_perf_test_vmx_OBJECTS)
-crc_perf_test_vmx_DEPENDENCIES = $(STATIC_LIBNXZ) \
+crc_perf_test_vmx_LDADD = $(LDADD)
+crc_perf_test_vmx_DEPENDENCIES = ../lib/libnxz.la \
 	$(am__DEPENDENCIES_1)
 am_crc_perf_test_zlib_OBJECTS = crc_perf_test.$(OBJEXT)
 crc_perf_test_zlib_OBJECTS = $(am_crc_perf_test_zlib_OBJECTS)
-crc_perf_test_zlib_DEPENDENCIES =
-am_gunzip_nx_test_OBJECTS = gunzip_nx.$(OBJEXT)
+crc_perf_test_zlib_LDADD = $(LDADD)
+crc_perf_test_zlib_DEPENDENCIES = ../lib/libnxz.la \
+	$(am__DEPENDENCIES_1)
+am_gunzip_nx_test_OBJECTS = gunzip_nx.$(OBJEXT) \
+	samples_utils.$(OBJEXT)
 gunzip_nx_test_OBJECTS = $(am_gunzip_nx_test_OBJECTS)
-gunzip_nx_test_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_gzip_nxdht_test_OBJECTS = gzip_nxdht.$(OBJEXT)
+gunzip_nx_test_LDADD = $(LDADD)
+gunzip_nx_test_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
+am_gzip_nxdht_test_OBJECTS = gzip_nxdht.$(OBJEXT) \
+	samples_utils.$(OBJEXT)
 gzip_nxdht_test_OBJECTS = $(am_gzip_nxdht_test_OBJECTS)
-gzip_nxdht_test_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
-am_gzip_nxfht_test_OBJECTS = gzip_nxfht.$(OBJEXT)
+gzip_nxdht_test_LDADD = $(LDADD)
+gzip_nxdht_test_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
+am_gzip_nxfht_test_OBJECTS = gzip_nxfht.$(OBJEXT) \
+	samples_utils.$(OBJEXT)
 gzip_nxfht_test_OBJECTS = $(am_gzip_nxfht_test_OBJECTS)
-gzip_nxfht_test_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
+gzip_nxfht_test_LDADD = $(LDADD)
+gzip_nxfht_test_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_gzm_OBJECTS = gzm.$(OBJEXT)
 gzm_OBJECTS = $(am_gzm_OBJECTS)
-gzm_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
+gzm_LDADD = $(LDADD)
+gzm_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_makedata_OBJECTS = makedata.$(OBJEXT)
 makedata_OBJECTS = $(am_makedata_OBJECTS)
 makedata_LDADD = $(LDADD)
+makedata_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_nx_gzip_OBJECTS = nx_gzip.$(OBJEXT)
 nx_gzip_OBJECTS = $(am_nx_gzip_OBJECTS)
-nx_gzip_DEPENDENCIES = $(STATIC_LIBNXZ)
+nx_gzip_LDADD = $(LDADD)
+nx_gzip_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_rand_pfault_check_OBJECTS = rand_pfault_check.$(OBJEXT) \
-	compdecomp_th.$(OBJEXT)
+	compdecomp_th.$(OBJEXT) samples_utils.$(OBJEXT)
 rand_pfault_check_OBJECTS = $(am_rand_pfault_check_OBJECTS)
-rand_pfault_check_DEPENDENCIES = $(STATIC_LIBNXZ) \
+rand_pfault_check_LDADD = $(LDADD)
+rand_pfault_check_DEPENDENCIES = ../lib/libnxz.la \
 	$(am__DEPENDENCIES_1)
 rand_pfault_check_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
@@ -166,7 +183,8 @@ rand_pfault_check_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	-o $@
 am_zpipe_OBJECTS = zpipe.$(OBJEXT)
 zpipe_OBJECTS = $(am_zpipe_OBJECTS)
-zpipe_DEPENDENCIES = $(STATIC_LIBNXZ) $(am__DEPENDENCIES_1)
+zpipe_LDADD = $(LDADD)
+zpipe_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -188,7 +206,8 @@ am__depfiles_remade = ./$(DEPDIR)/bad_irq_check.Po \
 	./$(DEPDIR)/gunzip_nx.Po ./$(DEPDIR)/gzip_nxdht.Po \
 	./$(DEPDIR)/gzip_nxfht.Po ./$(DEPDIR)/gzm.Po \
 	./$(DEPDIR)/makedata.Po ./$(DEPDIR)/nx_gzip.Po \
-	./$(DEPDIR)/rand_pfault_check.Po ./$(DEPDIR)/zpipe.Po
+	./$(DEPDIR)/rand_pfault_check.Po ./$(DEPDIR)/samples_utils.Po \
+	./$(DEPDIR)/zpipe.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -299,7 +318,7 @@ INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LD = @LD@
-LDFLAGS = -static-libtool-libs
+LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
@@ -398,42 +417,29 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/inc_nx -I$(top_srcdir)/lib
-STATIC_LIBNXZ = ../lib/libnxz.la
+LDADD = ../lib/libnxz.la $(PTHREAD_LIBS) -ldl
 EXTRATESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th \
 	bad_irq_check rand_pfault_check
 
 NXFLAGS = #-DNXDBG  #-DNXDBG -DNX_MMAP
 bad_irq_check_SOURCES = bad_irq_check.c compdecomp_th.c
-bad_irq_check_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-bad_irq_check_LDFLAGS = -Wl,-wrap,nx_touch_pages -Wl,-wrap,nx_touch_pages_dde
+bad_irq_check_LDFLAGS = -Wl,-wrap,_nx_touch_pages -Wl,-wrap,_nx_touch_pages_dde
 bench_initend_SOURCES = bench_initend.c
-bench_initend_LDADD = -lz
 compdecomp_SOURCES = compdecomp.c
-compdecomp_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
 compdecomp_th_SOURCES = compdecomp_th.c
-compdecomp_th_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
 crc_perf_test_zlib_SOURCES = crc_perf_test.c
-crc_perf_test_zlib_LDADD = -lz
 crc_perf_test_vmx_SOURCES = crc_perf_test.c
-crc_perf_test_vmx_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-gunzip_nx_test_SOURCES = gunzip_nx.c
-gunzip_nx_test_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-gzip_nxfht_test_SOURCES = gzip_nxfht.c
-gzip_nxfht_test_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-gzip_nxdht_test_SOURCES = gzip_nxdht.c
-gzip_nxdht_test_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
+gunzip_nx_test_SOURCES = gunzip_nx.c samples_utils.c
+gzip_nxfht_test_SOURCES = gzip_nxfht.c samples_utils.c
+gzip_nxdht_test_SOURCES = gzip_nxdht.c samples_utils.c
 gzm_SOURCES = gzm.c
-gzm_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
 makedata_SOURCES = makedata.c
 nx_gzip_SOURCES = nx_gzip.c
-nx_gzip_LDADD = $(STATIC_LIBNXZ) -ldl
-rand_pfault_check_SOURCES = rand_pfault_check.c compdecomp_th.c
-rand_pfault_check_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
-rand_pfault_check_LDFLAGS = -Wl,-wrap,nx_touch_pages \
-			    -Wl,-wrap,nx_touch_pages_dde
+rand_pfault_check_SOURCES = rand_pfault_check.c compdecomp_th.c samples_utils.c
+rand_pfault_check_LDFLAGS = -Wl,-wrap,_nx_touch_pages \
+                           -Wl,-wrap,_nx_touch_pages_dde
 
 zpipe_SOURCES = zpipe.c
-zpipe_LDADD = $(STATIC_LIBNXZ) $(PTHREAD_LIBS) -ldl
 all: all-am
 
 .SUFFIXES:
@@ -542,6 +548,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/makedata.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_gzip.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rand_pfault_check.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/samples_utils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zpipe.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
@@ -716,6 +723,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/makedata.Po
 	-rm -f ./$(DEPDIR)/nx_gzip.Po
 	-rm -f ./$(DEPDIR)/rand_pfault_check.Po
+	-rm -f ./$(DEPDIR)/samples_utils.Po
 	-rm -f ./$(DEPDIR)/zpipe.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -774,6 +782,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/makedata.Po
 	-rm -f ./$(DEPDIR)/nx_gzip.Po
 	-rm -f ./$(DEPDIR)/rand_pfault_check.Po
+	-rm -f ./$(DEPDIR)/samples_utils.Po
 	-rm -f ./$(DEPDIR)/zpipe.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic

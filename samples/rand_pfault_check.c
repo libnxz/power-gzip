@@ -36,23 +36,23 @@
  */
 #include <stdlib.h>
 
-extern int __real_nx_touch_pages(void *buf, long buf_len, long page_len,
+extern int __real__nx_touch_pages(void *buf, long buf_len, long page_len,
 				 int wr);
-extern int __real_nx_touch_pages_dde(void *ddep, long buf_sz, long page_sz,
+extern int __real__nx_touch_pages_dde(void *ddep, long buf_sz, long page_sz,
 				 int wr);
 
-int __wrap_nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
+int __wrap__nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 {
 	if (!(rand() % 2))
-		return __real_nx_touch_pages(buf, buf_len, page_len, wr);
+		return __real__nx_touch_pages(buf, buf_len, page_len, wr);
 	else
 		return 0;
 }
 
-int __wrap_nx_touch_pages_dde(void *ddep, long buf_sz, long page_sz, int wr)
+int __wrap__nx_touch_pages_dde(void *ddep, long buf_sz, long page_sz, int wr)
 {
 	if (!(rand() % 2))
-		return __real_nx_touch_pages_dde(ddep, buf_sz, page_sz, wr);
+		return __real__nx_touch_pages_dde(ddep, buf_sz, page_sz, wr);
 	else
 		return 0;
 }

@@ -139,7 +139,7 @@ static int compress_dht_sample(char *src, uint32_t srclen, char *dst, uint32_t d
 	   fprintf(stderr, "in_dht %02x %02x\n", cmdp->cpb.in_dht_char[0],cmdp->cpb.in_dht_char[16]); */
 
 	/* submit the crb */
-	nxu_run_job(cmdp, handle);
+	_nxu_run_job(cmdp, handle);
 
 	/* poll for the csb.v bit; you should also consider expiration */        
 	do {;} while (getnn(cmdp->crb.csb, csb_v) == 0);
@@ -436,7 +436,7 @@ void nxlite_end(void *nxhandle)
 
 	/* if a dht struct was allocated, free it */
 	if (h->dht_handle != NULL)
-		dht_end(h->dht_handle);
+		if(!!(h->dht_handle)) free((h->dht_handle));
 
 	free(nxhandle);
 }
@@ -465,7 +465,7 @@ void *nxlite_begin()
 	}
 
 	/* One time init of the dht tables; */
-	if (NULL == (h->dht_handle = dht_begin(NULL, NULL))) {
+	if (NULL == (h->dht_handle = _dht_begin(NULL, NULL))) {
 		fprintf(stderr, "Unable to init dht tables\n");
 		nxlite_end(h);
 		return NULL;
@@ -543,7 +543,7 @@ static int nxlite_compress(char *dest, uint64_t *destLen,
 	/* Fill in with the default dht here; instead we could also do
 	   fixed huffman with counts for sampling the LZcounts; fixed
 	   huffman doesn't need a dht_lookup */
-	dht_lookup(cmdp, dht_default_req, myhandle->dht_handle); 
+	_dht_lookup(cmdp, dht_default_req, myhandle->dht_handle);
 	initial_pass = 1;
 
 	fault_tries = 50;
@@ -573,7 +573,7 @@ static int nxlite_compress(char *dest, uint64_t *destLen,
 			   or computed DHT; I don't need to sample the
 			   data anymore; previous run's lzcount
 			   is a good enough as an lzcount of this run */
-			dht_lookup(cmdp, dht_search_req, myhandle->dht_handle); 
+			_dht_lookup(cmdp, dht_search_req, myhandle->dht_handle);
 		}
 
 		/* Page faults are handled by the user code */		
@@ -679,7 +679,7 @@ static int nxlite_compress(char *dest, uint64_t *destLen,
 
 	NXPRT( fprintf(stderr, "compressed %ld to %ld bytes total, crc32=%08x\n", srctotlen, dsttotlen, crc) );
 
-	dht_end(myhandle->dht_handle);
+	if(!!(myhandle->dht_handle)) free((myhandle->dht_handle));
 
 	return Z_OK;
 }
@@ -791,7 +791,7 @@ static int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, 
 	NXPRT( nx_print_dde(src, "source") );
 	NXPRT( nx_print_dde(dst, "target") );
 	
-	cc = nxu_run_job(cmdp, handle);
+	cc = _nxu_run_job(cmdp, handle);
 
 	if( !cc ) 
 		cc = getnn( cmdp->crb.csb, csb_cc ); 	/* CC Table 6-8 */

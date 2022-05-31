@@ -35,12 +35,12 @@
  *
  */
 
-int __wrap_nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
+int __wrap__nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
 {
 	return 0;
 }
 
-int __wrap_nx_touch_pages_dde(void *ddep, long buf_sz, long page_sz, int wr)
+int __wrap__nx_touch_pages_dde(void *ddep, long buf_sz, long page_sz, int wr)
 {
 	return 0;
 }

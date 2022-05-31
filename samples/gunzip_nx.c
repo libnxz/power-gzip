@@ -60,6 +60,7 @@
 #include "nxu.h"
 #include "nx_dbg.h"
 #include "nx_zlib.h"
+#include "samples_utils.h"
 
 #define ASSERT(X) assert(X)
 
@@ -84,45 +85,12 @@ const int line_sz = 1<<7;
 const int window_max = 1<<15;
 const int retry_max = 50;
 
-extern void *nx_fault_storage_address;
-/*
-  Fault in pages prior to NX job submission.  wr=1 may be required to
-  touch writeable pages. System zero pages do not fault-in the page as
-  intended.  Typically set wr=1 for NX target pages and set wr=0 for
-  NX source pages.
-*/
-static int _nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
-{
-	char *begin = buf;
-	char *end = (char *)buf + buf_len - 1;
-	volatile char t;
-
-	ASSERT(buf_len >= 0 && !!buf);
-
-	NXPRT( fprintf(stderr, "touch %p %p len 0x%lx wr=%d\n", buf, buf + buf_len, buf_len, wr) );
-	
-	if (buf_len <= 0 || buf == NULL)
-		return -1;
-	
-	do {
-		t = *begin;
-		if (wr) *begin = t;
-		begin = begin + page_len;
-	} while (begin < end);
-
-	/* when buf_sz is small or buf tail is in another page */
-	t = *end;
-	if (wr) *end = t;	
-
-	return 0;
-}
-
 void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
 {
 	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
 	       sig, info->si_code, info->si_addr);
 
-	nx_fault_storage_address = info->si_addr;
+	_nx_fault_storage_address = info->si_addr;
 	/* exit(0); */
 }
 
@@ -238,73 +206,6 @@ static inline uint32_t _nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 }
 
 /* 
-   Touch specified number of pages represented in number bytes
-   beginning from the first buffer in a dde list. 
-   Do not touch the pages past buf_sz-th byte's page.
-   
-   Set buf_sz = 0 to touch all pages described by the ddep.
-*/
-static int _nx_touch_pages_dde(nx_dde_t *ddep, long buf_sz, long page_sz, int wr)
-{
-	uint32_t indirect_count;
-	uint32_t buf_len;
-	long total;
-	uint64_t buf_addr;
-	nx_dde_t *dde_list;
-	int i;
-
-	ASSERT(!!ddep);
-	
-	indirect_count = getpnn(ddep, dde_count);
-
-	NXPRT( fprintf(stderr, "_nx_touch_pages_dde dde_count %d request len 0x%lx\n", indirect_count, buf_sz) );
-	
-	if (indirect_count == 0) {
-		/* direct dde */
-		buf_len = getp32(ddep, ddebc);
-		buf_addr = getp64(ddep, ddead);
-
-		NXPRT( fprintf(stderr, "touch direct ddebc 0x%x ddead %p\n", buf_len, (void *)buf_addr) ); 
-		
-		if (buf_sz == 0)
-			_nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
-		else 
-			_nx_touch_pages((void *)buf_addr, NX_MIN(buf_len, buf_sz), page_sz, wr);
-
-		return ERR_NX_OK;
-	}
-
-	/* indirect dde */
-	if (indirect_count > MAX_DDE_COUNT)
-		return ERR_NX_EXCESSIVE_DDE;
-
-	/* first address of the list */
-	dde_list = (nx_dde_t *) getp64(ddep, ddead);
-
-	if( buf_sz == 0 )
-		buf_sz = getp32(ddep, ddebc);
-	
-	total = 0;
-	for (i=0; i < indirect_count; i++) {
-		buf_len = get32(dde_list[i], ddebc);
-		buf_addr = get64(dde_list[i], ddead);
-		total += buf_len;
-
-		NXPRT( fprintf(stderr, "touch loop len 0x%x ddead %p total 0x%lx\n", buf_len, (void *)buf_addr, total) ); 
-
-		/* touching fewer pages than encoded in the ddebc */
-		if ( total > buf_sz) {
-			buf_len = NX_MIN(buf_len, total - buf_sz);
-			_nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
-			NXPRT( fprintf(stderr, "touch loop break len 0x%x ddead %p\n", buf_len, (void *)buf_addr) ); 			
-			break;
-		}
-		_nx_touch_pages((void *)buf_addr, buf_len, page_sz, wr);
-	}
-	return ERR_NX_OK;
-}
-
-/* 
    Src and dst buffers are supplied in scatter gather lists. 
    NX function code and other parameters supplied in cmdp 
 */
@@ -334,7 +235,7 @@ static int _nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp,
 	NXPRT( nx_print_dde(src, "source") );
 	NXPRT( nx_print_dde(dst, "target") );
 	
-	cc = nxu_run_job(cmdp, handle);
+	cc = _nxu_run_job(cmdp, handle);
 
 	if( !cc ) 
 		cc = getnn( cmdp->crb.csb, csb_cc ); 	/* CC Table 6-8 */
@@ -404,7 +305,7 @@ int decompress_file(int argc, char **argv, nx_devp_t devhandle)
 #endif
 
 	NX_CLK( memset(&td, 0, sizeof(td)) );
-	NX_CLK( (td.freq = nx_get_freq())  );
+	NX_CLK((td.freq = __ppc_get_timebase_freq()));
 	
 	if (argc > 2) {
 		fprintf(stderr, "usage: %s <fname> or stdin\n", argv[0]);
@@ -1249,7 +1150,12 @@ int main(int argc, char **argv)
 {
     int rc;
     struct sigaction act;
-    struct nx_dev_t handle;
+    z_stream strm;
+    nx_streamp s;
+
+    strm.zalloc = (alloc_func) 0;
+    strm.zfree = (free_func) 0;
+    strm.opaque = (voidpf) 0;
 
     act.sa_handler = 0;
     act.sa_sigaction = sigsegv_handler;
@@ -1258,16 +1164,16 @@ int main(int argc, char **argv)
     sigemptyset(&act.sa_mask);
     sigaction(SIGSEGV, &act, NULL);
 
-    rc = nx_function_begin( NX_FUNC_COMP_GZIP, 0, &handle);
-    if (rc) {
+    if (nx_deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK) {
 	fprintf( stderr, "Unable to init NX, errno %d\n", errno);
 	exit(-1);
     }
 
-    rc = decompress_file(argc, argv, &handle);
+    s = (nx_streamp)strm.state;
+    rc = decompress_file(argc, argv, s->nxdevp);
 
-    nx_function_end(&handle);
-    
+    nx_deflateEnd(&strm);
+
     return rc;
 }
 

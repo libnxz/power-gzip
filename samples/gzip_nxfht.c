@@ -65,6 +65,7 @@
 #include "nxu.h"
 #include "nx_dbg.h"
 #include "nx_zlib.h"
+#include "samples_utils.h"
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 
@@ -77,6 +78,7 @@ struct _nx_time_dbg {
 	uint64_t fault;
 } td;
 
+void *nx_fault_storage_address;
 
 #define SYSFS_GZIP_CAPS "/sys/devices/vio/ibm,compression-v1/nx_gzip_caps/"
 static int nx_query_job_limits()
@@ -138,7 +140,7 @@ static int compress_fht_sample(char *src, uint32_t srclen, char *dst, uint32_t d
 	put64(cmdp->crb.target_dde, ddead, (uint64_t) dst);
 
 	/* submit the crb */
-	nxu_run_job(cmdp, handle);
+	_nxu_run_job(cmdp, handle);
 
 	/* poll for the csb.v bit; you should also consider expiration */
 	do {;} while (getnn(cmdp->crb.csb, csb_v) == 0);
@@ -238,38 +240,6 @@ int append_sync_flush(char *buf, int tebc, int final)
 }
 
 /*
-  Fault in pages prior to NX job submission.  wr=1 may be required to
-  touch writeable pages. System zero pages do not fault-in the page as
-  intended.  Typically set wr=1 for NX target pages and set wr=0 for
-  NX source pages.
-*/
-static int _nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
-{
-	char *begin = buf;
-	char *end = (char *)buf + buf_len - 1;
-	volatile char t;
-
-	assert(buf_len >= 0 && !!buf);
-
-	NXPRT( fprintf(stderr, "touch %p %p len 0x%lx wr=%d\n", buf, buf + buf_len, buf_len, wr) );
-
-	if (buf_len <= 0 || buf == NULL)
-		return -1;
-
-	do {
-		t = *begin;
-		if (wr) *begin = t;
-		begin = begin + page_len;
-	} while (begin < end);
-
-	/* when buf_sz is small or buf tail is in another page */
-	t = *end;
-	if (wr) *end = t;
-
-	return 0;
-}
-
-/*
   Final deflate block bit. This call assumes the block
   beginning is byte aligned.
 */
@@ -315,7 +285,7 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 	_nx_touch_pages(outbuf, outlen, pagelen, 1);
 
 	NX_CLK( memset(&td, 0, sizeof(td)) );
-	NX_CLK( (td.freq = nx_get_freq())  );
+	NX_CLK((td.freq = __ppc_get_timebase_freq()));
 
 	/* compress piecemeal in small chunks */
 	chunk = (uint32_t) nx_query_job_limits();
@@ -473,7 +443,12 @@ int main(int argc, char **argv)
 {
 	int rc;
 	struct sigaction act;
-	struct nx_dev_t handle;
+	z_stream strm;
+	nx_streamp s;
+
+	strm.zalloc = (alloc_func) 0;
+	strm.zfree = (free_func) 0;
+	strm.opaque = (voidpf) 0;
 
 	act.sa_handler = 0;
 	act.sa_sigaction = sigsegv_handler;
@@ -482,15 +457,15 @@ int main(int argc, char **argv)
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
 
-	rc = nx_function_begin(NX_FUNC_COMP_GZIP, 0, &handle);
-	if (rc) {
+	if (nx_deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK) {
 		fprintf(stderr, "Unable to init NX, errno %d\n", errno);
 		exit(-1);
 	}
 
-	rc = compress_file(argc, argv, &handle);
+	s = (nx_streamp)strm.state;
+	rc = compress_file(argc, argv, s->dhthandle);
 
-	nx_function_end(&handle);
+	nx_deflateEnd(&strm);
 
 	return rc;
 }

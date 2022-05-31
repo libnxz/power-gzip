@@ -65,6 +65,7 @@
 #include "nx_dht.h"
 #include "nx_dbg.h"
 #include "nx_zlib.h"
+#include "samples_utils.h"
 
 /* #define SAVE_LZCOUNTS  define only when printing a builtin dht */
 
@@ -137,7 +138,7 @@ static int compress_dht_sample(char *src, uint32_t srclen, char *dst, uint32_t d
 	   fprintf(stderr, "in_dht %02x %02x\n", cmdp->cpb.in_dht_char[0],cmdp->cpb.in_dht_char[16]); */
 
 	/* submit the crb */
-	nxu_run_job(cmdp, handle);
+	_nxu_run_job(cmdp, handle);
 
 	/* poll for the csb.v bit; you should also consider expiration */        
 	do {;} while (getnn(cmdp->crb.csb, csb_v) == 0);
@@ -237,38 +238,6 @@ int append_sync_flush(char *buf, int tebc, int final)
 }
 
 /*
-  Fault in pages prior to NX job submission.  wr=1 may be required to
-  touch writeable pages. System zero pages do not fault-in the page as
-  intended.  Typically set wr=1 for NX target pages and set wr=0 for
-  NX source pages.
-*/
-static int _nx_touch_pages(void *buf, long buf_len, long page_len, int wr)
-{
-	char *begin = buf;
-	char *end = (char *)buf + buf_len - 1;
-	volatile char t;
-
-	assert(buf_len >= 0 && !!buf);
-
-	NXPRT( fprintf(stderr, "touch %p %p len 0x%lx wr=%d\n", buf, buf + buf_len, buf_len, wr) );
-	
-	if (buf_len <= 0 || buf == NULL)
-		return -1;
-	
-	do {
-		t = *begin;
-		if (wr) *begin = t;
-		begin = begin + page_len;
-	} while (begin < end);
-
-	/* when buf_sz is small or buf tail is in another page */
-	t = *end;
-	if (wr) *end = t;	
-
-	return 0;
-}
-
-/*
   Final deflate block bit. This call assumes the block 
   beginning is byte aligned.
 */
@@ -281,7 +250,7 @@ static void set_bfinal(void *buf, int bfinal)
 		*b = *b & (unsigned char) 0xfe;
 }
 
-int compress_file(int argc, char **argv, nx_devp_t handle)
+int compress_file(int argc, char **argv, nx_devp_t handle, void *dhthandle)
 {
 	char *inbuf, *outbuf, *srcbuf, *dstbuf;
 	char outname[1024];
@@ -296,7 +265,6 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 	nx_gzip_crb_cpb_t nxcmd, *cmdp;
 	uint32_t pagelen = 65536; /* should get this with syscall */
 	int fault_tries=50;
-	void *dhthandle;
     
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <fname>\n", argv[0]);
@@ -312,7 +280,7 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 	_nx_touch_pages(outbuf, outlen, pagelen, 1);
 
 	NX_CLK( memset(&td, 0, sizeof(td)) );
-	NX_CLK( (td.freq = nx_get_freq())  );
+	NX_CLK((td.freq = __ppc_get_timebase_freq()));
 	
 	/* compress piecemeal in small chunks */    
 	chunk = NX_CHUNK_SZ;
@@ -326,12 +294,6 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 	srcbuf    = inbuf;
 	srctotlen = 0;
 
-	/* One time init of the dht tables; consider saving this
-	   handle in the nx_stream data structure for the nx_zlib
-	   implementation */
-	dhthandle = dht_begin(NULL, NULL);
-
-	/* prep the CRB */
 	cmdp = &nxcmd;
 	memset(&cmdp->crb, 0, sizeof(cmdp->crb));
 
@@ -342,7 +304,7 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 	/* Fill in with the default dht here; instead we could also do
 	   fixed huffman with counts for sampling the LZcounts; fixed
 	   huffman doesn't need a dht_lookup */
-	dht_lookup(cmdp, dht_default_req, dhthandle); 
+	_dht_lookup(cmdp, dht_default_req, dhthandle);
 	initial_pass = 1;
 
 	fault_tries = 50;
@@ -372,7 +334,7 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 			   or computed DHT; I don't need to sample the
 			   data anymore; previous run's lzcount
 			   is a good enough as an lzcount of this run */
-			dht_lookup(cmdp, dht_search_req, dhthandle); 
+			_dht_lookup(cmdp, dht_search_req, dhthandle);
 		}
 
 		NX_CLK( (td.touch1 = nx_get_time()) );
@@ -501,7 +463,7 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 	/* print a dht based on the lzcounts */
 	dht_print(dhthandle);
 #endif
-	dht_end(dhthandle);
+	if (!!dhthandle) free(dhthandle);
 
 	return 0;
 }
@@ -520,7 +482,12 @@ int main(int argc, char **argv)
 {
 	int rc;
 	struct sigaction act;
-	struct nx_dev_t handle;
+	z_stream strm;
+	nx_streamp s;
+
+	strm.zalloc = (alloc_func) 0;
+	strm.zfree = (free_func) 0;
+	strm.opaque = (voidpf) 0;
 
 	act.sa_handler = 0;
 	act.sa_sigaction = sigsegv_handler;
@@ -528,16 +495,16 @@ int main(int argc, char **argv)
 	act.sa_restorer = 0;
 	sigemptyset(&act.sa_mask);
 	sigaction(SIGSEGV, &act, NULL);
-	
-	rc = nx_function_begin(NX_FUNC_COMP_GZIP, 0, &handle);
-	if (rc) {
-		fprintf(stderr, "Unable to init NX, errno %d\n", errno);
+
+	if (nx_deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK) {
+		fprintf( stderr, "Unable to init NX, errno %d\n", errno);
 		exit(-1);
 	}
 
-	rc = compress_file(argc, argv, &handle);
+	s = (nx_streamp)strm.state;
+	rc = compress_file(argc, argv, s->nxdevp, s->dhthandle);
 
-	nx_function_end(&handle);
+	nx_deflateEnd(&strm);
 
 	return rc;
 }

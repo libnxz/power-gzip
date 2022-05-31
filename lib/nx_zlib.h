@@ -628,6 +628,7 @@ extern int nx_deflateEnd(z_streamp strm);
 extern unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen);
 extern int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary,
 				uint dictLength);
+extern int nx_deflateReset(z_streamp strm);
 
 /* nx_inflate.c */
 extern int nx_inflateInit_(z_streamp strm, const char *version, int stream_size);

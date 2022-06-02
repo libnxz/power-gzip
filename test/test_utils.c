@@ -174,7 +174,7 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	if (time != NULL)
 		gettimeofday(&time->start, NULL);
 
-	bound = deflateBound(&c_stream, src_len);
+	bound = nx_deflateBound(&c_stream, src_len);
 
 	while (c_stream.total_in != src_len
 	       && c_stream.total_out < *compr_len) {

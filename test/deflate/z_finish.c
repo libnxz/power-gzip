@@ -25,7 +25,7 @@ static int _test_nx_deflatef(Byte* src, unsigned int src_len, Byte* compr,
 	c_stream.next_in  = (z_const unsigned char *)src;
 	c_stream.next_out = compr;
 
-	bound = deflateBound(&c_stream, src_len);
+	bound = nx_deflateBound(&c_stream, src_len);
 
 	c_stream.avail_in = src_len;
 	c_stream.avail_out = compr_len;

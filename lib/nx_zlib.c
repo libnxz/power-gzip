@@ -975,7 +975,6 @@ static int print_nx_env(FILE *fp)
 	char *dht_config = getenv("NX_GZIP_DHT_CONFIG");
 	char *strategy_ovrd  = getenv("NX_GZIP_STRATEGY");
 	char *timeout_pgfaults = getenv("NX_GZIP_TIMEOUT_PGFAULTS");
-	char *nx_ratio_s     = getenv("NX_GZIP_RATIO");
 
 	fprintf(fp, "env variables ==============\n");
 	if (cfg_file_s)
@@ -999,8 +998,6 @@ static int print_nx_env(FILE *fp)
 	if (timeout_pgfaults)
 		fprintf(fp, "NX_GZIP_TIMEOUT_PGFAULTS: \'%s\'\n",
 		        timeout_pgfaults);
-	if (nx_ratio_s)
-		fprintf(fp, "NX_GZIP_RATIO: \'%s\'\n", nx_ratio_s);
 
 	return 0;
 }
@@ -1067,7 +1064,6 @@ void nx_hw_init(void)
 	char* delay_threshold = NULL;
 	char* compress_delay = NULL;
 	char* decompress_delay = NULL;
-	char *nx_ratio_s     = getenv("NX_GZIP_RATIO"); /* Select the nxgzip ratio(0-100, default is 100%) */
 	char* max_vas_reuse_count = NULL;
 
 	/* Init nx_config a default value firstly */
@@ -1103,7 +1099,6 @@ void nx_hw_init(void)
 	nx_config.mlock_nx_crb_csb = 0;
 	nx_config.timeout_pgfaults = 300; /* seconds */
 	nx_config.dht = 0; /* default is literals only */
-	nx_config.nx_ratio = 100; /* default is 100% NX */
 	nx_config.strategy_override = 1; /* default is dynamic huffman */
 	/* default to the automatic switch */
 	nx_config.mode.deflate = GZIP_AUTO;
@@ -1151,8 +1146,6 @@ void nx_hw_init(void)
 
 		if (!type_selector)
 			type_selector = nx_get_cfg("nx_selector", &cfg_tab);
-		if (!nx_ratio_s)
-			nx_ratio_s = nx_get_cfg("nx_ratio", &cfg_tab);
 		if(!comp_mode)
 			comp_mode = nx_get_cfg("comp_mode", &cfg_tab);
 		if(!dec_mode)
@@ -1205,15 +1198,6 @@ void nx_hw_init(void)
 	}
 
 	prt_info("%d NX GZIP Accelerator Found!\n",nx_count);
-
-	if (nx_ratio_s != NULL) {
-		nx_config.nx_ratio = str_to_num(nx_ratio_s);
-		if (nx_config.nx_ratio > 100){
-			prt_err("NXGZIP Ratio is out of range(0,100), use default 100.\n");
-			nx_config.nx_ratio = 100;
-		}
-		prt("Use NX Ratio: %d %% \n", nx_config.nx_ratio);
-	}
 
 	if (trace_s != NULL)
 		nx_gzip_trace = strtol(trace_s, (char **)NULL, 0);

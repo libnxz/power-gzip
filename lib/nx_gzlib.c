@@ -184,7 +184,10 @@ gzFile __gzopen(const char* path, int fd, const char *mode, int force_nx)
 
 		is_deflate = true;
 	} else {
-		err = nx_inflateInit(stream);
+		if (force_nx)
+			err = nx_inflateInit(stream);
+		else
+			err = inflateInit(stream);
 		is_deflate = false;
 		if (err == Z_OK) {
 			state->buf = malloc(BUF_LEN);

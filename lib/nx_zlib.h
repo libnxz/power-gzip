@@ -156,8 +156,6 @@ struct nx_config_t {
 	int      verbose;
 	int      mlock_nx_crb_csb;
 	int      dht;
-	uint8_t  nx_ratio; /** ratio from 0 to 100 indicating 0% to 100% of nx
-			    * over sw */
 	int      strategy_override; /** Force use of an specific deflate
 				     * strategy.  0 is fixed huffman, 1 is
 				     * dynamic huffman */
@@ -358,7 +356,6 @@ static inline int has_nx_state(z_streamp strm)
 
 static inline int use_nx_inflate(z_streamp strm, int flush)
 {
-	uint64_t rnd;
 	nx_streamp s;
 
 	assert(strm != NULL);
@@ -378,15 +375,7 @@ static inline int use_nx_inflate(z_streamp strm, int flush)
 	if(flush == Z_FINISH && strm->avail_in <= DECOMPRESS_THRESHOLD)
 		return 0;
 
-	if(nx_config.mode.inflate == GZIP_AUTO) return 1;
-
-	/* #3 Percentage */
-	rnd = __ppc_get_timebase();
-	if( rnd%100 < nx_config.nx_ratio){ /* use nx to nx_ratio */
-		return 1; /* nx */
-	}else{
-		return 0;
-	}
+	return 1;
 }
 
 static inline int use_nx_deflate(z_streamp strm, int flush)

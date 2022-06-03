@@ -356,7 +356,7 @@ static inline int has_nx_state(z_streamp strm)
 	return (nx_state->magic1 == MAGIC1);
 }
 
-static inline int use_nx_inflate(z_streamp strm)
+static inline int use_nx_inflate(z_streamp strm, int flush)
 {
 	uint64_t rnd;
 	nx_streamp s;
@@ -370,8 +370,13 @@ static inline int use_nx_inflate(z_streamp strm)
 	/* #1 Time spent */
 	if(s->use_nx == 0) return 0;
 
-	/* #2 Threshold */
-	if(strm->avail_in <= DECOMPRESS_THRESHOLD) return 0;
+	/* #2 Length threshold
+	   Even when decompressing a large amount of data, the first call to
+	   inflate() may not have enough input. So, avoid switching to software
+	   decompression prematurely unless there is a guarantee that all the
+	   input has been provided, i.e. when using Z_FINISH. */
+	if(flush == Z_FINISH && strm->avail_in <= DECOMPRESS_THRESHOLD)
+		return 0;
 
 	if(nx_config.mode.inflate == GZIP_AUTO) return 1;
 
@@ -384,21 +389,27 @@ static inline int use_nx_inflate(z_streamp strm)
 	}
 }
 
-static inline int use_nx_deflate(z_streamp strm)
+static inline int use_nx_deflate(z_streamp strm, int flush)
 {
 	nx_streamp s;
 
 	assert(strm != NULL);
 	s = (struct nx_stream_s *)(strm->state);
 
-        if(nx_config.mode.deflate == GZIP_NX) return 1;
-        if(nx_config.mode.deflate == GZIP_SW) return 0;
+	if(nx_config.mode.deflate == GZIP_NX) return 1;
+	if(nx_config.mode.deflate == GZIP_SW) return 0;
 
 	/* #1 Time spent */
 	if(s->use_nx == 0) return 0;
 
-	/* #2 Threshold */
-	if(strm->avail_in <= COMPRESS_THRESHOLD) return 0;
+	/* #2 Length threshold
+	   Even when compressing a large amount of data, the first call to
+	   deflate() may not have enough input. So, avoid switching to software
+	   compression prematurely unless there is a guarantee that all the
+	   input has been provided, i.e. when using Z_FINISH. */
+	if(flush == Z_FINISH && strm->avail_in <= COMPRESS_THRESHOLD)
+		return 0;
+
 	return 1;
 }
 

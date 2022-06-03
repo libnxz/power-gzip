@@ -1648,7 +1648,8 @@ int nx_deflate(z_streamp strm, int flush)
 		return Z_STREAM_ERROR;
 
 	/* check for sw deflate first */
-	if( (has_nx_state(strm)) && s->switchable && (0 == use_nx_deflate(strm))){
+	if (has_nx_state(strm) && s->switchable
+	    && (0 == use_nx_deflate(strm, flush))) {
 		/* Use software zlib, switch the sw and hw state */
 		nx_switch_to_sw(strm);
 
@@ -2005,8 +2006,8 @@ int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary, uns
 		return Z_STREAM_ERROR;
 
 	/* check for sw deflate first */
-	if ((has_nx_state(strm)) && s->switchable &&
-	    (0 == use_nx_deflate(strm))) {
+	if (has_nx_state(strm) && s->switchable &&
+	    (0 == use_nx_deflate(strm, Z_OK))) {
 		/* Use software zlib, switch the sw and hw state */
 		nx_switch_to_sw(strm);
 

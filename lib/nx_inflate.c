@@ -2009,8 +2009,7 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 	zlib_stats_inc(&zlib_stats.inflateInit);
 
 	strm->state = NULL;
-	if (nx_config.mode.inflate == GZIP_AUTO ||
-	    nx_config.mode.inflate == GZIP_MIX) {
+	if (nx_config.mode.inflate == GZIP_AUTO) {
 		/* Call sw and nx initialization.  */
 		rc = sw_inflateInit2_(strm, windowBits, version, stream_size);
 		if (rc != Z_OK)

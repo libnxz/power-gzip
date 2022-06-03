@@ -76,13 +76,9 @@ threshold and use NX otherwise.
 */
 #define GZIP_NX 	0x02
 /*! \def GZIP_MIX
-    \brief Compress like GZIP_AUTO but mix software and NX with specific ratio for inputs bigger than the threshold, use software for decompression.
-*/
-#define GZIP_MIX	0x03
-/*! \def GZIP_MIX2
     \brief Use NX to compress and software to decompress.
 */
-#define GZIP_MIX2	0x04
+#define GZIP_MIX	0x03
 
 struct selector {
 	uint8_t inflate;

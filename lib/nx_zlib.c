@@ -1169,12 +1169,12 @@ void nx_hw_init(void)
 
 	if(type_selector != NULL){
 		uint8_t gzip_selector = str_to_num(type_selector);
-		prt("gzip_selector: %d (0-AUTO;1-SW;2-NX;3/4-MIX)\n", gzip_selector);
-		if(gzip_selector < 4) {
+		prt("gzip_selector: %d (0-AUTO;1-SW;2-NX;3-MIX)\n", gzip_selector);
+		if(gzip_selector < 3) {
 			nx_config.mode.deflate = gzip_selector;
 			nx_config.mode.inflate = gzip_selector;
-		} else if(gzip_selector == 4) {
-			/* GZIP_MIX2 */
+		} else if(gzip_selector == 3) {
+			/* GZIP_MIX */
 			nx_config.mode.deflate = GZIP_NX;
 			nx_config.mode.inflate = GZIP_SW;
 		} else

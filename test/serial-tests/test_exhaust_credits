@@ -36,7 +36,7 @@ test_mode ./exhaust_credits "SW" 1 1
 test_mode ./exhaust_credits "NX" 2 18
 
 # Return code 2 means only deflateInit should fail
-test_mode ./exhaust_credits "MIX2" 4 2
+test_mode ./exhaust_credits "MIX" 3 2
 
 echo "=== Testing libnxz API ==="
 
@@ -44,4 +44,4 @@ echo "=== Testing libnxz API ==="
 test_mode ./exhaust_credits_nx "AUTO" 0 18
 test_mode ./exhaust_credits_nx "SW" 1 1
 test_mode ./exhaust_credits_nx "NX" 2 18
-test_mode ./exhaust_credits_nx "MIX2" 4 18
+test_mode ./exhaust_credits_nx "MIX" 3 18

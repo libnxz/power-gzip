@@ -37,6 +37,12 @@ int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sou
     uLong len, left;
     Byte buf[1];    /* for detection of incomplete stream when *destLen == 0 */
 
+    memset(&stream, 0, sizeof(stream));
+    stream.next_in = (z_const Bytef *)source;
+
+    err = nx_inflateInit(&stream);
+    if (err != Z_OK) return err;
+
     len = *sourceLen;
     if (*destLen) {
         left = *destLen;
@@ -46,12 +52,6 @@ int nx_uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *sou
         left = 1;
         dest = buf;
     }
-
-    memset(&stream, 0, sizeof(stream));
-    stream.next_in = (z_const Bytef *)source;
-
-    err = nx_inflateInit(&stream);
-    if (err != Z_OK) return err;
 
     stream.next_out = dest;
     stream.avail_out = 0;
@@ -99,6 +99,13 @@ int uncompress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong *source
 			rc = sw_uncompress2(dest, destLen, source, sourceLen);
 		} else {
 			rc = nx_uncompress2(dest, destLen, source, sourceLen);
+			if (rc == Z_STREAM_ERROR && errno == EAGAIN) {
+				/* Failed due to lack of credits on PowerVM */
+				prt_info("Falling back to software decompression\n");
+				decrease_delay();
+				rc = sw_uncompress2(dest, destLen, source,
+						    sourceLen);
+			}
 		}
 	}else if(nx_config.mode.inflate == GZIP_NX){
 		rc = nx_uncompress2(dest, destLen, source, sourceLen);

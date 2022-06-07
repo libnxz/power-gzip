@@ -30,15 +30,15 @@ int nx_compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong source
     const uInt max = 1<<30;
     uLong remaining;
 
-    remaining = *destLen;
-    *destLen = 0;
-
     memset(&stream, 0, sizeof(stream));
 
     prt_info("nx_compress2 begin: sourceLen %ld\n", sourceLen);
 
     rc = nx_deflateInit(&stream, level);
     if (rc != Z_OK) return rc;
+
+    remaining = *destLen;
+    *destLen = 0;
 
     stream.next_out = dest;
     stream.avail_out = 0;
@@ -84,12 +84,19 @@ int compress2(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen
 	int rc=0;
 
 	if(nx_config.mode.deflate == GZIP_AUTO){
-		if(sourceLen <= COMPRESS_THRESHOLD ||
-		   avg_delay > nx_config.compress_delay) {
+		if (sourceLen <= COMPRESS_THRESHOLD ||
+		    avg_delay > nx_config.compress_delay) {
 			rc = sw_compress2(dest, destLen, source, sourceLen, level);
 			decrease_delay();
 		} else {
 			rc = nx_compress2(dest, destLen, source, sourceLen, level);
+			if (rc == Z_STREAM_ERROR && errno == EAGAIN) {
+				/* Failed due to lack of credits on PowerVM */
+				prt_info("Falling back to software compression\n");
+				decrease_delay();
+				rc = sw_compress2(dest, destLen, source,
+						  sourceLen, level);
+			}
 		}
 	}else if(nx_config.mode.deflate == GZIP_NX){
 		rc = nx_compress2(dest, destLen, source, sourceLen, level);

@@ -122,7 +122,7 @@ static int do_compress(void)
 	int ret = 0;
 	int rc;
 
-	rc = PREFIX(compress2)(compr, &destLen, src, src_len, Z_DEFAULT_COMPRESSION);
+	rc = PREFIX(compress)(compr, &destLen, src, src_len);
 	if (rc != Z_OK) {
 		fprintf(stderr, "compress2 failed! rc = %s\n", zret2str(rc));
 		ret |= RET_COMPR;
@@ -134,11 +134,10 @@ static int do_compress(void)
 static int do_uncompress(void)
 {
 	unsigned long destLen = uncompr_len;
-	unsigned long srcLen = compr_len;
 	int ret = 0;
 	int rc;
 
-	rc = PREFIX(uncompress2)(uncompr, &destLen, infsrc, &srcLen);
+	rc = PREFIX(uncompress)(uncompr, &destLen, infsrc, compr_len);
 	if (rc != Z_OK) {
 		fprintf(stderr, "uncompress2 failed! rc = %s\n", zret2str(rc));
 		ret |= RET_UNCOMPR;

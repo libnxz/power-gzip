@@ -20,9 +20,11 @@ https://github.com/libnxz/power-gzip/wiki/Enable-nx-gzip-on-POWER9#nx-gzip-devic
 # Manual tests
 
 To manually build and run:
-$ gcc -O3 -I./include -o gzfht_test gzfht_test.c gzip_vas.c
-$ gcc -O3 -I./include -o gunz_test gunz_test.c gzip_vas.c
 
+```
+$ gcc -O3 -I./inc -o gzfht_test gzfht_test.c gzip_vas.c
+$ gcc -O3 -I./inc -o gunz_test gunz_test.c gzip_vas.c
+```
 
 Compress any file using Fixed Huffman mode. Output will have a .nx.gz suffix:
 $ ./gzfht_test gzip_vas.c

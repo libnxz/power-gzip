@@ -23,14 +23,14 @@
 #include "test_utils.h"
 #include "credit_utils.h"
 
-#define RET_CREDITS 1
-#define RET_DEFINIT 2
-#define RET_DEFLATE 4
-#define RET_DEFEND  8
-#define RET_INFINIT 16
-#define RET_INFLATE 32
-#define RET_INFEND  64
-#define RET_ERROR  (1<<31)
+#define RET_CREDITS  1
+#define RET_DEFINIT  2
+#define RET_DEFERR   4
+#define RET_INFINIT  8
+#define RET_INFERR   16
+#define RET_COMPR    32
+#define RET_UNCOMPR  64
+#define RET_ERROR    128
 
 #if WITHPREFIX
 # define PREFIX(f) nx_ ## f
@@ -38,18 +38,17 @@
 # define PREFIX(f) f
 #endif
 
-Bytef str[] = "Please compress me!";
-
-/* String compressed in the DEFLATE format */
-Bytef compr[] = {0x78, 0x9c, 0x73, 0x2a, 0x4a, 0x2c, 0xce, 0xcc, 0x51, 0x48,
-                 0xcc, 0xcc, 0x4b, 0x49, 0x54, 0x28, 0x4b, 0xcc, 0x54, 0x28,
-                 0x4e, 0x2d, 0x52, 0xc8, 0x48, 0xad, 0x48, 0x54, 0xe4, 0x02,
-                 0x00, 0x87, 0xcc, 0x09, 0x36};
+Bytef *src, *infsrc, *compr, *uncompr;
+const unsigned int src_len = 32000; 	/* Need something larger than
+					   cache_threshold to avoid deflate
+					   falling back to software by
+					   default. */
+const unsigned int compr_len = 64000;
+const unsigned int uncompr_len = 64000;
 
 static int do_deflate(void)
 {
 	z_stream stream;
-	Bytef compr[64];
 	int ret = 0;
 	int rc;
 
@@ -62,19 +61,19 @@ static int do_deflate(void)
 		return RET_DEFINIT;
 	}
 
-	stream.next_in = str;
-	stream.avail_in = sizeof(str);
+	stream.next_in = src;
+	stream.avail_in = src_len;
 	stream.next_out = compr;
-	stream.avail_out = sizeof(compr);
+	stream.avail_out = compr_len;
 	rc = PREFIX(deflate)(&stream, Z_FINISH);
 	if (rc != Z_STREAM_END) {
 		fprintf(stderr, "deflate failed! rc = %s\n", zret2str(rc));
-		ret |= RET_DEFLATE;
+		ret |= RET_DEFERR;
 	}
 	rc = PREFIX(deflateEnd)(&stream);
 	if (rc != Z_OK) {
 		fprintf(stderr, "deflateEnd failed! rc = %s\n", zret2str(rc));
-		ret |= RET_DEFEND;
+		ret |= RET_DEFERR;
 	}
 
 	return ret;
@@ -88,7 +87,6 @@ void child_do(z_stream *stream) {
 static int do_inflate(void)
 {
 	z_stream stream;
-	Bytef uncompr[64];
 	int ret = 0;
 	int rc;
 
@@ -101,30 +99,80 @@ static int do_inflate(void)
 		return RET_INFINIT;
 	}
 
-	stream.next_in = compr;
-	stream.avail_in = sizeof(compr);
+	stream.next_in = infsrc;
+	stream.avail_in = compr_len;
 	stream.next_out = uncompr;
-	stream.avail_out = sizeof(uncompr);
+	stream.avail_out = uncompr_len;
 	rc = PREFIX(inflate)(&stream, Z_FINISH);
 	if (rc != Z_STREAM_END) {
 		fprintf(stderr, "inflate failed! rc = %s\n", zret2str(rc));
-		ret |= RET_INFLATE;
+		ret |= RET_INFERR;
 	}
 	rc = PREFIX(inflateEnd)(&stream);
 	if (rc != Z_OK) {
 		fprintf(stderr, "inflateEnd failed! rc = %s\n", zret2str(rc));
-		ret |= RET_INFEND;
+		ret |= RET_INFERR;
 	}
+	return ret;
+}
+
+static int do_compress(void)
+{
+	unsigned long destLen = compr_len;
+	int ret = 0;
+	int rc;
+
+	rc = PREFIX(compress2)(compr, &destLen, src, src_len, Z_DEFAULT_COMPRESSION);
+	if (rc != Z_OK) {
+		fprintf(stderr, "compress2 failed! rc = %s\n", zret2str(rc));
+		ret |= RET_COMPR;
+	}
+
+	return ret;
+}
+
+static int do_uncompress(void)
+{
+	unsigned long destLen = uncompr_len;
+	unsigned long srcLen = compr_len;
+	int ret = 0;
+	int rc;
+
+	rc = PREFIX(uncompress2)(uncompr, &destLen, infsrc, &srcLen);
+	if (rc != Z_OK) {
+		fprintf(stderr, "uncompress2 failed! rc = %s\n", zret2str(rc));
+		ret |= RET_UNCOMPR;
+	}
+
 	return ret;
 }
 
 int main(int argc, char** argv) {
 	int total_credits, used_credits;
+	unsigned long infsrc_len = compr_len;
 	int ret = 0;
 
 	/* The credit system is only used by PowerVM. So skip otherwise. */
 	if (!is_powervm())
 		return TEST_SKIP;
+
+	generate_random_data(src_len);
+	src = (Byte*)&ran_data[0];
+
+	compr = (Byte*)calloc((uInt)compr_len, 1);
+	infsrc = (Byte*)calloc((uInt)compr_len, 1);
+	uncompr = (Byte*)calloc((uInt)uncompr_len, 1);
+	if (compr == NULL || infsrc == NULL || uncompr == NULL) {
+		printf("*** alloc buffer failed\n");
+		return TEST_ERROR;
+	}
+
+	/* We need compressed input to test inflate, since we can't rely on
+	   deflate always being successful when we're out of credits. */
+	if (compress(infsrc, &infsrc_len, src, src_len) != Z_OK){
+		fprintf(stderr, "Failed to prepare compressed input\n");
+		return RET_ERROR;
+	}
 
 	if (read_credits(&total_credits, &used_credits))
 		return RET_ERROR;
@@ -144,6 +192,11 @@ int main(int argc, char** argv) {
 
 	ret |= do_deflate();
 	ret |= do_inflate();
+	ret |= do_compress();
+	ret |= do_uncompress();
 
+	free(compr);
+	free(infsrc);
+	free(uncompr);
 	return ret;
 }

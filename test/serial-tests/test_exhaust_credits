@@ -32,16 +32,18 @@ test_mode ./exhaust_credits "AUTO" 0 0
 # Return code 1 means the number of used should not be N-1
 test_mode ./exhaust_credits "SW" 1 1
 
-# Return code 18 means deflateInit and inflateInit should fail
-test_mode ./exhaust_credits "NX" 2 18
+# Return code 106 means deflateInit, inflateInit, compress and uncompress should
+# fail
+test_mode ./exhaust_credits "NX" 2 106
 
-# Return code 2 means only deflateInit should fail
-test_mode ./exhaust_credits "MIX" 3 2
+# Return code 34 means only deflateInit and compress should fail
+test_mode ./exhaust_credits "MIX" 3 34
 
 echo "=== Testing libnxz API ==="
 
-# deflateInit and inflateInit should fail for all cases (ret = 18), except for SW
-test_mode ./exhaust_credits_nx "AUTO" 0 18
+# deflateInit, inflateInit, compress and uncompress should fail for all cases
+# (ret = 106), except for SW
+test_mode ./exhaust_credits_nx "AUTO" 0 106
 test_mode ./exhaust_credits_nx "SW" 1 1
-test_mode ./exhaust_credits_nx "NX" 2 18
-test_mode ./exhaust_credits_nx "MIX" 3 18
+test_mode ./exhaust_credits_nx "NX" 2 106
+test_mode ./exhaust_credits_nx "MIX" 3 106

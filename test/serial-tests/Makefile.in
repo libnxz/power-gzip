@@ -88,9 +88,11 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-TESTS = test_exhaust_credits test_window_suspend$(EXEEXT)
+TESTS = test_exhaust_credits test_window_suspend$(EXEEXT) \
+	test_shared_window_suspend$(EXEEXT)
 check_PROGRAMS = exhaust_credits$(EXEEXT) exhaust_credits_nx$(EXEEXT) \
-	test_window_suspend$(EXEEXT)
+	test_window_suspend$(EXEEXT) \
+	test_shared_window_suspend$(EXEEXT)
 subdir = test/serial-tests
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_check_compile_flag.m4 \
@@ -126,6 +128,14 @@ exhaust_credits_nx_OBJECTS = $(am_exhaust_credits_nx_OBJECTS)
 exhaust_credits_nx_LDADD = $(LDADD)
 exhaust_credits_nx_DEPENDENCIES = ../../lib/libnxz.la \
 	$(am__DEPENDENCIES_1)
+am_test_shared_window_suspend_OBJECTS =  \
+	test_shared_window_suspend.$(OBJEXT) credit_utils.$(OBJEXT) \
+	../test_utils.$(OBJEXT)
+test_shared_window_suspend_OBJECTS =  \
+	$(am_test_shared_window_suspend_OBJECTS)
+test_shared_window_suspend_LDADD = $(LDADD)
+test_shared_window_suspend_DEPENDENCIES = ../../lib/libnxz.la \
+	$(am__DEPENDENCIES_1)
 am_test_window_suspend_OBJECTS = test_window_suspend.$(OBJEXT) \
 	credit_utils.$(OBJEXT) ../test_utils.$(OBJEXT)
 test_window_suspend_OBJECTS = $(am_test_window_suspend_OBJECTS)
@@ -152,6 +162,7 @@ am__depfiles_remade = ../$(DEPDIR)/exhaust_credits_nx-test_utils.Po \
 	./$(DEPDIR)/exhaust_credits.Po \
 	./$(DEPDIR)/exhaust_credits_nx-credit_utils.Po \
 	./$(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po \
+	./$(DEPDIR)/test_shared_window_suspend.Po \
 	./$(DEPDIR)/test_window_suspend.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -173,9 +184,12 @@ am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(exhaust_credits_SOURCES) $(exhaust_credits_nx_SOURCES) \
+	$(test_shared_window_suspend_SOURCES) \
 	$(test_window_suspend_SOURCES)
 DIST_SOURCES = $(exhaust_credits_SOURCES) \
-	$(exhaust_credits_nx_SOURCES) $(test_window_suspend_SOURCES)
+	$(exhaust_credits_nx_SOURCES) \
+	$(test_shared_window_suspend_SOURCES) \
+	$(test_window_suspend_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -563,6 +577,9 @@ exhaust_credits_SOURCES = exhaust_credits.c credit_utils.c ../test_utils.c
 exhaust_credits_nx_SOURCES = exhaust_credits.c credit_utils.c ../test_utils.c
 exhaust_credits_nx_CPPFLAGS = -DWITHPREFIX
 test_window_suspend_SOURCES = test_window_suspend.c credit_utils.c ../test_utils.c
+test_shared_window_suspend_SOURCES = test_shared_window_suspend.c credit_utils.c \
+                                     ../test_utils.c
+
 all: all-am
 
 .SUFFIXES:
@@ -624,6 +641,10 @@ exhaust_credits_nx$(EXEEXT): $(exhaust_credits_nx_OBJECTS) $(exhaust_credits_nx_
 	@rm -f exhaust_credits_nx$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(exhaust_credits_nx_OBJECTS) $(exhaust_credits_nx_LDADD) $(LIBS)
 
+test_shared_window_suspend$(EXEEXT): $(test_shared_window_suspend_OBJECTS) $(test_shared_window_suspend_DEPENDENCIES) $(EXTRA_test_shared_window_suspend_DEPENDENCIES) 
+	@rm -f test_shared_window_suspend$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_shared_window_suspend_OBJECTS) $(test_shared_window_suspend_LDADD) $(LIBS)
+
 test_window_suspend$(EXEEXT): $(test_window_suspend_OBJECTS) $(test_window_suspend_DEPENDENCIES) $(EXTRA_test_window_suspend_DEPENDENCIES) 
 	@rm -f test_window_suspend$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_window_suspend_OBJECTS) $(test_window_suspend_LDADD) $(LIBS)
@@ -641,6 +662,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/exhaust_credits.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/exhaust_credits_nx-credit_utils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_shared_window_suspend.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_window_suspend.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
@@ -928,6 +950,13 @@ test_window_suspend.log: test_window_suspend$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_shared_window_suspend.log: test_shared_window_suspend$(EXEEXT)
+	@p='test_shared_window_suspend$(EXEEXT)'; \
+	b='test_shared_window_suspend'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 .test.log:
 	@p='$<'; \
 	$(am__set_b); \
@@ -1029,6 +1058,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/exhaust_credits.Po
 	-rm -f ./$(DEPDIR)/exhaust_credits_nx-credit_utils.Po
 	-rm -f ./$(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po
+	-rm -f ./$(DEPDIR)/test_shared_window_suspend.Po
 	-rm -f ./$(DEPDIR)/test_window_suspend.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -1081,6 +1111,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/exhaust_credits.Po
 	-rm -f ./$(DEPDIR)/exhaust_credits_nx-credit_utils.Po
 	-rm -f ./$(DEPDIR)/exhaust_credits_nx-exhaust_credits.Po
+	-rm -f ./$(DEPDIR)/test_shared_window_suspend.Po
 	-rm -f ./$(DEPDIR)/test_window_suspend.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic

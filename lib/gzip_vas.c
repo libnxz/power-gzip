@@ -298,16 +298,25 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 	int ret=0, retries=0, wait_count=0;
 	uint64_t ticks_total = 0, wait_ticks = 0;
 	uint64_t freq = nx_get_freq();
-	int used_credits, total_credits;
+	int used_credits, total_credits, window_generation=-1;
 
 	assert(nxhandle != NULL);
 
 	while (1) {
+		ret = 0;
+		pthread_rwlock_rdlock(&nxhandle->rwlock);
 
-		hwsync();
-		vas_copy( &cmdp->crb, 0);
-		ret = vas_paste(nxhandle->paste_addr, 0);
-		hwsync();
+		if (nxhandle->paste_addr != NULL) {
+			/* Useful to detect if window has been reallocated */
+			window_generation = nxhandle->generation;
+
+			hwsync();
+			vas_copy( &cmdp->crb, 0);
+			ret = vas_paste(nxhandle->paste_addr, 0);
+			hwsync();
+		}
+
+		pthread_rwlock_unlock(&nxhandle->rwlock);
 
 		if ((ret == 2) || (ret == 3)) {
 			/* paste succeeded; now wait for job to
@@ -353,11 +362,13 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 		   reduced from the time the window was created, then our window
 		   may be suspended. There's no way to be sure, so be
 		   pessimistic and assume it is. */
-		if (nx_config.virtualization == POWERVM &&
-		    ticks_total > SUSPENDED_TIME_THRESHOLD &&
-		    !nx_read_credits(&total_credits, &used_credits) &&
-		    (used_credits > total_credits - 1 ||
-		     nxhandle->init_total_credits > total_credits)) {
+		bool window_is_suspended = nx_config.virtualization == POWERVM
+			&& ticks_total > SUSPENDED_TIME_THRESHOLD
+			&& !nx_read_credits(&total_credits, &used_credits)
+			&& (used_credits > total_credits - 1 ||
+			    nxhandle->init_total_credits > total_credits);
+
+		if (nxhandle->paste_addr == NULL || window_is_suspended){
 
 			/* If our window is suspended, it will remain that way
 			   until more credits are added back, which may never
@@ -368,11 +379,16 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 			/* We need to close our window first because the kernel
 			   won't allow new window allocations if any suspended
 			   windows exist. */
-			/* TODO: What if other threads are reusing this handle
-			   when we free it? */
+			pthread_rwlock_wrlock(&nxhandle->rwlock);
+
+			if (window_generation != nxhandle->generation) {
+				/* The window must have been reallocated before
+				   we got the lock, try again */
+				pthread_rwlock_unlock(&nxhandle->rwlock);
+				continue;
+			}
+
 			(void) nx_function_end(nxhandle);
-			nxhandle->fd = 0;
-			nxhandle->paste_addr = NULL;
 
 			while(1) {
 				ret = nx_function_begin(NX_FUNC_COMP_GZIP, -1,
@@ -387,8 +403,12 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 				wait_count++;
 
 				if (ticks_total + wait_ticks >
-				    timeout_seconds*freq)
+				    timeout_seconds*freq) {
+					nxhandle->fd = 0;
+					nxhandle->paste_addr = NULL;
+					pthread_rwlock_unlock(&nxhandle->rwlock);
 					return -ETIMEDOUT;
+				}
 			}
 
 			/* Update number of total credits  */
@@ -396,8 +416,13 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 					    &total_credits);
 			nxhandle->init_total_credits = total_credits;
 
+			/* Indicate to other threads this window has been
+			   reallocated */
+			nxhandle->generation++;
+
 			prt_err("%s:%d Got a new window after %d tries, resuming...\n",
 				__FUNCTION__, __LINE__, wait_count);
+			pthread_rwlock_unlock(&nxhandle->rwlock);
 
 			ticks_total = 0;
 			continue;

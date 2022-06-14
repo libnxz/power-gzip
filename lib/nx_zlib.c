@@ -497,6 +497,7 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, nx_devp
 
 static inline void nx_device_free(nx_devp_t nx_devp) {
 	nx_function_end(nx_devp);
+	pthread_rwlock_destroy(&nx_devp->rwlock);
 	free(nx_devp);
 }
 
@@ -597,9 +598,13 @@ nx_devp_t nx_open(int nx_id)
 	}
 
 success:
+	nx_devp->generation = 0;
+
 	/* This will help us identify when DLPAR core add/remove operations have
 	   happened */
 	nx_devp->init_total_credits = total_credits;
+
+	(void) pthread_rwlock_init(&nx_devp->rwlock, NULL);
 
 	if (nx_config.max_vas_reuse_count > 0) {
 		nx_devp->open_cnt = 1;  /* newly allocated nx_devp, so single

@@ -185,6 +185,9 @@ struct nx_dev_t {
 	void *paste_addr;  /* address used to send requests using paste insn */
 	int fd;            /* VAS window file descriptor */
 	int function;      /* NX function code */
+	pthread_rwlock_t rwlock; /* rwlock to sync shared use of this handle */
+	int generation;    /* counter of how many times this window has been
+			      (re)allocated */
 };
 typedef struct nx_dev_t *nx_devp_t;
 #define NX_DEVICES_MAX 256

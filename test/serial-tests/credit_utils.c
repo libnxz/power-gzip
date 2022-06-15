@@ -11,6 +11,36 @@ pid_t *children = NULL;
 int num_procs = 0;
 static int keep_going = 0;
 
+/* TODO: calling system with super-user privileges is not recommended, implement
+   our own version using fork, exec and wait instead. */
+int run(const char *command)
+{
+	return system(command);
+}
+
+/* For some reason the number of credits only changes when we alter the number
+   of virtual processors, even though on shared LPAR they are tied to the number
+   of processing units (aka Entitled Capactity). Remember credits=proc_units*20,
+   and drmgr sees 0.01 proc_units as 1 ent_capacity, so reducing ent_capacity by
+   5 means removing 0.05 units, and thus 1 credit. */
+#define PROC_UNITS "15" // -3 credits
+#define DLPAR_CPU_COUNT "1"
+#define CPU_ARGS "-c cpu -w 5 -d 3"
+
+int reduce_credits(void)
+{
+	run("drmgr " CPU_ARGS " -r -p ent_capacity -q " PROC_UNITS);
+	run("drmgr " CPU_ARGS " -r -q " DLPAR_CPU_COUNT);
+
+	return 0;
+}
+
+void restore_credits(void)
+{
+	(void) run("drmgr " CPU_ARGS " -a -p ent_capacity -q " PROC_UNITS);
+	(void) run("drmgr " CPU_ARGS " -a -q " DLPAR_CPU_COUNT);
+}
+
 int read_credits(int *total, int *used) {
 	if (read_sysfs_entry(SYSFS_VAS_CAPS "nr_total_credits", total) ||
 	    read_sysfs_entry(SYSFS_VAS_CAPS "nr_used_credits",  used)) {

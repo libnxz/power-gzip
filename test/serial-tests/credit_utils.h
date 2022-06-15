@@ -6,6 +6,15 @@
 extern pid_t *children;
 extern int num_procs;
 
+/* Run shell command */
+int run(const char *command);
+
+/* Reduce credits in the system by executing a DLPAR remove core operation */
+int reduce_credits(void);
+
+/* Restore credits in the system by executing a DLPAR add core operation */
+void restore_credits(void);
+
 /* Read credits information from sysfs */
 int read_credits(int *total, int *used);
 

@@ -1732,8 +1732,6 @@ offsets_state:
 
 		/* copy trailer bytes to temp storage */
 		nx_inflate_verify_checksum(s, 1);
-		/* update total_in */
-		s->total_in = s->total_in - s->used_in; /* garbage past cksum ????? */
 		s->is_final = 1;
 		/* s->used_in = 0; */
 		if (s->used_out == 0) {

@@ -142,6 +142,44 @@ int compare_data(Byte* src, Byte* dest, int len)
 alloc_func zalloc = (alloc_func) 0;
 free_func zfree = (free_func) 0;
 
+struct tmp_strm {
+	unsigned long avail_in;
+	unsigned long avail_out;
+	unsigned char * next_in;
+	unsigned char * next_out;
+	unsigned long total_in;
+	unsigned long total_out;
+};
+
+void save_strm(z_stream * src, struct tmp_strm * tmp)
+{
+	tmp->avail_in   = src->avail_in;
+	tmp->avail_out  = src->avail_out;
+	tmp->next_in    = src->next_in;
+	tmp->next_out   = src->next_out;
+	tmp->total_in   = src->total_in;
+	tmp->total_out  = src->total_out;
+}
+
+void compare_strm(z_stream * src, struct tmp_strm * tmp)
+{
+	unsigned long consumed, produced;
+
+	assert(src->next_in >= tmp->next_in);
+	assert(src->next_out >= tmp->next_out);
+
+	assert(src->total_in >= tmp->total_in);
+	assert(src->total_out >= tmp->total_out);
+
+	consumed = src->next_in - tmp->next_in;
+	produced = src->next_out - tmp->next_out;
+	assert(src->total_in == tmp->total_in + consumed);
+	assert(src->total_out == tmp->total_out + produced);
+
+	assert(tmp->avail_in == src->avail_in + consumed);
+	assert(tmp->avail_out == src->avail_out + produced);
+}
+
 /* Use nx to deflate. */
 int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 		     unsigned int *compr_len, int step,
@@ -150,6 +188,7 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	int err;
 	z_stream c_stream;
 	unsigned long bound;
+	struct tmp_strm tmp;
 
 	c_stream.zalloc = zalloc;
 	c_stream.zfree = zfree;
@@ -181,7 +220,11 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 		step = (step < (src_len - c_stream.total_in))
 		       ? (step) : (src_len - c_stream.total_in);
 		c_stream.avail_in = c_stream.avail_out = step;
+
+		save_strm(&c_stream, &tmp);
 		err = nx_deflate(&c_stream, Z_NO_FLUSH);
+		compare_strm(&c_stream, &tmp);
+
 		if (c_stream.total_in > src_len) break;
 		if (err < 0) {
 			printf("*** failed: nx_deflate returned %d\n", err);
@@ -192,7 +235,9 @@ int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,
 
 	for (;;) {
 		c_stream.avail_out = 1;
+		save_strm(&c_stream, &tmp);
 		err = nx_deflate(&c_stream, Z_FINISH);
+		compare_strm(&c_stream, &tmp);
 		if (err == Z_STREAM_END) break;
 		if (err < 0) {
 			printf("*** failed: nx_deflate returned %d\n", err);
@@ -220,6 +265,7 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 {
 	int err;
 	z_stream c_stream;
+	struct tmp_strm tmp;
 
 	c_stream.zalloc = zalloc;
 	c_stream.zfree = zfree;
@@ -247,7 +293,9 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 	while (c_stream.total_in != src_len
 	       && c_stream.total_out < *compr_len) {
 		c_stream.avail_in = c_stream.avail_out = step;
+		save_strm(&c_stream, &tmp);
 		err = deflate(&c_stream, Z_NO_FLUSH);
+		compare_strm(&c_stream, &tmp);
 		if (c_stream.total_in > src_len) break;
 		if (err < 0) {
 			printf("*** failed: deflate returned %d\n", err);
@@ -258,7 +306,9 @@ int _test_deflate(Byte* src, unsigned int src_len, Byte* compr,
 
 	for (;;) {
 		c_stream.avail_out = 1;
+		save_strm(&c_stream, &tmp);
 		err = deflate(&c_stream, Z_FINISH);
+		compare_strm(&c_stream, &tmp);
 		if (err == Z_STREAM_END) break;
 		if (err < 0) {
 			printf("*** failed: deflate returned %d\n", err);
@@ -287,6 +337,7 @@ int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 {
 	int err;
 	z_stream d_stream;
+	struct tmp_strm tmp;
 
 	memset(uncompr, 0, uncomprLen);
 
@@ -313,7 +364,9 @@ int _test_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 		if (d_stream.total_in < comprLen)
 			d_stream.avail_in = step;
 		d_stream.avail_out = step;
+		save_strm(&d_stream, &tmp);
 		err = inflate(&d_stream, Z_NO_FLUSH);
+		compare_strm(&d_stream, &tmp);
 		if (err == Z_STREAM_END) break;
 		if (err < 0) {
 			printf("*** failed: inflate returned %d\n", err);
@@ -344,6 +397,7 @@ int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 {
 	int err;
 	z_stream d_stream;
+	struct tmp_strm tmp;
 
 	memset(uncompr, 0, uncomprLen);
 
@@ -370,7 +424,9 @@ int _test_nx_inflate(Byte* compr, unsigned int comprLen, Byte* uncompr,
 		if (d_stream.total_in < comprLen)
 			d_stream.avail_in = step;
 		d_stream.avail_out = step;
+		save_strm(&d_stream, &tmp);
 		err = nx_inflate(&d_stream, flush);
+		compare_strm(&d_stream, &tmp);
 		if (err == Z_STREAM_END) break;
 		if (err < 0) {
 			printf("*** failed: nx_inflate returned %d\n", err);

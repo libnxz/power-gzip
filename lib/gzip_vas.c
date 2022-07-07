@@ -92,8 +92,6 @@
 
 uint64_t tb_freq=0;
 
-static const uint64_t timeout_seconds = 60;
-
 static int open_device_nodes(char *devname, int pri, nx_devp_t nxhandle)
 {
 	int rc, fd;
@@ -269,22 +267,16 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 
 	do {
 		/* Check for job completion. */
-		t = nx_wait_ticks(100, t, 1);
-
-		if (t > (timeout_seconds * onesecond)) /* 1 min */
-			break;
-
 		hwsync();
-	} while (getnn( cmdp->crb.csb, csb_v ) == 0);
+		if (getnn(cmdp->crb.csb, csb_v) == 1)
+			return 0;
 
-	/* check CSB flags */
-	if( getnn( cmdp->crb.csb, csb_v ) == 0 ) {
-		fprintf( stderr, "CSB still not valid after %ld seconds, giving up", timeout_seconds);
-		prt_err("CSB still not valid after %ld seconds, giving up.\n", timeout_seconds);
-		return -ETIMEDOUT;
-	}
+		t = nx_wait_ticks(100, t, 1);
+	} while (t < nx_config.timeout_wait_for_csb_v*onesecond);
 
-	return 0;
+	prt_err("CSB still not valid after %ld seconds, giving up.\n",
+		nx_config.timeout_wait_for_csb_v);
+	return -EAGAIN;
 }
 
 int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
@@ -312,19 +304,9 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 
 		pthread_rwlock_unlock(&nxhandle->rwlock);
 
-		if ((ret == 2) || (ret == 3)) {
-			/* paste succeeded; now wait for job to
-			   complete */
-
-			ret = nx_wait_for_csb( cmdp );
-
-			if (!ret) {
-				return ret;
-			}
-			else {
-				prt_err("wait_for_csb() returns %d\n", ret);
-				return ret;
-			}
+		if (ret == 2 || ret == 3) {
+			/* paste succeeded; now wait for job to complete */
+			return nx_wait_for_csb(cmdp);
 		}
 
 		/* Paste has failed. Can happen for a few reasons:
@@ -387,11 +369,11 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 				wait_count++;
 
 				if (ticks_total + wait_ticks >
-				    timeout_seconds*freq) {
+				    nx_config.timeout_paste_success*freq) {
 					nxhandle->fd = 0;
 					nxhandle->paste_addr = NULL;
 					pthread_rwlock_unlock(&nxhandle->rwlock);
-					return -ETIMEDOUT;
+					return -EAGAIN;
 				}
 			}
 
@@ -420,8 +402,8 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 		   execution. */
 		ticks_total = nx_wait_ticks(500, ticks_total, 0);
 
-		if (ticks_total > timeout_seconds*freq)
-			return -ETIMEDOUT;
+		if (ticks_total > nx_config.timeout_paste_success*freq)
+			return -EAGAIN;
 
 	}
 

@@ -165,7 +165,10 @@ struct nx_config_t {
 	/** time spent before fallbacking to sw */
 	uint64_t decompress_delay;
 	uint64_t compress_delay;
-
+	uint64_t timeout_wait_for_csb_v; /** Max time in seconds to wait for
+					  * CSB.V to become valid */
+	uint64_t timeout_paste_success;  /** Max time in seconds to wait for a
+					  * successful paste */
 };
 typedef struct nx_config_t *nx_configp_t;
 extern struct nx_config_t nx_config;

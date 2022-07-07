@@ -459,6 +459,11 @@ void nx_print_dde(nx_dde_t *ddep, const char *msg)
  * NX function code and other parameters supplied in cmdp.
  *
  * @param cmdp NX command and parameter
+ * @return Possible values:
+ *    - 0 if successful
+ *    - a positive value as reported in the Completion Code (CC) field from the
+ *      CSB in case of hardware or OS-detected error
+ *    - -EAGAIN in case of timeout
  */
 int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 {
@@ -488,8 +493,7 @@ int nx_submit_job(nx_dde_t *src, nx_dde_t *dst, nx_gzip_crb_cpb_t *cmdp, nx_devp
 	if (ret) {
 		prt_err("%s:%d job did not complete in allotted time, ret %d\n",
 			__FUNCTION__, __LINE__, ret);
-		/* Panic! Don't know what to do */
-		exit(-1);
+		return ret;
 	}
 
 	return getnn(cmdp->crb.csb, csb_cc); /* CC Table 6-8 */
@@ -1108,6 +1112,7 @@ void nx_hw_init(void)
 	/* default to the automatic switch */
 	nx_config.mode.deflate = GZIP_AUTO;
 	nx_config.mode.inflate = GZIP_AUTO;
+	nx_config.timeout_wait_for_csb_v = 60;
 
 	if (!cfg_file_s)
 		cfg_file_s = "./nx-zlib.conf";
@@ -1293,10 +1298,17 @@ void nx_hw_init(void)
 			nx_config.compress_delay = str_to_num(compress_delay);
 	}
 
-	/* On baremetal the delay thresholds are higher */
 	if (nx_config.virtualization == BAREMETAL) {
+		/* On baremetal the delay thresholds are higher */
 		nx_config.compress_delay *= 3;
 		nx_config.decompress_delay *= 3;
+
+		nx_config.timeout_paste_success = 60;
+	} else if (nx_config.virtualization == POWERVM) {
+		/* On PowerVM DLPAR operations and partition migrations may
+		   pause job completion for some time, so we need to wait longer
+		   before giving up. */
+		nx_config.timeout_paste_success = 60*5;
 	}
 
 	if (nx_dbg >= 1 && nx_gzip_log) {

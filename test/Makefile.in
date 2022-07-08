@@ -90,7 +90,7 @@ host_triplet = @host@
 target_triplet = @target@
 TESTS = $(am__EXEEXT_1) $(test_scripts) $(am__EXEEXT_4) \
 	$(am__EXEEXT_5) $(am__EXEEXT_6) $(am__EXEEXT_7) \
-	$(am__EXEEXT_8) test_zeroinput.nx
+	test_zeroinput.nx
 check_PROGRAMS = $(am__EXEEXT_1) $(am__EXEEXT_2) $(am__EXEEXT_3)
 subdir = test
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -468,8 +468,6 @@ am__EXEEXT_6 = test_stress.nx test_deflate.nx test_inflate.nx \
 	test_dict.nx test_gz.nx
 am__EXEEXT_7 = test_stress.mix test_deflate.mix test_inflate.mix \
 	test_dict.mix test_gz.mix
-am__EXEEXT_8 = test_stress.mix2 test_deflate.mix2 test_inflate.mix2 \
-	test_dict.mix2 test_gz.mix2
 TEST_SUITE_LOG = test-suite.log
 TEST_EXTENSIONS = @EXEEXT@ .test
 LOG_DRIVER = $(SHELL) $(top_srcdir)/test-driver
@@ -1322,41 +1320,6 @@ test_gz.mix.log: test_gz.mix
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_stress.mix2.log: test_stress.mix2
-	@p='test_stress.mix2'; \
-	b='test_stress.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_deflate.mix2.log: test_deflate.mix2
-	@p='test_deflate.mix2'; \
-	b='test_deflate.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_inflate.mix2.log: test_inflate.mix2
-	@p='test_inflate.mix2'; \
-	b='test_inflate.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_dict.mix2.log: test_dict.mix2
-	@p='test_dict.mix2'; \
-	b='test_dict.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_gz.mix2.log: test_gz.mix2
-	@p='test_gz.mix2'; \
-	b='test_gz.mix2'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_zeroinput.nx.log: test_zeroinput.nx
 	@p='test_zeroinput.nx'; \
 	b='test_zeroinput.nx'; \
@@ -1625,10 +1588,6 @@ uninstall-am:
 
 %.mix:
 	@$(srcdir)/gen_test.sh 3 $(*F) > $@
-	@chmod +x $@
-
-%.mix2:
-	@$(srcdir)/gen_test.sh 4 $(*F) > $@
 	@chmod +x $@
 
 regen-abi:

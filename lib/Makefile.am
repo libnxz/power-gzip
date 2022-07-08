@@ -13,6 +13,8 @@ libnxz_la_SOURCES = \
 		    crc32_ppc_constants.h \
 			crc32_power.c \
 		    gzip_vas.c \
+		    nx_map.c \
+		    nx_hash.h \
 		    nx_adler32.c \
 		    nx_compress.c \
 		    nx_crc.c \

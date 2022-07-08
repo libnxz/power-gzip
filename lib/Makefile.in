@@ -136,9 +136,9 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libnxz_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am_libnxz_la_OBJECTS = crc32_ppc.lo crc32_power.lo gzip_vas.lo \
-	nx_adler32.lo nx_compress.lo nx_crc.lo nx_deflate.lo nx_dht.lo \
-	nx_dhtgen.lo nx_dht_builtin.lo nx_gzlib.lo nx_inflate.lo \
-	nx_uncompr.lo nx_utils.lo nx_zlib.lo sw_zlib.lo
+	nx_map.lo nx_adler32.lo nx_compress.lo nx_crc.lo nx_deflate.lo \
+	nx_dht.lo nx_dhtgen.lo nx_dht_builtin.lo nx_gzlib.lo \
+	nx_inflate.lo nx_uncompr.lo nx_utils.lo nx_zlib.lo sw_zlib.lo
 libnxz_la_OBJECTS = $(am_libnxz_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -168,9 +168,9 @@ am__depfiles_remade = ./$(DEPDIR)/crc32_power.Plo \
 	./$(DEPDIR)/nx_crc.Plo ./$(DEPDIR)/nx_deflate.Plo \
 	./$(DEPDIR)/nx_dht.Plo ./$(DEPDIR)/nx_dht_builtin.Plo \
 	./$(DEPDIR)/nx_dhtgen.Plo ./$(DEPDIR)/nx_gzlib.Plo \
-	./$(DEPDIR)/nx_inflate.Plo ./$(DEPDIR)/nx_uncompr.Plo \
-	./$(DEPDIR)/nx_utils.Plo ./$(DEPDIR)/nx_zlib.Plo \
-	./$(DEPDIR)/sw_zlib.Plo
+	./$(DEPDIR)/nx_inflate.Plo ./$(DEPDIR)/nx_map.Plo \
+	./$(DEPDIR)/nx_uncompr.Plo ./$(DEPDIR)/nx_utils.Plo \
+	./$(DEPDIR)/nx_zlib.Plo ./$(DEPDIR)/sw_zlib.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -378,6 +378,8 @@ libnxz_la_SOURCES = \
 		    crc32_ppc_constants.h \
 			crc32_power.c \
 		    gzip_vas.c \
+		    nx_map.c \
+		    nx_hash.h \
 		    nx_adler32.c \
 		    nx_compress.c \
 		    nx_crc.c \
@@ -488,6 +490,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_dhtgen.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_gzlib.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_inflate.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_map.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_uncompr.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_utils.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_zlib.Plo@am__quote@ # am--include-marker
@@ -669,6 +672,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/nx_dhtgen.Plo
 	-rm -f ./$(DEPDIR)/nx_gzlib.Plo
 	-rm -f ./$(DEPDIR)/nx_inflate.Plo
+	-rm -f ./$(DEPDIR)/nx_map.Plo
 	-rm -f ./$(DEPDIR)/nx_uncompr.Plo
 	-rm -f ./$(DEPDIR)/nx_utils.Plo
 	-rm -f ./$(DEPDIR)/nx_zlib.Plo
@@ -730,6 +734,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/nx_dhtgen.Plo
 	-rm -f ./$(DEPDIR)/nx_gzlib.Plo
 	-rm -f ./$(DEPDIR)/nx_inflate.Plo
+	-rm -f ./$(DEPDIR)/nx_map.Plo
 	-rm -f ./$(DEPDIR)/nx_uncompr.Plo
 	-rm -f ./$(DEPDIR)/nx_utils.Plo
 	-rm -f ./$(DEPDIR)/nx_zlib.Plo

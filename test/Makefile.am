@@ -22,7 +22,6 @@ TESTS = $(test_exe) $(test_scripts) \
 	$(selector_tests:=.sw) \
 	$(selector_tests:=.nx) \
 	$(selector_tests:=.mix) \
-	$(selector_tests:=.mix2) \
 	test_zeroinput.nx
 
 check_PROGRAMS = $(test_exe) $(selector_tests) $(other_tests)
@@ -78,10 +77,6 @@ ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
 
 %.mix:
 	@$(srcdir)/gen_test.sh 3 $(*F) > $@
-	@chmod +x $@
-
-%.mix2:
-	@$(srcdir)/gen_test.sh 4 $(*F) > $@
 	@chmod +x $@
 
 regen-abi:

@@ -57,6 +57,7 @@
 #include <zlib.h>
 #include "nxu.h"
 #include "nx_dbg.h"
+#include "nx_map.h"
 
 #ifndef _NX_ZLIB_H
 #define _NX_ZLIB_H
@@ -341,6 +342,19 @@ typedef struct nx_stream_s {
 } nx_stream;
 typedef struct nx_stream_s *nx_streamp;
 
+struct stream_map_entry {
+	struct internal_state *sw_state;
+	nx_streamp hw_state;
+	int level;
+	int method;
+	int windowBits;
+	int memLevel;
+	int strategy;
+	char version[16];
+	int stream_size;
+};
+extern nx_map_t *stream_map;
+
 /* average delay for a nx job */
 extern uint64_t	avg_delay;
 extern uint64_t nx_ticks_per_sec;
@@ -405,6 +419,25 @@ static inline int use_nx_deflate(z_streamp strm, int flush)
 		return 0;
 
 	return 1;
+}
+
+static inline void validate_stream_map_entry(struct stream_map_entry *sme,
+					     z_streamp strm)
+{
+	assert(sme != NULL);
+
+	if (has_nx_state(strm)) {
+		nx_streamp s = (nx_streamp) strm->state;
+		assert(s->sw_stream == (void *) sme->sw_state);
+		assert(strm->state == (void *) sme->hw_state);
+
+	} else {
+		assert(strm->state == sme->sw_state);
+		/* On PowerVM, there's a chance the NX state was not initialized
+		   due to a lack of credits, so it may be NULL */
+		if (nx_config.virtualization != POWERVM)
+			assert(strm->state == sme->hw_state->sw_stream);
+	}
 }
 
 /* Decrease avg_delay when using sw to be able to get back to NX and

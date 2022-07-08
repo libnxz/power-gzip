@@ -122,6 +122,8 @@ pthread_mutex_t mutex_log;
 pthread_mutex_t zlib_stats_mutex; /* mutex to protect global stats */
 struct zlib_stats zlib_stats;	/* global statistics */
 
+__attribute__ ((visibility ("hidden"))) nx_map_t *stream_map = NULL;
+
 __attribute__ ((visibility ("hidden"))) uint64_t avg_delay = 0;
 uint64_t	nx_ticks_per_sec;
 
@@ -1319,6 +1321,12 @@ void nx_hw_init(void)
 		print_nx_config(nx_gzip_log);
 	}
 
+	stream_map = nx_map_init();
+	if (!stream_map) {
+		prt_err("Failed to initialize internal stream map\n");
+		return;
+	}
+
 	nx_close_cfg(&cfg_tab);
 	nx_init_done = 1;
 	prt_warn("libnxz loaded\n");
@@ -1348,6 +1356,8 @@ void nx_hw_done(void)
 		nx_gzip_log = NULL;
 	}
 	pthread_mutex_destroy(&saved_nx_devp_mutex);
+
+	(void) nx_map_destroy(stream_map);
 }
 
 static void _nx_hwdone(void) __attribute__((destructor));

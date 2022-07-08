@@ -55,6 +55,7 @@
 #include "nx_zlib.h"
 #include "nx_dbg.h"
 #include "nx_dht.h"
+#include "nx_map.h"
 
 /** @file nx_deflate.c
  * \brief Implement the deflate function for the NX GZIP accelerator and
@@ -1616,15 +1617,11 @@ static int nx_stream_end(nx_streamp s) {
 static void inline nx_switch_to_sw(z_streamp strm)
 {
 		nx_streamp s = (nx_streamp) strm->state;
-		void *temp = s->sw_stream;
 		/* decided to use sw zlib and not switchable */
 		s->switchable = 0;
-		s->sw_stream = NULL;
-
-		int rc = nx_deflateEnd(strm);
-		prt_info("call nx_deflateEnd to clean the hw resource,rc=%d\n",rc);
-
-		strm->state = temp;
+		strm->state = s->sw_stream;
+		/* We'll leave the NX state allocated to reuse if the user calls
+		   deflateReset. It will be cleared on deflateEnd. */
 }
 
 /* deflate interface */
@@ -1634,7 +1631,6 @@ int nx_deflate(z_streamp strm, int flush)
 	nx_streamp s;
 	const int combine_cksum = 1;
 	long loop_cnt = 0, loop_max = 0xffff;
-	void *temp = NULL;
 
 	/* check flush */
 	if (flush > Z_BLOCK || flush < 0)
@@ -1656,15 +1652,6 @@ int nx_deflate(z_streamp strm, int flush)
 		rc = sw_deflate(strm,flush);
 		prt_info("call software deflate, rc=%d\n", rc);
 		return rc;
-	}else if(s->sw_stream){
-		/* decide to use nx here, release the sw resource */
-		temp  = (void *)strm->state;
-		strm->state = s->sw_stream;
-
-		rc = sw_deflateEnd(strm);
-		prt_info("call sw_deflateEnd to clean the sw resource,rc=%d\n",rc);
-		strm->state = temp;
-		s->sw_stream = NULL;
 	}
 
 	s->switchable = 0;
@@ -2257,7 +2244,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		int stream_size)
 {
 	int rc;
-	void *temp = NULL;
+	void *sw_state = NULL;
 	nx_streamp s;
 
 	/* statistic */
@@ -2265,37 +2252,63 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 
 	strm->state = NULL;
 	if (nx_config.mode.deflate == GZIP_AUTO) {
+		struct stream_map_entry *sme;
+
 		/* call sw and nx initialization */
 		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel,
 				      strategy, version, stream_size);
 		if (rc != Z_OK)
 			return rc;
 
-		/* If the stream has been initialized by sw */
-		if (strm->state && (0 == has_nx_state(strm))) {
-			temp = (void *)strm->state; /* keep this sw context pointer */
-			strm->state = NULL;
-			prt_info("this stream has been initialized by sw\n");
-		}
+		sw_state = (void *)strm->state; /* keep sw context pointer */
+		strm->state = NULL;
+		prt_info("sw state initialized and ready for fallback\n");
+
+		/* Create mapping between z_streamp and internal states */
+		sme = malloc(sizeof(struct stream_map_entry));
+		if (sme == NULL)
+			return Z_MEM_ERROR;
+
+		/* Save stream parameters in case we need to restart NX on
+		   deflateReset */
+		sme->level = level;
+		sme->method = method;
+		sme->windowBits = windowBits;
+		sme->memLevel = memLevel;
+		sme->strategy = strategy;
+		strcpy(sme->version, version);
+		sme->stream_size = stream_size;
 
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel,
 				     strategy, version, stream_size);
-		if (rc != Z_OK) {
-			strm->state = temp;
+		if (rc == Z_OK) {
+			s = (nx_streamp) strm->state;
+			s->switchable = 1;
+			s->sw_stream = sme->sw_state = sw_state;
+			sme->hw_state = s;
+		} else {
+			strm->state = sw_state;
 			if (rc == Z_STREAM_ERROR && errno == EAGAIN) {
 				/* Failed due to lack of credits on POWERVM */
 				prt_info("Falling back to software compression\n");
+				sme->hw_state = NULL;
+				sme->sw_state = sw_state;
 				/* Since internal state is already set to
 				   zlib's, there's nothing left to do. */
 				rc = Z_OK;
 			} else {
 				/* release the sw stream */
 				(void) sw_deflateEnd(strm);
+				free(sme);
+				return rc;
 			}
-		} else if (temp) { /* record the sw context */
-			s = (nx_streamp) strm->state;
-			s->sw_stream = temp;
-			s->switchable = 1;
+		}
+
+		/* This should only fail if there's not enough memory to resize
+		   the table */
+		if (nx_map_put(stream_map, strm, sme)) {
+			/* TODO: need to free sme and etc.? */
+			return Z_MEM_ERROR;
 		}
 	} else if (nx_config.mode.deflate == GZIP_NX) {
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel,
@@ -2312,28 +2325,73 @@ int deflateReset(z_streamp strm)
 {
 	int rc;
 
-	if (0 == has_nx_state(strm)){
+	if (nx_config.mode.deflate == GZIP_AUTO) {
+		struct stream_map_entry *sme;
+
+		if (nx_map_get(stream_map, strm, (void **)&sme)) {
+			/* This stream has not been initialized correctly.
+			   This can happen if libnxz is initializing the
+			   sw_state or when the application is passing a bogus
+			   strm.  In either case, forwarding this call to zlib
+			   will get expected results.  */
+			return sw_deflateReset(strm);
+		}
+		validate_stream_map_entry(sme, strm);
+
+		strm->state = sme->sw_state;
 		rc = sw_deflateReset(strm);
-	}else{
+		if (rc != Z_OK)
+			return rc;
+
+		if (sme->hw_state != NULL) {
+			strm->state = (void *) sme->hw_state;
+			rc = nx_deflateReset(strm);
+			if (rc != Z_OK)
+				return rc;
+			sme->hw_state->switchable = 1;
+			/* Leave NX state 'loaded' on strm */
+		} else {
+			/* hw_state is NULL because:
+			   1. deflateInit was not able to allocate it, most
+			      likely due to lack of credits on PowerVM.
+			      Let's try again.
+			   2. Because zlib calls deflateReset when initializing
+			      itself and the call ended up here (detected
+			      previously).
+			  So, we can safely try to initialize the NX again. */
+			   strm->state = NULL;
+			   rc = nx_deflateInit2_(strm, sme->level, sme->method,
+						 sme->windowBits, sme->memLevel,
+						 sme->strategy, sme->version,
+						 sme->stream_size);
+			   if (rc != Z_OK) {
+				   /* Just keep using zlib */
+				   strm->state = sme->sw_state;
+				   return Z_OK;
+			   }
+
+			   nx_streamp s = (nx_streamp) strm->state;
+			   sme->hw_state = s;
+			   s->sw_stream = sme->sw_state;
+			   s->switchable = 1;
+		}
+	} else if (!has_nx_state(strm)) {
+		rc = sw_deflateReset(strm);
+	} else {
 		rc = nx_deflateReset(strm);
 	}
 
 	return rc;
 }
 
+
 int deflateResetKeep(z_streamp strm)
 {
-	int rc;
-
-	if (0 == has_nx_state(strm)){
-		rc = sw_deflateResetKeep(strm);
-	}else{
-		rc = nx_deflateResetKeep(strm);
-	}
-
-	return rc;
+	if (has_nx_state(strm))
+		return nx_deflateResetKeep(strm);
+	else
+		return sw_deflateResetKeep(strm);
 }
-
 
 int deflateEnd(z_streamp strm)
 {
@@ -2343,12 +2401,34 @@ int deflateEnd(z_streamp strm)
 	zlib_stats_inc(&zlib_stats.deflateEnd);
 
 
-	if (0 == has_nx_state(strm)){
+	if (nx_config.mode.deflate == GZIP_AUTO) {
+		struct stream_map_entry *sme = nx_map_remove(stream_map, strm);
+		validate_stream_map_entry(sme, strm);
+
+		if (!has_nx_state(strm) && avg_delay != 0)
+			decrease_delay();
+
+		/* Free zlib state */
+		strm->state = sme->sw_state;
+		rc = sw_deflateEnd(strm);
+		prt_info("call sw_deflateEnd,rc=%d\n", rc);
+
+		strm->state = (void *) sme->hw_state;
+
+		/* Free NX state */
+		if (sme->hw_state) {
+			sme->hw_state->sw_stream = NULL;
+			/* TODO: what to return if sw_deflateEnd failed? */
+			rc = nx_deflateEnd(strm);
+		}
+
+		free(sme);
+	} else if (!has_nx_state(strm)) {
 		if (0 != avg_delay)
 			decrease_delay();
 		rc = sw_deflateEnd(strm);
 		prt_info("call sw_deflateEnd,rc=%d\n", rc);
-	}else{
+	} else {
 		rc = nx_deflateEnd(strm);
 	}
 

@@ -2,6 +2,7 @@
 #define TEST_UTILS_H_
 
 #include <sys/time.h>
+#include <stdbool.h>
 
 #define DATA_MAX_LEN (128*1024*1024) // 128M
 
@@ -19,6 +20,12 @@ struct f_interval {
   struct timeval end;
 };
 
+struct lpar_info {
+	bool shared_proc_mode;
+	int active_processors;
+};
+
+extern struct lpar_info lpar_info;
 extern Byte ran_data[DATA_MAX_LEN];
 extern void generate_random_data(int len);
 extern Byte* generate_allocated_random_data(unsigned int len);
@@ -30,6 +37,9 @@ void zcheck_internal(int retval, int expected, char* file, int line);
 #define zcheck(val,exp) zcheck_internal((val),(exp),__FILE__,__LINE__)
 
 int is_powervm(void);
+
+int get_lpar_info(void);
+
 int read_sysfs_entry(const char *path, int *val);
 
 int _test_nx_deflate(Byte* src, unsigned int src_len, Byte* compr,

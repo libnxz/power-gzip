@@ -72,6 +72,13 @@ int main(int argc, char** argv)
 		return TEST_SKIP;
 	}
 
+	get_lpar_info();
+
+	if (lpar_info.active_processors < 2) {
+		fprintf(stderr, "Need at least 2 active processors to run test.\n");
+		return TEST_SKIP;
+	}
+
 	generate_random_data(src_len);
 	src = (Byte*)&ran_data[0];
 

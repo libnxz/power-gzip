@@ -17,6 +17,8 @@
 
 Byte ran_data[DATA_MAX_LEN];
 
+struct lpar_info lpar_info;
+
 static char dict[] = {
 	'a', 'b', 'c', 'd', 'e', 'f', 'g',
 	'h', 'i', 'j', 'k', 'l', 'm', 'n',
@@ -65,6 +67,52 @@ void zcheck_internal(int retval, int expected, char* file, int line) {
 int is_powervm(void) {
 	const char *dtpath = "/sys/firmware/devicetree/base/ibm,powervm-partition";
 	return !access(dtpath, F_OK);
+}
+
+int get_lpar_info(void) {
+	char *line = NULL;
+	FILE *f;
+	size_t n;
+
+	const char* lparcfg = "/proc/ppc64/lparcfg";
+
+	const char shared_mode_key[] = "shared_processor_mode";
+	const size_t shared_mode_len = sizeof(shared_mode_key)/sizeof(char) - 1;
+	bool shared_mode_found = false;
+
+	const char active_procs_key[] = "partition_active_processors";
+	const size_t active_procs_len = sizeof(active_procs_key)/sizeof(char) -1;
+	bool active_procs_found = false;
+
+	f = fopen(lparcfg, "r");
+	if (!f) {
+		fprintf(stderr, "Couldn't file %s!\n", lparcfg);
+		return -1;
+	}
+
+	do {
+		ssize_t nchars = getline(&line, &n, f);
+
+		if (nchars == 0 || nchars == -1)
+			break;
+
+		if (!shared_mode_found &&
+		    !strncmp(shared_mode_key, line, shared_mode_len)) {
+			lpar_info.shared_proc_mode = line[nchars-2] == '1';
+			shared_mode_found = true;
+			printf("Mode: %s\n",
+			       lpar_info.shared_proc_mode ? "shared" : "dedicated");
+		} else if (!active_procs_found &&
+			   !strncmp(active_procs_key, line, active_procs_len)) {
+			lpar_info.active_processors = atoi(&line[active_procs_len+1]);
+			active_procs_found = true;
+			printf("Number of active processors: %d\n",
+			       lpar_info.active_processors);
+		}
+	} while(!active_procs_found || !shared_mode_found);
+
+	free(line);
+	return 0;
 }
 
 int read_sysfs_entry(const char *path, int *val)

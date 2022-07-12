@@ -3,10 +3,11 @@
    Test outline:
    - Consume N-3 credits by calling deflateInit from N-3 child processes
    - Start 2 threads and call deflateInit from them (window shared, 1 credit spent)
-   - Force a DLPAR core remove operation to remove 3 credits from the system
-   - The window shared by both threads will be suspended and the system
-     oversubscribed by 1 credit.
-   - Release 1 credit by finishing a process with an active window
+   - Force a DLPAR core remove operation to remove credits from the system
+   - The window shared by both threads will be suspended and the system will be
+     oversubscribed
+   - Release enough credits by finishing a process with an active window to leave
+     1 unused credit in the system
    - Now the threads should be able to get a new window and finish execution
      successfully.
 */
@@ -96,6 +97,13 @@ int main(int argc, char** argv)
 		return TEST_SKIP;
 	}
 
+	get_lpar_info();
+
+	if (lpar_info.active_processors < 2) {
+		fprintf(stderr, "Need at least 2 active processors to run test.\n");
+		return TEST_SKIP;
+	}
+
 	generate_random_data(src_len);
 	src = (Byte*)&ran_data[0];
 
@@ -113,7 +121,7 @@ int main(int argc, char** argv)
 	/* Leave 3 credits left. If we only leave 1 credit, the threads won't be
 	   able to open a new window. If we leave 2, the first one will allocate
 	   a VAS window but the second will fallback to software because the N-1
-	   limit has been reached and window reused will be disabled. */
+	   limit has been reached and window reuse will be disabled. */
 	num_procs = total_credits - used_credits - 3;
 	if (consume_credits(num_procs))
 		return TEST_ERROR;
@@ -142,6 +150,15 @@ int main(int argc, char** argv)
 	fprintf(stderr, "Credits after DLPAR:  total: %d  used: %d\n", total_credits,
 		used_credits);
 
+	if (used_credits < total_credits) {
+		fprintf(stderr, "Something went wrong, expected used > total, but got:\n"
+			"used credits: %d\ntotal credits: %d\n", used_credits,
+			total_credits);
+		return TEST_ERROR;
+	}
+
+	int oversubscribed = used_credits - total_credits;
+
 	/* Allow threads to start compression. Their windows are suspended, so
 	   they should start the backoff mechanism */
 	pthread_barrier_wait(&barrier);
@@ -159,14 +176,19 @@ int main(int argc, char** argv)
 		return TEST_ERROR;
 	}
 
-	/* The system is now 1 credit oversubscribed, so allow 1 process to
-	   continue so we leave 1 free credit to help the 2 threads recover */
-	pid_t proc = children[num_procs-1];
-	kill(proc, SIGUSR1);
+	/* The system is now oversubscribed, so allow enough processes to
+	   continue so we leave 1 free credit to help the 2 threads recover.
+	   Note we need to also unblock other processes that may have suspended
+	   windows, otherwise the kernel won't allow the threads to get a new
+	   window. So we start from the end of the array. */
+	for (int i = 1; i <= oversubscribed + 1; i++) {
+		pid_t proc = children[num_procs-i];
+		kill(proc, SIGUSR1);
 
-	if (waitpid(proc, NULL, 0) != proc) {
-		fprintf(stderr, "Unclean exit from process: %d\n", proc);
-		return TEST_ERROR;
+		if (waitpid(proc, NULL, 0) != proc) {
+			fprintf(stderr, "Unclean exit from process %d\n", proc);
+			return TEST_ERROR;
+		}
 	}
 
 	int result = TEST_OK;

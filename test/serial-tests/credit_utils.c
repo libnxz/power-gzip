@@ -29,7 +29,9 @@ int run(const char *command)
 
 int reduce_credits(void)
 {
-	run("drmgr " CPU_ARGS " -r -p ent_capacity -q " PROC_UNITS);
+	if (lpar_info.shared_proc_mode)
+		run("drmgr " CPU_ARGS " -r -p ent_capacity -q " PROC_UNITS);
+
 	run("drmgr " CPU_ARGS " -r -q " DLPAR_CPU_COUNT);
 
 	return 0;
@@ -37,7 +39,9 @@ int reduce_credits(void)
 
 void restore_credits(void)
 {
-	(void) run("drmgr " CPU_ARGS " -a -p ent_capacity -q " PROC_UNITS);
+	if (lpar_info.shared_proc_mode)
+		(void) run("drmgr " CPU_ARGS " -a -p ent_capacity -q " PROC_UNITS);
+
 	(void) run("drmgr " CPU_ARGS " -a -q " DLPAR_CPU_COUNT);
 }
 

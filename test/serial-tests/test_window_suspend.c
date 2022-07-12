@@ -2,10 +2,10 @@
 
    Test outline:
    - Consume N-1 credits by calling deflateInit from N-1 child processes
-   - Force a DLPAR core remove operation to remove 3 credits from the system
-   - The last 2 processes created have suspended windows and the system is
-     oversubscribed by 2 credits.
-   - Release 3 credits by finishing processes with active windows
+   - Force a DLPAR core remove operation to remove credits from the system
+   - Calculate number of oversubscribed processes
+   - Release enough credits by finishing processes with active windows to leave
+     1 unused credit in the system
    - Now the processes with suspended windows should be able to get a new one
      and finish execution successfully.
 */
@@ -111,33 +111,44 @@ int main(int argc, char** argv)
 	fprintf(stderr, "Credits after DLPAR:  total: %d  used: %d\n", total_credits,
 		used_credits);
 
-	/* Tell last two children to start compression. Their windows are
+	if (used_credits < total_credits) {
+		fprintf(stderr, "Something went wrong, expected used > total, but got:\n"
+			"used credits: %d\ntotal credits: %d\n", used_credits,
+			total_credits);
+		return TEST_ERROR;
+	}
+
+	int oversubscribed = used_credits - total_credits;
+
+	/* Tell oversubscribed children to start compression. Their windows are
 	   suspended, so they should start the backoff mechanism */
-	pid_t proc_1 = children[num_procs-1];
-	pid_t proc_2 = children[num_procs-2];
-	kill(proc_1, SIGUSR1);
-	kill(proc_2, SIGUSR1);
-	fprintf(stderr, "Processes with suspended windows: %d %d\n", proc_1,
-		proc_2);
+	printf("Processes with suspended windows: ");
+	for (int i = 1; i <= oversubscribed; i++) {
+		printf("%d ", children[num_procs-i]);
+		kill(children[num_procs-i], SIGUSR1);
+	}
+	printf("\n");
 
 	/* Give them some time to realize their windows are suspended */
 	usleep(1000);
 
-	/* Verify both processes have not terminated, since they should be stuck
+	/* Verify processes have not terminated, since they should be stuck
 	   trying to open a new window */
-	int ret1=0, ret2=0;
-	if ((ret1 = waitpid(proc_1, NULL, WNOHANG)) != 0 ||
-	    (ret2 = waitpid(proc_2, NULL, WNOHANG)) != 0) {
-		fprintf(stderr, "Processes with suspended windows finished"
-			" unexpectedly. ret1=%d, ret2=%d\n", ret1, ret2);
-		return TEST_ERROR;
+	for (int i = 1; i <= oversubscribed; i++) {
+		int ret;
+		if ((ret = waitpid(children[num_procs-i], NULL, WNOHANG)) != 0) {
+			fprintf(stderr, "Process with suspended window finished"
+				" unexpectedly. ret=%d\n", ret);
+			return TEST_ERROR;
+		}
 	}
 
-	/* The system is now 2 credits oversubscribed, so allow 3 processes to
-	   continue so we leave 1 free credit to help the other 2 processes
+	/* The system is now oversubscribed, so allow enough processes to
+	   continue so we leave 1 free credit to help the other processes
 	   recover */
-	for (int i = 5; i > 2; i--) {
-		pid_t proc = children[num_procs-i];
+	for (int i = 0; i < oversubscribed + 1; i++) {
+		pid_t proc = children[i];
+		printf("Releasing credits from process %d\n", proc);
 		kill(proc, SIGUSR1);
 
 		if (waitpid(proc, NULL, 0) != proc) {
@@ -146,14 +157,16 @@ int main(int argc, char** argv)
 		}
 	}
 
-	/* Verify both processes with suspended windows finished successfully */
-	if (!(waitpid(proc_1, &status, 0) == proc_1 &&
-	      !check_process_successful(proc_1, status) &&
-	      waitpid(proc_2, &status, 0) == proc_2 &&
- 	      !check_process_successful(proc_2, status))) {
-		fprintf(stderr, "Processes with suspended windows didn't"
-			" finish correctly!\n");
-		return TEST_ERROR;
+	/* Verify processes with suspended windows finished successfully */
+	for (int i = 1; i <= oversubscribed; i++) {
+		pid_t proc = children[num_procs-i];
+		if (waitpid(proc, &status, 0) != proc ||
+		    check_process_successful(proc, status)) {
+			fprintf(stderr, "Process with suspended window didn't "
+				"finish correctly!\n");
+			return TEST_ERROR;
+		}
+		printf("Process %d finished succesfully\n", proc);
 	}
 
 	printf("*** %s passed\n", __FILE__);

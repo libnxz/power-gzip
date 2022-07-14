@@ -90,7 +90,6 @@
    before checking if VAS window may be suspended. */
 #define SUSPENDED_TIME_THRESHOLD (nx_get_freq() >> 5)
 
-void *nx_fault_storage_address;
 uint64_t tb_freq=0;
 
 static const uint64_t timeout_seconds = 60;
@@ -275,11 +274,6 @@ static int nx_wait_for_csb( nx_gzip_crb_cpb_t *cmdp )
 		if (t > (timeout_seconds * onesecond)) /* 1 min */
 			break;
 
-		/* fault address from signal handler */
-		if( nx_fault_storage_address ) {
-			return -EAGAIN;
-		}
-
 		hwsync();
 	} while (getnn( cmdp->crb.csb, csb_v ) == 0);
 
@@ -326,16 +320,6 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 
 			if (!ret) {
 				return ret;
-			}
-			else if (ret == -EAGAIN) {
-				volatile long x;
-				prt_err("Touching address %p, 0x%lx\n",
-					 nx_fault_storage_address,
-					 *(long *)nx_fault_storage_address);
-				x = *(long *)nx_fault_storage_address;
-				*(long *)nx_fault_storage_address = x;
-				nx_fault_storage_address = 0;
-				continue;
 			}
 			else {
 				prt_err("wait_for_csb() returns %d\n", ret);

@@ -587,7 +587,6 @@ extern unsigned long crc32_ppc(unsigned long crc, const unsigned char *buffer,
                                unsigned long len);
 
 /* gzip_vas.c */
-extern void *nx_fault_storage_address;
 extern int nx_function_begin(int function, int pri, nx_devp_t nxhandle);
 extern int nx_function_end(nx_devp_t nxhandle);
 extern uint64_t nx_wait_ticks(uint64_t ticks, uint64_t accumulated_ticks, int do_sleep);

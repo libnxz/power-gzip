@@ -108,7 +108,9 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__EXEEXT_1 = test_adler32$(EXEEXT) test_buf_error$(EXEEXT) \
-	test_crc32$(EXEEXT) test_inflatesyncpoint$(EXEEXT) \
+	test_crc32$(EXEEXT) test_reset$(EXEEXT) \
+	test_resetKeep$(EXEEXT) test_reset2$(EXEEXT) \
+	test_inflatesyncpoint$(EXEEXT) \
 	test_multithread_stress$(EXEEXT) test_pid_reuse$(EXEEXT)
 am__EXEEXT_2 = test_stress$(EXEEXT) test_deflate$(EXEEXT) \
 	test_inflate$(EXEEXT) test_dict$(EXEEXT) test_gz$(EXEEXT)
@@ -169,6 +171,22 @@ am_test_pid_reuse_OBJECTS = test_pid_reuse.$(OBJEXT)
 test_pid_reuse_OBJECTS = $(am_test_pid_reuse_OBJECTS)
 test_pid_reuse_LDADD = $(LDADD)
 test_pid_reuse_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
+am_test_reset_OBJECTS = test_reset.$(OBJEXT) test_utils.$(OBJEXT)
+test_reset_OBJECTS = $(am_test_reset_OBJECTS)
+test_reset_LDADD = $(LDADD)
+test_reset_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
+am__objects_1 = test_reset2-test_reset.$(OBJEXT) \
+	test_reset2-test_utils.$(OBJEXT)
+am_test_reset2_OBJECTS = $(am__objects_1)
+test_reset2_OBJECTS = $(am_test_reset2_OBJECTS)
+test_reset2_LDADD = $(LDADD)
+test_reset2_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
+am__objects_2 = test_resetKeep-test_reset.$(OBJEXT) \
+	test_resetKeep-test_utils.$(OBJEXT)
+am_test_resetKeep_OBJECTS = $(am__objects_2)
+test_resetKeep_OBJECTS = $(am_test_resetKeep_OBJECTS)
+test_resetKeep_LDADD = $(LDADD)
+test_resetKeep_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_test_stress_OBJECTS = test_stress.$(OBJEXT) test_utils.$(OBJEXT)
 test_stress_OBJECTS = $(am_test_stress_OBJECTS)
 test_stress_LDADD = $(LDADD)
@@ -199,11 +217,15 @@ am__depfiles_remade = ./$(DEPDIR)/test_adler32.Po \
 	./$(DEPDIR)/test_gz.Po ./$(DEPDIR)/test_inflate.Po \
 	./$(DEPDIR)/test_inflatesyncpoint.Po \
 	./$(DEPDIR)/test_multithread_stress.Po \
-	./$(DEPDIR)/test_pid_reuse.Po ./$(DEPDIR)/test_stress.Po \
-	./$(DEPDIR)/test_utils.Po ./$(DEPDIR)/test_zeroinput.Po \
-	deflate/$(DEPDIR)/0.Po deflate/$(DEPDIR)/compress.Po \
-	deflate/$(DEPDIR)/hello.Po deflate/$(DEPDIR)/perf.Po \
-	deflate/$(DEPDIR)/random_buffer.Po \
+	./$(DEPDIR)/test_pid_reuse.Po ./$(DEPDIR)/test_reset.Po \
+	./$(DEPDIR)/test_reset2-test_reset.Po \
+	./$(DEPDIR)/test_reset2-test_utils.Po \
+	./$(DEPDIR)/test_resetKeep-test_reset.Po \
+	./$(DEPDIR)/test_resetKeep-test_utils.Po \
+	./$(DEPDIR)/test_stress.Po ./$(DEPDIR)/test_utils.Po \
+	./$(DEPDIR)/test_zeroinput.Po deflate/$(DEPDIR)/0.Po \
+	deflate/$(DEPDIR)/compress.Po deflate/$(DEPDIR)/hello.Po \
+	deflate/$(DEPDIR)/perf.Po deflate/$(DEPDIR)/random_buffer.Po \
 	deflate/$(DEPDIR)/z_finish.Po \
 	inflate/$(DEPDIR)/random_buffer.Po
 am__mv = mv -f
@@ -230,13 +252,17 @@ SOURCES = $(test_adler32_SOURCES) $(test_buf_error_SOURCES) \
 	$(test_dict_SOURCES) $(test_gz_SOURCES) \
 	$(test_inflate_SOURCES) $(test_inflatesyncpoint_SOURCES) \
 	$(test_multithread_stress_SOURCES) $(test_pid_reuse_SOURCES) \
-	$(test_stress_SOURCES) $(test_zeroinput_SOURCES)
+	$(test_reset_SOURCES) $(test_reset2_SOURCES) \
+	$(test_resetKeep_SOURCES) $(test_stress_SOURCES) \
+	$(test_zeroinput_SOURCES)
 DIST_SOURCES = $(test_adler32_SOURCES) $(test_buf_error_SOURCES) \
 	$(test_crc32_SOURCES) $(test_deflate_SOURCES) \
 	$(test_dict_SOURCES) $(test_gz_SOURCES) \
 	$(test_inflate_SOURCES) $(test_inflatesyncpoint_SOURCES) \
 	$(test_multithread_stress_SOURCES) $(test_pid_reuse_SOURCES) \
-	$(test_stress_SOURCES) $(test_zeroinput_SOURCES)
+	$(test_reset_SOURCES) $(test_reset2_SOURCES) \
+	$(test_resetKeep_SOURCES) $(test_stress_SOURCES) \
+	$(test_zeroinput_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -676,6 +702,9 @@ test_scripts = test_abi
 test_exe = test_adler32 \
 	   test_buf_error \
 	   test_crc32 \
+	   test_reset \
+	   test_resetKeep \
+	   test_reset2 \
 	   test_inflatesyncpoint \
 	   test_multithread_stress \
 	   test_pid_reuse
@@ -695,6 +724,13 @@ test_deflate_SOURCES = test_deflate.c \
 		       deflate/random_buffer.c \
 		       deflate/z_finish.c
 
+test_reset_SOURCES = test_reset.c \
+		     test_utils.c
+
+test_resetKeep_SOURCES = $(test_reset_SOURCES)
+test_resetKeep_CPPFLAGS = -DKEEP
+test_reset2_SOURCES = $(test_reset_SOURCES)
+test_reset2_CPPFLAGS = -DINFRESET2
 test_inflate_SOURCES = test_inflate.c \
 		       test_utils.c \
 		       inflate/random_buffer.c
@@ -818,6 +854,18 @@ test_pid_reuse$(EXEEXT): $(test_pid_reuse_OBJECTS) $(test_pid_reuse_DEPENDENCIES
 	@rm -f test_pid_reuse$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_pid_reuse_OBJECTS) $(test_pid_reuse_LDADD) $(LIBS)
 
+test_reset$(EXEEXT): $(test_reset_OBJECTS) $(test_reset_DEPENDENCIES) $(EXTRA_test_reset_DEPENDENCIES) 
+	@rm -f test_reset$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_reset_OBJECTS) $(test_reset_LDADD) $(LIBS)
+
+test_reset2$(EXEEXT): $(test_reset2_OBJECTS) $(test_reset2_DEPENDENCIES) $(EXTRA_test_reset2_DEPENDENCIES) 
+	@rm -f test_reset2$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_reset2_OBJECTS) $(test_reset2_LDADD) $(LIBS)
+
+test_resetKeep$(EXEEXT): $(test_resetKeep_OBJECTS) $(test_resetKeep_DEPENDENCIES) $(EXTRA_test_resetKeep_DEPENDENCIES) 
+	@rm -f test_resetKeep$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_resetKeep_OBJECTS) $(test_resetKeep_LDADD) $(LIBS)
+
 test_stress$(EXEEXT): $(test_stress_OBJECTS) $(test_stress_DEPENDENCIES) $(EXTRA_test_stress_DEPENDENCIES) 
 	@rm -f test_stress$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_stress_OBJECTS) $(test_stress_LDADD) $(LIBS)
@@ -844,6 +892,11 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_inflatesyncpoint.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_multithread_stress.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_pid_reuse.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_reset.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_reset2-test_reset.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_reset2-test_utils.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_resetKeep-test_reset.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_resetKeep-test_utils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_stress.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_utils.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_zeroinput.Po@am__quote@ # am--include-marker
@@ -884,6 +937,62 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
+
+test_reset2-test_reset.o: test_reset.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_reset2_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT test_reset2-test_reset.o -MD -MP -MF $(DEPDIR)/test_reset2-test_reset.Tpo -c -o test_reset2-test_reset.o `test -f 'test_reset.c' || echo '$(srcdir)/'`test_reset.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_reset2-test_reset.Tpo $(DEPDIR)/test_reset2-test_reset.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_reset.c' object='test_reset2-test_reset.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_reset2_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o test_reset2-test_reset.o `test -f 'test_reset.c' || echo '$(srcdir)/'`test_reset.c
+
+test_reset2-test_reset.obj: test_reset.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_reset2_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT test_reset2-test_reset.obj -MD -MP -MF $(DEPDIR)/test_reset2-test_reset.Tpo -c -o test_reset2-test_reset.obj `if test -f 'test_reset.c'; then $(CYGPATH_W) 'test_reset.c'; else $(CYGPATH_W) '$(srcdir)/test_reset.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_reset2-test_reset.Tpo $(DEPDIR)/test_reset2-test_reset.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_reset.c' object='test_reset2-test_reset.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_reset2_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o test_reset2-test_reset.obj `if test -f 'test_reset.c'; then $(CYGPATH_W) 'test_reset.c'; else $(CYGPATH_W) '$(srcdir)/test_reset.c'; fi`
+
+test_reset2-test_utils.o: test_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_reset2_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT test_reset2-test_utils.o -MD -MP -MF $(DEPDIR)/test_reset2-test_utils.Tpo -c -o test_reset2-test_utils.o `test -f 'test_utils.c' || echo '$(srcdir)/'`test_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_reset2-test_utils.Tpo $(DEPDIR)/test_reset2-test_utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_utils.c' object='test_reset2-test_utils.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_reset2_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o test_reset2-test_utils.o `test -f 'test_utils.c' || echo '$(srcdir)/'`test_utils.c
+
+test_reset2-test_utils.obj: test_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_reset2_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT test_reset2-test_utils.obj -MD -MP -MF $(DEPDIR)/test_reset2-test_utils.Tpo -c -o test_reset2-test_utils.obj `if test -f 'test_utils.c'; then $(CYGPATH_W) 'test_utils.c'; else $(CYGPATH_W) '$(srcdir)/test_utils.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_reset2-test_utils.Tpo $(DEPDIR)/test_reset2-test_utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_utils.c' object='test_reset2-test_utils.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_reset2_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o test_reset2-test_utils.obj `if test -f 'test_utils.c'; then $(CYGPATH_W) 'test_utils.c'; else $(CYGPATH_W) '$(srcdir)/test_utils.c'; fi`
+
+test_resetKeep-test_reset.o: test_reset.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_resetKeep_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT test_resetKeep-test_reset.o -MD -MP -MF $(DEPDIR)/test_resetKeep-test_reset.Tpo -c -o test_resetKeep-test_reset.o `test -f 'test_reset.c' || echo '$(srcdir)/'`test_reset.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_resetKeep-test_reset.Tpo $(DEPDIR)/test_resetKeep-test_reset.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_reset.c' object='test_resetKeep-test_reset.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_resetKeep_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o test_resetKeep-test_reset.o `test -f 'test_reset.c' || echo '$(srcdir)/'`test_reset.c
+
+test_resetKeep-test_reset.obj: test_reset.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_resetKeep_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT test_resetKeep-test_reset.obj -MD -MP -MF $(DEPDIR)/test_resetKeep-test_reset.Tpo -c -o test_resetKeep-test_reset.obj `if test -f 'test_reset.c'; then $(CYGPATH_W) 'test_reset.c'; else $(CYGPATH_W) '$(srcdir)/test_reset.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_resetKeep-test_reset.Tpo $(DEPDIR)/test_resetKeep-test_reset.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_reset.c' object='test_resetKeep-test_reset.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_resetKeep_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o test_resetKeep-test_reset.obj `if test -f 'test_reset.c'; then $(CYGPATH_W) 'test_reset.c'; else $(CYGPATH_W) '$(srcdir)/test_reset.c'; fi`
+
+test_resetKeep-test_utils.o: test_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_resetKeep_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT test_resetKeep-test_utils.o -MD -MP -MF $(DEPDIR)/test_resetKeep-test_utils.Tpo -c -o test_resetKeep-test_utils.o `test -f 'test_utils.c' || echo '$(srcdir)/'`test_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_resetKeep-test_utils.Tpo $(DEPDIR)/test_resetKeep-test_utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_utils.c' object='test_resetKeep-test_utils.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_resetKeep_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o test_resetKeep-test_utils.o `test -f 'test_utils.c' || echo '$(srcdir)/'`test_utils.c
+
+test_resetKeep-test_utils.obj: test_utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_resetKeep_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT test_resetKeep-test_utils.obj -MD -MP -MF $(DEPDIR)/test_resetKeep-test_utils.Tpo -c -o test_resetKeep-test_utils.obj `if test -f 'test_utils.c'; then $(CYGPATH_W) 'test_utils.c'; else $(CYGPATH_W) '$(srcdir)/test_utils.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_resetKeep-test_utils.Tpo $(DEPDIR)/test_resetKeep-test_utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_utils.c' object='test_resetKeep-test_utils.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_resetKeep_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o test_resetKeep-test_utils.obj `if test -f 'test_utils.c'; then $(CYGPATH_W) 'test_utils.c'; else $(CYGPATH_W) '$(srcdir)/test_utils.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -1148,6 +1257,27 @@ test_buf_error.log: test_buf_error$(EXEEXT)
 test_crc32.log: test_crc32$(EXEEXT)
 	@p='test_crc32$(EXEEXT)'; \
 	b='test_crc32'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_reset.log: test_reset$(EXEEXT)
+	@p='test_reset$(EXEEXT)'; \
+	b='test_reset'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_resetKeep.log: test_resetKeep$(EXEEXT)
+	@p='test_resetKeep$(EXEEXT)'; \
+	b='test_resetKeep'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_reset2.log: test_reset2$(EXEEXT)
+	@p='test_reset2$(EXEEXT)'; \
+	b='test_reset2'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1460,6 +1590,11 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/test_inflatesyncpoint.Po
 	-rm -f ./$(DEPDIR)/test_multithread_stress.Po
 	-rm -f ./$(DEPDIR)/test_pid_reuse.Po
+	-rm -f ./$(DEPDIR)/test_reset.Po
+	-rm -f ./$(DEPDIR)/test_reset2-test_reset.Po
+	-rm -f ./$(DEPDIR)/test_reset2-test_utils.Po
+	-rm -f ./$(DEPDIR)/test_resetKeep-test_reset.Po
+	-rm -f ./$(DEPDIR)/test_resetKeep-test_utils.Po
 	-rm -f ./$(DEPDIR)/test_stress.Po
 	-rm -f ./$(DEPDIR)/test_utils.Po
 	-rm -f ./$(DEPDIR)/test_zeroinput.Po
@@ -1525,6 +1660,11 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/test_inflatesyncpoint.Po
 	-rm -f ./$(DEPDIR)/test_multithread_stress.Po
 	-rm -f ./$(DEPDIR)/test_pid_reuse.Po
+	-rm -f ./$(DEPDIR)/test_reset.Po
+	-rm -f ./$(DEPDIR)/test_reset2-test_reset.Po
+	-rm -f ./$(DEPDIR)/test_reset2-test_utils.Po
+	-rm -f ./$(DEPDIR)/test_resetKeep-test_reset.Po
+	-rm -f ./$(DEPDIR)/test_resetKeep-test_utils.Po
 	-rm -f ./$(DEPDIR)/test_stress.Po
 	-rm -f ./$(DEPDIR)/test_utils.Po
 	-rm -f ./$(DEPDIR)/test_zeroinput.Po

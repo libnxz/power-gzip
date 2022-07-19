@@ -10,6 +10,9 @@ test_scripts = test_abi
 test_exe = test_adler32 \
 	   test_buf_error \
 	   test_crc32 \
+	   test_reset \
+	   test_resetKeep \
+	   test_reset2 \
 	   test_inflatesyncpoint \
 	   test_multithread_stress \
 	   test_pid_reuse
@@ -41,6 +44,15 @@ test_deflate_SOURCES = test_deflate.c \
 		       deflate/perf.c \
 		       deflate/random_buffer.c \
 		       deflate/z_finish.c
+
+test_reset_SOURCES = test_reset.c \
+		     test_utils.c
+
+test_resetKeep_SOURCES = $(test_reset_SOURCES)
+test_resetKeep_CPPFLAGS = -DKEEP
+
+test_reset2_SOURCES = $(test_reset_SOURCES)
+test_reset2_CPPFLAGS = -DINFRESET2
 
 test_inflate_SOURCES = test_inflate.c \
 		       test_utils.c \

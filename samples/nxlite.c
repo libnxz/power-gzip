@@ -60,7 +60,6 @@
 #include <sys/ioctl.h>
 #include <assert.h>
 #include <errno.h>
-#include <signal.h>
 #include <stdarg.h>
 #include "nxu.h"
 #include "nx_dht.h"
@@ -84,10 +83,8 @@ typedef struct nxlite_handle_t {
 #endif
 #define NX_CHUNK_SZ  (1<<18)
 
-extern void *nx_fault_storage_address;
 extern void *nx_function_begin(int function, int pri);
 extern int nx_function_end(void *handle);
-static void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 
 static int compress_dht_sample(char *src, uint32_t srclen, char *dst,
 			       uint32_t dstlen, int with_count,
@@ -449,7 +446,6 @@ void nxlite_end(void *nxhandle)
 void *nxlite_begin()
 {
 	int rc;
-	struct sigaction act;
 	nxlite_handle_t *h;
 
 	if (NULL == (h = malloc(sizeof(nxlite_handle_t)))) {
@@ -471,14 +467,6 @@ void *nxlite_begin()
 		nxlite_end(h);
 		return NULL;
 	}
-
-	/* use signals for catching CSB page faults */
-	act.sa_handler = 0;
-	act.sa_sigaction = sigsegv_handler;
-	act.sa_flags = SA_SIGINFO;
-	act.sa_restorer = 0;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGSEGV, &act, NULL);
 
 	return h;
 }
@@ -691,15 +679,6 @@ static int nxlite_compress(char *dest, uint64_t *destLen,
 
 	return Z_OK;
 }
-
-static void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
-{
-	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
-		sig, info->si_code, info->si_addr);
-
-	nx_fault_storage_address = info->si_addr;
-}
-
 
 /*
   Compresses the source buffer into the destination buffer.  sourceLen
@@ -1448,15 +1427,7 @@ ok1:
 int main(int argc, char **argv)
 {
     int rc;
-    struct sigaction act;
     void *handle;
-
-    act.sa_handler = 0;
-    act.sa_sigaction = sigsegv_handler;
-    act.sa_flags = SA_SIGINFO;
-    act.sa_restorer = 0;
-    sigemptyset(&act.sa_mask);
-    sigaction(SIGSEGV, &act, NULL);
 
     handle = nx_function_begin( NX_FUNC_COMP_GZIP, 0);
     if (!handle) {

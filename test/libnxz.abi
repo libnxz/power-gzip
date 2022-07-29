@@ -89,7 +89,6 @@
     <typedef-decl name='__uint64_t' type-id='7359adad' id='8910171f'/>
     <pointer-type-def type-id='48b5725f' size-in-bits='64' id='eaa32e2f'/>
     <var-decl name='tb_freq' type-id='9c313c2d' visibility='default'/>
-    <var-decl name='nx_fault_storage_address' type-id='eaa32e2f' visibility='default'/>
   </abi-instr>
   <abi-instr address-size='64' path='nx_adler32.c' language='LANG_C11'>
     <type-decl name='long int' size-in-bits='64' id='bd54fe1a'/>

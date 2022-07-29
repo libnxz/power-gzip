@@ -69,7 +69,6 @@
 #include <sys/ioctl.h>
 #include <assert.h>
 #include <errno.h>
-#include <signal.h>
 #include <pthread.h>
 #include "zlib.h"
 

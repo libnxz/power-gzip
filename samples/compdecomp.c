@@ -62,7 +62,6 @@
 #include <sys/ioctl.h>
 #include <assert.h>
 #include <errno.h>
-#include <signal.h>
 #include "zlib.h"
 
 /* Caller must free the allocated buffer

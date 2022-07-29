@@ -49,7 +49,6 @@
 #include <sys/ioctl.h>
 #include <endian.h>
 #include <pthread.h>
-#include <signal.h>
 #include <zlib.h>
 #include <dlfcn.h>
 #include "nx_dbg.h"

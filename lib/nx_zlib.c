@@ -51,7 +51,6 @@
 #include <sys/stat.h>
 #include <endian.h>
 #include <pthread.h>
-#include <signal.h>
 #include <dirent.h>
 #include <syslog.h>
 #include <limits.h>

@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <syscall.h>
 #include <pthread.h>
 #include "nx.h"
@@ -29,12 +28,9 @@ extern void *nx_function_begin(int function, int pri);
 extern int nx_function_end(void *handle);
 
 struct sigaction sigact;
-void *nx_fault_storage_address;
 
 void *nx_overflow_buffer;
 p9_simple_handle_t *nx_devices[NX_MAX_DEVICES];
-
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx);
 
 /*open the device*/
 p9_simple_handle_t *p9open();

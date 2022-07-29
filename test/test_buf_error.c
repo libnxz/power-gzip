@@ -58,7 +58,7 @@ int test_small_avail_out(){
 	}
 
 	if ((rc = inflateInit(&strm)) != Z_OK){
-		printf("*** failed: inflateInt returned %d\n", rc);
+		printf("*** failed: inflateInit returned %d\n", rc);
 		return TEST_ERROR;
 	}
 

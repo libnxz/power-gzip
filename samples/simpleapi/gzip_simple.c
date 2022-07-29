@@ -18,14 +18,6 @@ __attribute__((constructor)) void nx_init(void)
 		nx_devices[ctr]->open_count = 0;
 		nx_devices[ctr]->chipId = ctr;
 	}
-
-	/* add a signal action */
-	sigact.sa_handler = 0;
-	sigact.sa_sigaction = sigsegv_handler;
-	sigact.sa_flags = SA_SIGINFO;
-	sigact.sa_restorer = 0;
-	sigemptyset(&sigact.sa_mask);
-	sigaction(SIGSEGV, &sigact, NULL);
 }
 
 __attribute__((destructor)) void nx_deinit(void)
@@ -252,14 +244,6 @@ int nx_append_dde(nx_dde_t *ddl, void *addr, uint32_t len)
 		putp32(ddl, ddebc, bytes); /* byte sum of all dde */
 	}
 	return bytes;
-}
-
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
-{
-	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
-		sig, info->si_code, info->si_addr);
-	nx_fault_storage_address = info->si_addr;
-	// exit(0);
 }
 
 static void nx_print_dde(nx_dde_t *ddep, const char *msg)

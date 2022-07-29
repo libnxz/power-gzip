@@ -56,7 +56,6 @@
 #include <sys/ioctl.h>
 #include <assert.h>
 #include <errno.h>
-#include <signal.h>
 #include <zlib.h>
 #include "nx-gzip.h"
 #include "crb.h"

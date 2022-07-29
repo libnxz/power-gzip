@@ -60,7 +60,6 @@
 #include <sys/ioctl.h>
 #include <assert.h>
 #include <errno.h>
-#include <signal.h>
 #include "nxu.h"
 #include "nx_dht.h"
 #include "nx_dbg.h"
@@ -477,32 +476,15 @@ int compress_file(int argc, char **argv, nx_devp_t handle, void *dhthandle)
 	return 0;
 }
 
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
-{
-	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
-		sig, info->si_code, info->si_addr);
-
-	exit(-1);
-	nx_fault_storage_address = info->si_addr;
-}
-
 int main(int argc, char **argv)
 {
 	int rc;
-	struct sigaction act;
 	z_stream strm;
 	nx_streamp s;
 
 	strm.zalloc = (alloc_func) 0;
 	strm.zfree = (free_func) 0;
 	strm.opaque = (voidpf) 0;
-
-	act.sa_handler = 0;
-	act.sa_sigaction = sigsegv_handler;
-	act.sa_flags = SA_SIGINFO;
-	act.sa_restorer = 0;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGSEGV, &act, NULL);
 
 	if (nx_deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK) {
 		fprintf(stderr, "Unable to init NX, errno %d\n", errno);

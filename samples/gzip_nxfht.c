@@ -60,7 +60,6 @@
 #include <sys/ioctl.h>
 #include <assert.h>
 #include <errno.h>
-#include <signal.h>
 #include <limits.h>
 #include "nxu.h"
 #include "nx_dbg.h"
@@ -77,8 +76,6 @@ struct _nx_time_dbg {
 	uint64_t touch1, touch2;
 	uint64_t fault;
 } td;
-
-void *nx_fault_storage_address;
 
 #define SYSFS_GZIP_CAPS "/sys/devices/vio/ibm,compression-v1/nx_gzip_caps/"
 static int nx_query_job_limits()
@@ -441,32 +438,15 @@ int compress_file(int argc, char **argv, nx_devp_t handle)
 	return 0;
 }
 
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
-{
-	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
-		sig, info->si_code, info->si_addr);
-
-	nx_fault_storage_address = info->si_addr;
-}
-
-
 int main(int argc, char **argv)
 {
 	int rc;
-	struct sigaction act;
 	z_stream strm;
 	nx_streamp s;
 
 	strm.zalloc = (alloc_func) 0;
 	strm.zfree = (free_func) 0;
 	strm.opaque = (voidpf) 0;
-
-	act.sa_handler = 0;
-	act.sa_sigaction = sigsegv_handler;
-	act.sa_flags = SA_SIGINFO;
-	act.sa_restorer = 0;
-	sigemptyset(&act.sa_mask);
-	sigaction(SIGSEGV, &act, NULL);
 
 	if (nx_deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK) {
 		fprintf(stderr, "Unable to init NX, errno %d\n", errno);

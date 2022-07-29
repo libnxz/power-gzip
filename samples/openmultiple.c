@@ -11,7 +11,6 @@
 #include <sys/ioctl.h>
 #include <endian.h>
 #include <pthread.h>
-#include <signal.h>
 #include <dirent.h>
 
 #include <sys/stat.h>

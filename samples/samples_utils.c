@@ -12,8 +12,6 @@
 
 #define hwsync()    asm volatile("sync" ::: "memory")
 
-void *_nx_fault_storage_address;
-
 static int _nx_wait_ticks(uint64_t accumulated_ticks)
 {
 	uint64_t ts, te, mhz, us;
@@ -41,11 +39,6 @@ int _nx_wait_for_csb(nx_gzip_crb_cpb_t *cmdp)
 
 		if (t > (60 * onesecond)) /* 1 min */
 			break;
-
-		/* fault address from signal handler */
-		if (_nx_fault_storage_address) {
-			return -EAGAIN;
-		}
 
 		hwsync();
 	} while (getnn(cmdp->crb.csb, csb_v) == 0);
@@ -78,10 +71,6 @@ int _nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 			ret = _nx_wait_for_csb( cmdp );
 
 			if (ret == -EAGAIN) {
-				volatile long x;
-				x = *(long *)_nx_fault_storage_address;
-				*(long *)_nx_fault_storage_address = x;
-				_nx_fault_storage_address = 0;
 				continue;
 			}
 			else

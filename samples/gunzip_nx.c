@@ -56,7 +56,6 @@
 #include <sys/ioctl.h>
 #include <assert.h>
 #include <errno.h>
-#include <signal.h>
 #include "nxu.h"
 #include "nx_dbg.h"
 #include "nx_zlib.h"
@@ -84,15 +83,6 @@ const int page_sz = 1<<16;
 const int line_sz = 1<<7;
 const int window_max = 1<<15;
 const int retry_max = 50;
-
-void sigsegv_handler(int sig, siginfo_t *info, void *ctx)
-{
-	fprintf(stderr, "%d: Got signal %d si_code %d, si_addr %p\n", getpid(),
-	       sig, info->si_code, info->si_addr);
-
-	_nx_fault_storage_address = info->si_addr;
-	/* exit(0); */
-}
 
 __attribute__ ((unused))
 static void nx_print_dde(nx_dde_t *ddep, const char *msg)
@@ -1198,20 +1188,12 @@ ok1:
 int main(int argc, char **argv)
 {
     int rc;
-    struct sigaction act;
     z_stream strm;
     nx_streamp s;
 
     strm.zalloc = (alloc_func) 0;
     strm.zfree = (free_func) 0;
     strm.opaque = (voidpf) 0;
-
-    act.sa_handler = 0;
-    act.sa_sigaction = sigsegv_handler;
-    act.sa_flags = SA_SIGINFO;
-    act.sa_restorer = 0;
-    sigemptyset(&act.sa_mask);
-    sigaction(SIGSEGV, &act, NULL);
 
     if (nx_deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK) {
 	fprintf(stderr, "Unable to init NX, errno %d\n", errno);

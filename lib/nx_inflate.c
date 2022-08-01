@@ -2115,6 +2115,40 @@ int inflateReset(z_streamp strm)
 }
 
 
+/** @brief Reset only the stream being used.
+
+    In zlib, inflateResetKeep() is an undocumented function.  The function is
+    not even listed in the Linux Standard Base Core Specification 3.2 [1].
+
+    In zlib, this function is used to reset inflate without resetting the
+    longest match structures.
+
+    So, one can argue this function is not useful for libnxz.
+    IBM's Z OS does not support it [2].
+
+    In order to provide some level of compatibility with zlib, it has been
+    decided this function will behave almost the same as inflateReset(), except
+    that it won't reset the stream being used, e.g. if a software stream has
+    been chosen, inflateResetKeep() will reset it, but won't reset the NX stream
+    and won't set the NX stream as the default one.
+    This behavior was chosen because it is compatible with zlib itself that
+    calls inflateResetKeep() from inflateReset() and expects that a zlib
+    stream (SW) is used upon returning from inflateResetKeep().
+
+    In theory, inflateResetKeep() could behave identically to inflateReset(),
+    but this would require that all calls to inflateResetKeep() from zlib go
+    directly to zlib's inflateResetKeep().  glibc's
+    dlmopen(LM_ID_NEWLM, RTLD_DEEPBIND) should help, but there appear to exist
+    bugs in glibc preventing it from working as designed.  These issues have
+    to be fixed and backported to supported distros before we can adopt this
+    behavior.
+
+    [1] https://refspecs.linuxfoundation.org/LSB_3.2.0/LSB-Core-generic/LSB-Core-generic/libzman.html
+    [2] https://www.ibm.com/docs/en/zos/2.3.0?topic=compression-standard-zlib-functions
+
+    @param strm A stream structure initialized by a call to inflateInit().
+    @return Z_OK in case of success and Z_STREAM_ERROR to indicate an error.
+*/
 int inflateResetKeep(z_streamp strm)
 {
 	if (has_nx_state(strm))

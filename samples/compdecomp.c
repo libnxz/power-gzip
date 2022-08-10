@@ -120,6 +120,7 @@ int compress_file(int argc, char **argv)
 	int i;
 	struct timeval ts, te;
 	double elapsed;
+	int ret;
 
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s <fname>\n", argv[0]);
@@ -143,9 +144,10 @@ int compress_file(int argc, char **argv)
 	compdata_len = compbuf_len;
 	/* compdata_len is the buffer length before the call; returned
 	   as actual compressed data len on return */
-	if (Z_OK != compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf,
-	    (uLong)inlen)) {
-		fprintf(stderr, "compress error\n");
+	ret = compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf,
+		       (uLong)inlen);
+	if (ret != Z_OK) {
+		fprintf(stderr, "compress error %d\n", ret);
 		return -1;
 	}
 	fprintf(stderr, "compressed %ld to %ld bytes\n", (long)inlen,
@@ -155,9 +157,10 @@ int compress_file(int argc, char **argv)
 	decompdata_len = decompbuf_len;
 	/* decompdata_len is the buffer length before the call;
 	   returned as actual uncompressed data len on return */
-	if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len,
-	    (Bytef *)compbuf, (uLong)compdata_len)) {
-		fprintf(stderr, "uncompress error\n");
+	ret = uncompress((Bytef *)decompbuf, &decompdata_len,
+			 (Bytef *)compbuf, (uLong)compdata_len);
+	if (ret != Z_OK) {
+		fprintf(stderr, "uncompress error %d\n", ret);
 		return -1;
 	}
 	fprintf(stderr, "uncompressed %ld to %ld bytes\n", (long)compdata_len,
@@ -176,9 +179,10 @@ int compress_file(int argc, char **argv)
 
 	for (i = 0; i < iterations; i++) {
 		compdata_len = compbuf_len;
-		if (Z_OK != compress((Bytef *)compbuf, &compdata_len,
-		    (Bytef *)inbuf, (uLong)inlen)) {
-			fprintf(stderr, "compress error\n");
+		ret = compress((Bytef *)compbuf, &compdata_len,
+			       (Bytef *)inbuf, (uLong)inlen);
+		if (ret != Z_OK) {
+			fprintf(stderr, "compress error %d\n", ret);
 			return -1;
 		}
 	}
@@ -201,9 +205,10 @@ int compress_file(int argc, char **argv)
 		decompdata_len = decompbuf_len;
 		/* decompdata_len is the buffer length before the call;
 		   returned as actual uncompressed data len on return */
-		if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len,
-		    (Bytef *)compbuf, (uLong)compdata_len)) {
-			fprintf(stderr, "uncompress error\n");
+		ret = uncompress((Bytef *)decompbuf, &decompdata_len,
+				(Bytef *)compbuf, (uLong)compdata_len);
+		if (ret != Z_OK) {
+			fprintf(stderr, "uncompress error %d\n", ret);
 			return -1;
 		}
 	}

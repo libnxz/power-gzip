@@ -145,6 +145,7 @@ void *comp_file_multith(void *argsv)
 	double elapsed;
 	thread_args_t *argsp = (thread_args_t *) argsv;
 	int tid;
+	int ret;
 
 	inbuf = argsp->inbuf;
 	inlen = argsp->inlen;
@@ -162,9 +163,10 @@ void *comp_file_multith(void *argsv)
 	compdata_len = compbuf_len;
 	/* compdata_len is the buffer length before the call; returned
 	   as actual compressed data len on return */
-	if (Z_OK != compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf,
-	    (uLong)inlen)) {
-		fprintf(stderr, "tid %d: compress error\n", tid);
+	ret = compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf,
+		       (uLong)inlen);
+	if (ret != Z_OK) {
+		fprintf(stderr, "tid %d: compress error %d\n", tid, ret);
 		return (void *) -1;
 	}
 
@@ -175,9 +177,10 @@ void *comp_file_multith(void *argsv)
 	decompdata_len = decompbuf_len;
 	/* decompdata_len is the buffer length before the call;
 	   returned as actual uncompressed data len on return */
-	if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len,
-	    (Bytef *)compbuf, (uLong)compdata_len)) {
-		fprintf(stderr, "tid %d: uncompress error\n", tid);
+	ret = uncompress((Bytef *)decompbuf, &decompdata_len,
+			 (Bytef *)compbuf, (uLong)compdata_len);
+	if (ret != Z_OK) {
+		fprintf(stderr, "tid %d: uncompress error %d\n", tid, ret);
 		return (void *) -1;
 	}
 
@@ -193,9 +196,11 @@ void *comp_file_multith(void *argsv)
 
 	for (i = 0; i < iterations; i++) {
 		compdata_len = compbuf_len;
-		if (Z_OK != compress((Bytef *)compbuf, &compdata_len,
-		    (Bytef *)inbuf, (uLong)inlen)) {
-			fprintf(stderr, "tid %d: compress error\n", tid);
+		ret = compress((Bytef *)compbuf, &compdata_len,
+			       (Bytef *)inbuf, (uLong)inlen);
+		if (ret != Z_OK) {
+			fprintf(stderr, "tid %d: compress error %d\n", tid,
+				ret);
 			return (void *) -1;
 		}
 	}
@@ -236,6 +241,7 @@ void *decomp_file_multith(void *argsv)
 #ifdef SIMPLE_CHECKSUM
 	unsigned long cksum = 1;
 #endif
+	int ret;
 
 	inbuf = argsp->inbuf;
 	inlen = argsp->inlen;
@@ -253,9 +259,10 @@ void *decomp_file_multith(void *argsv)
 	compdata_len = compbuf_len;
 	/* compdata_len is the buffer length before the call; returned
 	   as actual compressed data len on return */
-	if (Z_OK != compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf,
-	    (uLong)inlen)) {
-		fprintf(stderr, "tid %d: compress error\n", tid);
+	ret = compress((Bytef *)compbuf, &compdata_len, (Bytef *)inbuf,
+		       (uLong)inlen);
+	if (ret != Z_OK) {
+		fprintf(stderr, "tid %d: compress error %d\n", tid, ret);
 		return (void *) -1;
 	}
 
@@ -267,9 +274,10 @@ void *decomp_file_multith(void *argsv)
 	decompdata_len = decompbuf_len;
 	/* decompdata_len is the buffer length before the call;
 	   returned as actual uncompressed data len on return */
-	if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len,
-	    (Bytef *)compbuf, (uLong)compdata_len)) {
-		fprintf(stderr, "uncompress error\n");
+	ret = uncompress((Bytef *)decompbuf, &decompdata_len,
+			 (Bytef *)compbuf, (uLong)compdata_len);
+	if (ret != Z_OK) {
+		fprintf(stderr, "uncompress error %d\n", ret);
 		return (void *) -1;
 	}
 
@@ -287,9 +295,11 @@ void *decomp_file_multith(void *argsv)
 		decompdata_len = decompbuf_len;
 		/* decompdata_len is the buffer length before the call;
 		   returned as actual uncompressed data len on return */
-		if (Z_OK != uncompress((Bytef *)decompbuf, &decompdata_len,
-		    (Bytef *)compbuf, (uLong)compdata_len)) {
-			fprintf(stderr, "tid %d: uncompress error\n", tid);
+		ret = uncompress((Bytef *)decompbuf, &decompdata_len,
+				 (Bytef *)compbuf, (uLong)compdata_len);
+		if (ret != Z_OK) {
+			fprintf(stderr, "tid %d: uncompress error %d\n", tid,
+				ret);
 			return (void *) -1;
 		}
 

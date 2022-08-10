@@ -318,8 +318,8 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 		   4. partition migration is in progress */
 		++retries;
 		if (retries % 1000 == 0) {
-			prt_err("Paste attempt %d, failed pid= %d\n", retries,
-				getpid());
+			prt_info("Paste attempt %d, failed pid=%d\n", retries,
+				 getpid());
 		}
 
 		/* On PowerVM, the failures may be caused by a suspended window.

@@ -317,7 +317,14 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 		   3. VAS window suspended after a DLPAR core remove op
 		   4. partition migration is in progress */
 		++retries;
-		if (retries % 1000 == 0) {
+		/* Avoid printing too much information about paste attempt
+		   failures.  We want to be notified early (in the first 100
+		   iterations), but then avoid printing more lines for a few
+		   seconds in order to avoid increasing the size of the log
+		   too much (~90K lines / second / thread).  This is especially
+		   important in a multithreading environment as each thread
+		   will be doing the same. */
+		if (retries % 500000 == 100) {
 			prt_info("Paste attempt %d, failed pid=%d\n", retries,
 				 getpid());
 		}

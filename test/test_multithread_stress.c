@@ -229,6 +229,7 @@ int main(int argc, char **argv)
 	printf("Test Iterations:\t%d\n",test_iterations);
 
 	thread_info = (struct stats *) malloc(thread_num*sizeof(struct stats));
+	memset(thread_info, 0, thread_num * sizeof(struct stats));
 
 	if (generate_data_buffer(data_buf) != 0 || thread_info == NULL) {
 		free_data_buffer(data_buf);

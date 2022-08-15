@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <pthread.h>
+#include <signal.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -18,6 +19,9 @@
 
 #define COMPRESS	compress
 #define UNCOMPRESS	uncompress
+
+/* 5 minute timeout in milliseconds.  */
+#define TIMEOUT_MS	(300 * 1000)
 
 static unsigned int buf_size_array[DATA_NUM] = {4096, 4096, 65536, 65536, 131072, 131072, 262144, 262144, 1048576, 1048576};
 Byte *data_buf[DATA_NUM] = {NULL};
@@ -34,6 +38,7 @@ struct stats{
 	int iteration;
 	int running;
 	unsigned long total_size;
+	int joined;
 };
 
 static float get_time_duration(struct timeval e, struct timeval s)
@@ -205,6 +210,8 @@ int main(int argc, char **argv)
 	struct stats *thread_info;
 	int i;
 	int abort = 0;
+	struct timeval start_time;
+	struct timeval last_time;
 
 	if(argc == 4) {
 		thread_num = atoi(argv[1]);
@@ -272,9 +279,39 @@ int main(int argc, char **argv)
 		__atomic_load(&failed_thread, &abort, __ATOMIC_RELAXED);
 	}
 
-	for (int i = 0; i < thread_num; i++) {
-		pthread_join(thread_info[i].tid, NULL);
-	}
+	int try_again=0;
+	gettimeofday(&start_time, NULL);
+	do {
+		if (try_again) sleep(10);
+		try_again = 0;
+
+		gettimeofday(&last_time, NULL);
+		if (get_time_duration(last_time, start_time) >= TIMEOUT_MS) {
+			printf("Test timed out."
+			       "  Starting to kill all threads!\n");
+			for (int i = 0; i < thread_num; i++) {
+				if (!thread_info[i].joined) {
+					failed_thread++;
+					printf("Killing thread %ld...\n",
+					       thread_info[i].tid);
+					pthread_kill(thread_info[i].tid,
+						     SIGKILL);
+				}
+			}
+			break;
+		}
+
+		for (int i = 0; i < thread_num; i++) {
+			if (!thread_info[i].joined) {
+				if (pthread_tryjoin_np(thread_info[i].tid,
+						       NULL) == 0) {
+					thread_info[i].joined = 1;
+				} else {
+					try_again=1;
+				}
+			}
+		}
+	} while (try_again);
 
 
 	for (int i = 0; i < thread_num; i++) {

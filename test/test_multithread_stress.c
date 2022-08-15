@@ -204,6 +204,7 @@ int main(int argc, char **argv)
 	unsigned long tsize = 0;
 	struct stats *thread_info;
 	int i;
+	int abort = 0;
 
 	if(argc == 4) {
 		thread_num = atoi(argv[1]);
@@ -245,7 +246,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	while(1){
+	while(abort == 0) {
 		sleep(1);
 		/*Check for finish*/
 		for (i = 0; i < thread_num; i++){
@@ -260,6 +261,7 @@ int main(int argc, char **argv)
 		}
 
 		if(finish_thread >= thread_num) break;
+		__atomic_load(&failed_thread, &abort, __ATOMIC_RELAXED);
 	}
 
 	for (int i = 0; i < thread_num; i++) {

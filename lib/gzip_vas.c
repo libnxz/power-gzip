@@ -283,7 +283,7 @@ int nxu_run_job(nx_gzip_crb_cpb_t *cmdp, nx_devp_t nxhandle)
 	int ret=0, retries=0, wait_count=0;
 	uint64_t ticks_total = 0, wait_ticks = 0;
 	uint64_t freq = nx_get_freq();
-	int used_credits, total_credits, window_generation=-1;
+	int used_credits=0, total_credits=0, window_generation=-1;
 
 	assert(nxhandle != NULL);
 

@@ -706,8 +706,8 @@ int nx_read_sysfs_entry(const char *path, int *val)
 				rc = 0;
 			}
 		}
+		close(fd);
 	}
-	(void) close(fd);
 
 	return rc;
 }

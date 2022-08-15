@@ -146,19 +146,19 @@ static int run_case(void* _pstats)
 
 	gettimeofday(&(pstats->start_time), NULL);
 
-	while(1){
+	do {
 		rc = run(pstats);
 		if(rc != TEST_OK) {
-			printf("thread %ld failed. xxxxxxxxxxxxxxxxxx\n", (unsigned long) pthread_self());
+			printf("thread %ld failed. xxxxxxxxxxxxxxxxxx\n",
+			       (unsigned long) pthread_self());
 			__atomic_fetch_add(&failed_thread, 1, __ATOMIC_RELAXED);
 			break;
 		}
 
 		gettimeofday(&(pstats->last_time), NULL);
-		if(get_time_duration(pstats->last_time, pstats->start_time) >= test_interval * 1000){
-			break;
-		}
-	}
+	} while (get_time_duration(pstats->last_time, pstats->start_time)
+		 < test_interval * 1000);
+
 	pstats->iteration += 1;
 	pstats->running = 0;
 
@@ -241,7 +241,9 @@ int main(int argc, char **argv)
 
 	/*Start thread*/
 	for (i = 0; i < thread_num; i++) {
-		if (pthread_create(&(thread_info[i].tid), NULL, (void*) run_case, (void *) &(thread_info[i])) != 0) {
+		if (pthread_create(&(thread_info[i].tid), NULL,
+				   (void*) run_case,
+				   (void *) &(thread_info[i])) != 0) {
 			printf ("Create pthread1 error!\n");
 		}
 	}
@@ -250,17 +252,23 @@ int main(int argc, char **argv)
 		sleep(1);
 		/*Check for finish*/
 		for (i = 0; i < thread_num; i++){
-			if (!thread_info[i].running && (thread_info[i].iteration < test_iterations)) {
-				/*  Make sure to join the thread before reuse the thread_info field.
-				    Otherwise the internal thread resources will leak. */
-				if (pthread_tryjoin_np(thread_info[i].tid, NULL) != 0) continue;
-				pthread_create(&(thread_info[i].tid), NULL, (void*) run_case, (void *) &(thread_info[i]));
+			if (!thread_info[i].running
+			    && (thread_info[i].iteration < test_iterations)) {
+				/*  Make sure to join the thread before reuse
+				    the thread_info field. Otherwise the
+				    internal thread resources will leak. */
+				if (pthread_tryjoin_np(thread_info[i].tid,
+						       NULL) != 0)
+					continue;
+				pthread_create(&(thread_info[i].tid), NULL,
+					       (void*) run_case,
+					       (void *) &(thread_info[i]));
 			}else if(thread_info[i].iteration >=  test_iterations){
 				finish_thread++;
 			}
 		}
 
-		if(finish_thread >= thread_num) break;
+		if (finish_thread >= thread_num) break;
 		__atomic_load(&failed_thread, &abort, __ATOMIC_RELAXED);
 	}
 

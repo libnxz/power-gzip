@@ -91,8 +91,7 @@ target_triplet = @target@
 EXTRA_PROGRAMS = bad_irq_check$(EXEEXT) bench_initend$(EXEEXT) \
 	compdecomp$(EXEEXT) compdecomp_th$(EXEEXT) \
 	crc_perf_test_vmx$(EXEEXT) crc_perf_test_zlib$(EXEEXT) \
-	gunzip_nx_test$(EXEEXT) gzip_nxdht_test$(EXEEXT) \
-	gzip_nxfht_test$(EXEEXT) gzm$(EXEEXT) makedata$(EXEEXT) \
+	gunzip_nx_test$(EXEEXT) gzm$(EXEEXT) makedata$(EXEEXT) \
 	nx_gzip$(EXEEXT) rand_pfault_check$(EXEEXT) zpipe$(EXEEXT)
 subdir = samples
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -149,16 +148,6 @@ am_gunzip_nx_test_OBJECTS = gunzip_nx.$(OBJEXT) \
 gunzip_nx_test_OBJECTS = $(am_gunzip_nx_test_OBJECTS)
 gunzip_nx_test_LDADD = $(LDADD)
 gunzip_nx_test_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am_gzip_nxdht_test_OBJECTS = gzip_nxdht.$(OBJEXT) \
-	samples_utils.$(OBJEXT)
-gzip_nxdht_test_OBJECTS = $(am_gzip_nxdht_test_OBJECTS)
-gzip_nxdht_test_LDADD = $(LDADD)
-gzip_nxdht_test_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
-am_gzip_nxfht_test_OBJECTS = gzip_nxfht.$(OBJEXT) \
-	samples_utils.$(OBJEXT)
-gzip_nxfht_test_OBJECTS = $(am_gzip_nxfht_test_OBJECTS)
-gzip_nxfht_test_LDADD = $(LDADD)
-gzip_nxfht_test_DEPENDENCIES = ../lib/libnxz.la $(am__DEPENDENCIES_1)
 am_gzm_OBJECTS = gzm.$(OBJEXT)
 gzm_OBJECTS = $(am_gzm_OBJECTS)
 gzm_LDADD = $(LDADD)
@@ -203,8 +192,7 @@ am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/bad_irq_check.Po \
 	./$(DEPDIR)/bench_initend.Po ./$(DEPDIR)/compdecomp.Po \
 	./$(DEPDIR)/compdecomp_th.Po ./$(DEPDIR)/crc_perf_test.Po \
-	./$(DEPDIR)/gunzip_nx.Po ./$(DEPDIR)/gzip_nxdht.Po \
-	./$(DEPDIR)/gzip_nxfht.Po ./$(DEPDIR)/gzm.Po \
+	./$(DEPDIR)/gunzip_nx.Po ./$(DEPDIR)/gzm.Po \
 	./$(DEPDIR)/makedata.Po ./$(DEPDIR)/nx_gzip.Po \
 	./$(DEPDIR)/rand_pfault_check.Po ./$(DEPDIR)/samples_utils.Po \
 	./$(DEPDIR)/zpipe.Po
@@ -230,15 +218,13 @@ am__v_CCLD_1 =
 SOURCES = $(bad_irq_check_SOURCES) $(bench_initend_SOURCES) \
 	$(compdecomp_SOURCES) $(compdecomp_th_SOURCES) \
 	$(crc_perf_test_vmx_SOURCES) $(crc_perf_test_zlib_SOURCES) \
-	$(gunzip_nx_test_SOURCES) $(gzip_nxdht_test_SOURCES) \
-	$(gzip_nxfht_test_SOURCES) $(gzm_SOURCES) $(makedata_SOURCES) \
+	$(gunzip_nx_test_SOURCES) $(gzm_SOURCES) $(makedata_SOURCES) \
 	$(nx_gzip_SOURCES) $(rand_pfault_check_SOURCES) \
 	$(zpipe_SOURCES)
 DIST_SOURCES = $(bad_irq_check_SOURCES) $(bench_initend_SOURCES) \
 	$(compdecomp_SOURCES) $(compdecomp_th_SOURCES) \
 	$(crc_perf_test_vmx_SOURCES) $(crc_perf_test_zlib_SOURCES) \
-	$(gunzip_nx_test_SOURCES) $(gzip_nxdht_test_SOURCES) \
-	$(gzip_nxfht_test_SOURCES) $(gzm_SOURCES) $(makedata_SOURCES) \
+	$(gunzip_nx_test_SOURCES) $(gzm_SOURCES) $(makedata_SOURCES) \
 	$(nx_gzip_SOURCES) $(rand_pfault_check_SOURCES) \
 	$(zpipe_SOURCES)
 am__can_run_installinfo = \
@@ -418,7 +404,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/inc_nx -I$(top_srcdir)/lib
 LDADD = ../lib/libnxz.la $(PTHREAD_LIBS) -ldl
-EXTRATESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th \
+EXTRATESTS = gunzip_nx_test compdecomp_th \
 	bad_irq_check rand_pfault_check
 
 NXFLAGS = #-DNXDBG  #-DNXDBG -DNX_MMAP
@@ -430,8 +416,6 @@ compdecomp_th_SOURCES = compdecomp_th.c
 crc_perf_test_zlib_SOURCES = crc_perf_test.c
 crc_perf_test_vmx_SOURCES = crc_perf_test.c
 gunzip_nx_test_SOURCES = gunzip_nx.c samples_utils.c
-gzip_nxfht_test_SOURCES = gzip_nxfht.c samples_utils.c
-gzip_nxdht_test_SOURCES = gzip_nxdht.c samples_utils.c
 gzm_SOURCES = gzm.c
 makedata_SOURCES = makedata.c
 nx_gzip_SOURCES = nx_gzip.c
@@ -502,14 +486,6 @@ gunzip_nx_test$(EXEEXT): $(gunzip_nx_test_OBJECTS) $(gunzip_nx_test_DEPENDENCIES
 	@rm -f gunzip_nx_test$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(gunzip_nx_test_OBJECTS) $(gunzip_nx_test_LDADD) $(LIBS)
 
-gzip_nxdht_test$(EXEEXT): $(gzip_nxdht_test_OBJECTS) $(gzip_nxdht_test_DEPENDENCIES) $(EXTRA_gzip_nxdht_test_DEPENDENCIES) 
-	@rm -f gzip_nxdht_test$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(gzip_nxdht_test_OBJECTS) $(gzip_nxdht_test_LDADD) $(LIBS)
-
-gzip_nxfht_test$(EXEEXT): $(gzip_nxfht_test_OBJECTS) $(gzip_nxfht_test_DEPENDENCIES) $(EXTRA_gzip_nxfht_test_DEPENDENCIES) 
-	@rm -f gzip_nxfht_test$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(gzip_nxfht_test_OBJECTS) $(gzip_nxfht_test_LDADD) $(LIBS)
-
 gzm$(EXEEXT): $(gzm_OBJECTS) $(gzm_DEPENDENCIES) $(EXTRA_gzm_DEPENDENCIES) 
 	@rm -f gzm$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(gzm_OBJECTS) $(gzm_LDADD) $(LIBS)
@@ -542,8 +518,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/compdecomp_th.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/crc_perf_test.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gunzip_nx.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gzip_nxdht.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gzip_nxfht.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gzm.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/makedata.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nx_gzip.Po@am__quote@ # am--include-marker
@@ -717,8 +691,6 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/compdecomp_th.Po
 	-rm -f ./$(DEPDIR)/crc_perf_test.Po
 	-rm -f ./$(DEPDIR)/gunzip_nx.Po
-	-rm -f ./$(DEPDIR)/gzip_nxdht.Po
-	-rm -f ./$(DEPDIR)/gzip_nxfht.Po
 	-rm -f ./$(DEPDIR)/gzm.Po
 	-rm -f ./$(DEPDIR)/makedata.Po
 	-rm -f ./$(DEPDIR)/nx_gzip.Po
@@ -776,8 +748,6 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/compdecomp_th.Po
 	-rm -f ./$(DEPDIR)/crc_perf_test.Po
 	-rm -f ./$(DEPDIR)/gunzip_nx.Po
-	-rm -f ./$(DEPDIR)/gzip_nxdht.Po
-	-rm -f ./$(DEPDIR)/gzip_nxfht.Po
 	-rm -f ./$(DEPDIR)/gzm.Po
 	-rm -f ./$(DEPDIR)/makedata.Po
 	-rm -f ./$(DEPDIR)/nx_gzip.Po

@@ -1,7 +1,7 @@
 AM_CPPFLAGS = -I$(top_srcdir)/inc_nx -I$(top_srcdir)/lib
 LDADD= ../lib/libnxz.la $(PTHREAD_LIBS) -ldl
 
-EXTRATESTS = gunzip_nx_test gzip_nxfht_test gzip_nxdht_test compdecomp_th \
+EXTRATESTS = gunzip_nx_test compdecomp_th \
 	bad_irq_check rand_pfault_check
 NXFLAGS = #-DNXDBG  #-DNXDBG -DNX_MMAP
 
@@ -12,8 +12,6 @@ EXTRA_PROGRAMS = bad_irq_check \
 		 crc_perf_test_vmx \
 		 crc_perf_test_zlib \
 		 gunzip_nx_test \
-		 gzip_nxdht_test \
-		 gzip_nxfht_test \
 		 gzm \
 		 makedata \
 		 nx_gzip \
@@ -39,10 +37,6 @@ crc_perf_test_zlib_SOURCES = crc_perf_test.c
 crc_perf_test_vmx_SOURCES = crc_perf_test.c
 
 gunzip_nx_test_SOURCES = gunzip_nx.c samples_utils.c
-
-gzip_nxfht_test_SOURCES = gzip_nxfht.c samples_utils.c
-
-gzip_nxdht_test_SOURCES = gzip_nxdht.c samples_utils.c
 
 gzm_SOURCES = gzm.c
 

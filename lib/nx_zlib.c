@@ -746,6 +746,8 @@ int nx_read_credits(int *total, int *used) {
    Populate NX structures and return number of NX units
 */
 #define DEVICE_TREE "/proc/device-tree"
+#define LPARCFG_FILE "/proc/powerpc/lparcfg"
+#define NX_GZIP_DEV "/dev/crypto/nx-gzip"
 static int nx_enumerate_engines()
 {
 	DIR *d;
@@ -761,10 +763,25 @@ static int nx_enumerate_engines()
 
 	d = opendir(DEVICE_TREE);
 	if (d == NULL){
-		prt_err("open device tree dir failed.\n");
+		prt_info("open device tree dir failed.\n");
+
+		/* In a restricted container environment, the device tree
+		   directory may not be available. We can still find out if
+		   this is a PowerVM environment.  */
+		if (access(LPARCFG_FILE, F_OK) == 0) {
+			nx_config.virtualization = POWERVM;
+			return 1;
+		}
+
+		/* The NX GZIP device is available and is accessible. We have
+		   to have at least one device in this scenario. Assume this
+		   is on bare-metal.  */
+		if (access(NX_GZIP_DEV, F_OK) == 0) {
+			return 1;
+		}
+
 		return 0;
 	}
-
 
 	while ((de = readdir(d)) != NULL) {
 		if (strncmp(de->d_name, "vas", 3) == 0){

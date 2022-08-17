@@ -67,6 +67,16 @@
  */
 #define GROUP_ENDING_NOP __asm__("ori 2,2,0" ::: "memory")
 
+#ifdef __BIG_ENDIAN__
+#define VEC_PERM(vr, va, vb, vc) vr = vec_perm(va, vb,\
+			(__vector unsigned char) vc)
+static const __vector unsigned long long vperm_const
+	__attribute__ ((aligned(16))) = { 0x0F0E0D0C0B0A0908UL,
+			0X0706050403020100UL };
+#else
+#define VEC_PERM(vr, va, vb, vc)
+#endif
+
 unsigned int __attribute__ ((aligned (32)))
 __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
 
@@ -120,6 +130,7 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
 
         vconst1 = vec_ld(offset, vcrc_short_const);
         vdata0 = vec_ld(0, (__vector unsigned long long*) p);
+        VEC_PERM(vdata0, vdata0, vconst1, vperm_const);
 
         /* xor initial value */
         vdata0 = vec_xor(vdata0, vcrc);
@@ -131,6 +142,7 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
         for (i = 16; i < len; i += 16) {
             vconst1 = vec_ld(offset + i, vcrc_short_const);
             vdata0 = vec_ld(i, (__vector unsigned long long*) p);
+            VEC_PERM(vdata0, vdata0, vconst1, vperm_const);
             vdata0 = (__vector unsigned long long) __builtin_crypto_vpmsumw(
                 (__vector unsigned int)vdata0, (__vector unsigned int)vconst1);
             v0 = vec_xor(v0, vdata0);
@@ -141,14 +153,26 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
         vdata0 = vec_ld(0, (__vector unsigned long long*) p);
         vdata1 = vec_ld(16, (__vector unsigned long long*) p);
 
+        VEC_PERM(vdata0, vdata0, vdata0, vperm_const);
+        VEC_PERM(vdata1, vdata1, vdata1, vperm_const);
+
         vdata2 = vec_ld(32, (__vector unsigned long long*) p);
         vdata3 = vec_ld(48, (__vector unsigned long long*) p);
+
+        VEC_PERM(vdata2, vdata2, vdata2, vperm_const);
+        VEC_PERM(vdata3, vdata3, vdata3, vperm_const);
 
         vdata4 = vec_ld(64, (__vector unsigned long long*) p);
         vdata5 = vec_ld(80, (__vector unsigned long long*) p);
 
+        VEC_PERM(vdata4, vdata4, vdata4, vperm_const);
+        VEC_PERM(vdata5, vdata5, vdata5, vperm_const);
+
         vdata6 = vec_ld(96, (__vector unsigned long long*) p);
         vdata7 = vec_ld(112, (__vector unsigned long long*) p);
+
+        VEC_PERM(vdata6, vdata6, vdata6, vperm_const);
+        VEC_PERM(vdata7, vdata7, vdata7, vperm_const);
 
         /* xor in initial value */
         vdata0 = vec_xor(vdata0, vcrc);
@@ -198,20 +222,28 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
                 GROUP_ENDING_NOP;
 
                 vdata0 = vec_ld(0, (__vector unsigned long long*) p);
+                VEC_PERM(vdata0, vdata0, vdata0, vperm_const);
 
                 vdata1 = vec_ld(16, (__vector unsigned long long*) p);
+                VEC_PERM(vdata1, vdata1, vdata1, vperm_const);
 
                 vdata2 = vec_ld(32, (__vector unsigned long long*) p);
+                VEC_PERM(vdata2, vdata2, vdata2, vperm_const);
 
                 vdata3 = vec_ld(48, (__vector unsigned long long*) p);
+                VEC_PERM(vdata3, vdata3, vdata3, vperm_const);
 
                 vdata4 = vec_ld(64, (__vector unsigned long long*) p);
+                VEC_PERM(vdata4, vdata4, vdata4, vperm_const);
 
                 vdata5 = vec_ld(80, (__vector unsigned long long*) p);
+                VEC_PERM(vdata5, vdata5, vdata5, vperm_const);
 
                 vdata6 = vec_ld(96, (__vector unsigned long long*) p);
+                VEC_PERM(vdata6, vdata6, vdata6, vperm_const);
 
                 vdata7 = vec_ld(112, (__vector unsigned long long*) p);
+                VEC_PERM(vdata7, vdata7, vdata7, vperm_const);
 
                 p = (char *)p + 128;
 
@@ -228,24 +260,28 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
                     va0 = __builtin_crypto_vpmsumd((__vector unsigned long long)vdata0,
                                                    (__vector unsigned long long)vconst2);
                     vdata0 = vec_ld(0, (__vector unsigned long long*) p);
+                    VEC_PERM(vdata0, vdata0, vdata0, vperm_const);
                     GROUP_ENDING_NOP;
 
                     v1 = vec_xor(v1, va1);
                     va1 = __builtin_crypto_vpmsumd((__vector unsigned long long)vdata1,
                                                    (__vector unsigned long long)vconst2);
                     vdata1 = vec_ld(16, (__vector unsigned long long*) p);
+                    VEC_PERM(vdata1, vdata1, vdata1, vperm_const);
                     GROUP_ENDING_NOP;
 
                     v2 = vec_xor(v2, va2);
                     va2 = __builtin_crypto_vpmsumd((__vector unsigned long long)
                                                    vdata2, (__vector unsigned long long)vconst2);
                     vdata2 = vec_ld(32, (__vector unsigned long long*) p);
+                    VEC_PERM(vdata2, vdata2, vdata2, vperm_const);
                     GROUP_ENDING_NOP;
 
                     v3 = vec_xor(v3, va3);
                     va3 = __builtin_crypto_vpmsumd((__vector unsigned long long)vdata3,
                                                    (__vector unsigned long long)vconst2);
                     vdata3 = vec_ld(48, (__vector unsigned long long*) p);
+                    VEC_PERM(vdata3, vdata3, vdata3, vperm_const);
 
                     vconst2 = vec_ld(offset, vcrc_const);
                     GROUP_ENDING_NOP;
@@ -254,24 +290,28 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
                     va4 = __builtin_crypto_vpmsumd((__vector unsigned long long)vdata4,
                                                    (__vector unsigned long long)vconst1);
                     vdata4 = vec_ld(64, (__vector unsigned long long*) p);
+                    VEC_PERM(vdata4, vdata4, vdata4, vperm_const);
                     GROUP_ENDING_NOP;
 
                     v5 = vec_xor(v5, va5);
                     va5 = __builtin_crypto_vpmsumd((__vector unsigned long long)vdata5,
                                                    (__vector unsigned long long)vconst1);
                     vdata5 = vec_ld(80, (__vector unsigned long long*) p);
+                    VEC_PERM(vdata5, vdata5, vdata5, vperm_const);
                     GROUP_ENDING_NOP;
 
                     v6 = vec_xor(v6, va6);
                     va6 = __builtin_crypto_vpmsumd((__vector unsigned long long)vdata6,
                                                    (__vector unsigned long long)vconst1);
                     vdata6 = vec_ld(96, (__vector unsigned long long*) p);
+                    VEC_PERM(vdata6, vdata6, vdata6, vperm_const);
                     GROUP_ENDING_NOP;
 
                     v7 = vec_xor(v7, va7);
                     va7 = __builtin_crypto_vpmsumd((__vector unsigned long long)vdata7,
                                                    (__vector unsigned long long)vconst1);
                     vdata7 = vec_ld(112, (__vector unsigned long long*) p);
+                    VEC_PERM(vdata7, vdata7, vdata7, vperm_const);
 
                     p = (char *)p + 128;
                 }
@@ -355,20 +395,28 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
 
             /* xor with the last 1024 bits. */
             va0 = vec_ld(0, (__vector unsigned long long*) p);
+            VEC_PERM(va0, va0, va0, vperm_const);
 
             va1 = vec_ld(16, (__vector unsigned long long*) p);
+            VEC_PERM(va1, va1, va1, vperm_const);
 
             va2 = vec_ld(32, (__vector unsigned long long*) p);
+            VEC_PERM(va2, va2, va2, vperm_const);
 
             va3 = vec_ld(48, (__vector unsigned long long*) p);
+            VEC_PERM(va3, va3, va3, vperm_const);
 
             va4 = vec_ld(64, (__vector unsigned long long*) p);
+            VEC_PERM(va4, va4, va4, vperm_const);
 
             va5 = vec_ld(80, (__vector unsigned long long*) p);
+            VEC_PERM(va5, va5, va5, vperm_const);
 
             va6 = vec_ld(96, (__vector unsigned long long*) p);
+            VEC_PERM(va6, va6, va6, vperm_const);
 
             va7 = vec_ld(112, (__vector unsigned long long*) p);
+            VEC_PERM(va7, va7, va7, vperm_const);
 
             p = (char *)p + 128;
 
@@ -437,6 +485,7 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
         /* Now reduce the tail (0-112 bytes). */
         for (i = 0; i < length; i+=16) {
             vdata0 = vec_ld(i,(__vector unsigned long long*)p);
+            VEC_PERM(vdata0, vdata0, vdata0, vperm_const);
             va0 = vec_ld(offset + i,vcrc_short_const);
             va0 = (__vector unsigned long long)__builtin_crypto_vpmsumw(
                 (__vector unsigned int)vdata0, (__vector unsigned int)va0);
@@ -502,6 +551,9 @@ __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len) {
     /* shift result into top 64 bits of */
     v0 = (__vector unsigned long long)vec_sld((__vector unsigned char)v0,
                                               (__vector unsigned char)vzero, 4);
-
+#ifdef __BIG_ENDIAN__
+    return v0[0];
+#else
     return v0[1];
+#endif
 }

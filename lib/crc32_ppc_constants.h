@@ -1,7 +1,7 @@
 /*
 *
 * THIS FILE IS GENERATED WITH
-./crc32_constants -r -x 0x04C11DB7 
+./crc32_constants -r -x 0x04C11DB7
 
 * This is from https://github.com/antonblanchard/crc32-vpmsum/
 * DO NOT MODIFY IT MANUALLY!

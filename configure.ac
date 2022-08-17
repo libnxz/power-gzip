@@ -4,7 +4,7 @@
 # The Automake init of 1.10 requires at least autoconf 2.62
 AC_PREREQ([2.69])
 
-AC_INIT([libnxz],[0.63],[https://github.com/libnxz/power-gzip])
+AC_INIT([libnxz],[0.64],[https://github.com/libnxz/power-gzip])
 # Update this value for every release: (A:B:C will map to foo.so.(A-C).C.B)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
 LTCURRENT=$(echo "$PACKAGE_VERSION" | cut -d . -f 1)

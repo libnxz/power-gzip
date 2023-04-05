@@ -12,15 +12,16 @@ exploit the NX GZIP accelerator available on POWER9 and newer processors.
 ./configure
 make
 ```
-2. Use libnxz.so to substitute libz.so (replace 0.0 with the version being used)
-```
-cp lib/libnxz.so.0.0 /usr/lib/
-mv /usr/lib/libz.so /usr/lib/libz.so.bak
-ln -s /usr/lib/libnxz.so.0.0 /usr/lib/libz.so
-```
-- If don't want to override the libz.so, use LD_PRELOAD to run. Something like:
+2. Use LD_PRELOAD to preload libnxz with the specified path.
 ```
 LD_PRELOAD=./libnxz.so /home/your_program
+```
+- Alternatively, override the libz.so with libnxz.so
+  However, this method is NOT recommended as it may break down the machine.
+```
+cp lib/libnxz.so.0.0 /usr/lib/  #(replace 0.0 with the version being used)
+mv /usr/lib/libz.so /usr/lib/libz.so.bak
+ln -s /usr/lib/libnxz.so.0.0 /usr/lib/libz.so
 ```
 
 ## How to Run Test

@@ -71,6 +71,7 @@ extern int nx_deflateInit2_(void *strm, int level, int method, int windowBits,
 extern int nx_deflate(void *strm, int flush);
 extern int nx_deflateEnd(void *strm);
 extern ulong nx_deflateBound(void *strm, ulong sourceLen);
+extern int nx_deflateParams(z_streamp strm, int level, int strategy);
 extern int nx_deflateSetHeader(void *strm, void *head);
 extern int nx_deflateCopy(void *dest, void *source);
 extern int nx_deflateReset(void *strm);
@@ -120,6 +121,7 @@ extern int deflateReset(void *strm);
 extern int deflateEnd(void *strm);
 extern int deflate(void *strm, int flush);
 extern ulong deflateBound(void *strm, ulong sourceLen);
+extern int deflateParams(void *strm, int level, int strategy);
 extern int deflateSetHeader(void *strm, void *head);
 extern int deflateSetDictionary(void *strm, const unsigned char *dictionary,
 				uint  dictLength);

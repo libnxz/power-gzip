@@ -575,6 +575,7 @@ extern int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBit
 extern int nx_deflate(z_streamp strm, int flush);
 extern int nx_deflateEnd(z_streamp strm);
 extern unsigned long nx_deflateBound(z_streamp strm, unsigned long sourceLen);
+extern int nx_deflateParams(z_streamp strm, int level, int strategy);
 extern int nx_deflateSetDictionary(z_streamp strm, const unsigned char *dictionary,
 				uint dictLength);
 
@@ -618,6 +619,7 @@ extern int sw_deflateReset(z_streamp strm);
 extern int sw_deflateResetKeep(z_streamp strm);
 extern int sw_deflateSetHeader(z_streamp strm, gz_headerp head);
 extern uLong sw_deflateBound(z_streamp strm, uLong sourceLen);
+extern int sw_deflateParams(z_streamp strm, int level, int strategy);
 extern int sw_deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength);
 extern int sw_deflateCopy(z_streamp dest, z_streamp source);
 extern int sw_uncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen);

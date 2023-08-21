@@ -1810,6 +1810,42 @@ s2:
 	return Z_STREAM_ERROR;
 }
 
+int nx_deflateParams(z_streamp strm, int level, int strategy)
+{
+       int rc = Z_OK;
+       nx_streamp s;
+
+
+       s = (nx_streamp) strm->state;
+
+       if (level == Z_DEFAULT_COMPRESSION) level = 6;
+
+       if (level < 0 || level > 9)
+               return Z_STREAM_ERROR;
+
+       if (strategy < Z_DEFAULT_STRATEGY || strategy > Z_FIXED)
+               return Z_STREAM_ERROR;
+
+       if (strategy == Z_FILTERED || strategy == Z_RLE || strategy == Z_HUFFMAN_ONLY)
+               strategy = Z_DEFAULT_STRATEGY;
+
+       /* Empty the contents of buffer */
+       int err = deflate(strm, Z_BLOCK);
+       if (err == Z_STREAM_ERROR)
+	       return err;
+
+       if (strm->avail_in)
+	       return Z_BUF_ERROR;
+
+       if (s->level != level)
+	       s->level = level;
+
+       s->strategy = strategy;
+
+       return rc;
+}
+
+
 /* from zlib.h deflateBound() returns an upper bound on the compressed
    size after deflation of sourceLen bytes.  It must be called after
    deflateInit() or deflateInit2(), and after deflateSetHeader(), if
@@ -2285,6 +2321,25 @@ unsigned long deflateBound(z_streamp strm, unsigned long sourceLen)
 		rc = sw_deflateBound(strm, sourceLen);
 	}else{
 		rc = nx_deflateBound(strm, sourceLen);
+	}
+
+	return rc;
+}
+
+int deflateParams(z_streamp strm, int level, int strategy)
+{
+	unsigned long rc;
+	nx_streamp s;
+
+	if (strm == Z_NULL) return Z_STREAM_ERROR;
+
+	s = (nx_streamp) strm->state;
+	if (s == Z_NULL) return Z_STREAM_ERROR;
+
+	if (0 == has_nx_state(strm)){
+		rc = sw_deflateParams(strm, level, strategy);
+	}else{
+		rc = nx_deflateParams(strm, level, strategy);
 	}
 
 	return rc;

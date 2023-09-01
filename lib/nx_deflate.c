@@ -2361,10 +2361,15 @@ int deflateSetHeader(z_streamp strm, gz_headerp head)
 int deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLength)
 {
 	int rc;
+	nx_streamp s;
+
+	s = (nx_streamp) strm->state;
 
 	if (0 == has_nx_state(strm)){
 		rc = sw_deflateSetDictionary(strm, dictionary, dictLength);
 	}else{
+		if (s == Z_NULL) return Z_STREAM_ERROR;
+		s->switchable = 0;
 		rc = nx_deflateSetDictionary(strm, dictionary, dictLength);
 	}
 

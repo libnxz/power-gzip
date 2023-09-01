@@ -2205,6 +2205,12 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 	}else{
 		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+		if (rc != Z_OK)
+			return rc;
+		if (strm->state && (0 == has_nx_state(strm))){
+			s = (nx_streamp) strm->state;
+			s->switchable = 1;
+		}
 	}
 
 	return rc;

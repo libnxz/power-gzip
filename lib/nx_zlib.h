@@ -89,8 +89,8 @@ struct selector {
 	uint8_t deflate;
 };
 
-#define COMPRESS_THRESHOLD	(1024)
-#define DECOMPRESS_THRESHOLD	(1024)
+#define COMPRESS_THRESHOLD	(8192)
+#define DECOMPRESS_THRESHOLD	(8192)
 
 #define NX_MIN(X,Y) (((X)<(Y))?(X):(Y))
 #define NX_MAX(X,Y) (((X)>(Y))?(X):(Y))

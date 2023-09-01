@@ -16,6 +16,14 @@ if [ $? -ne 0 ]; then
     exit 77
 fi
 
+# libabigail 2.0.0 started to use a new XML format that can't be compared with
+# files generated using older versions, so skip if version is too old
+abidiff_version="$(abidiff --version | cut -d' ' -f2)"
+if [ $(echo $abidiff_version | cut -d'.' -f1) -lt 2 ]; then
+    echo "Need libabigail version >= 2, found ${abidiff_version}. Skipping..."
+    exit 77
+fi
+
 # Exit on first failure
 set -e
 
@@ -45,4 +53,4 @@ echo "Checking missing zlib symbols..."
 abidiff --suppressions "${zlib_supp}" --no-added-syms ${zlib_abi} ${libnxz}
 
 echo "Checking changes on libnxz's ABI..."
-abidiff ${libnxz_abi} ${libnxz}
+abidiff --no-added-syms ${libnxz_abi} ${libnxz}

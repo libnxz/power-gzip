@@ -58,7 +58,12 @@ LIBNXZ_0.61.0 {
 
 LIBNXZ_0.63.0 {
     nx_inflateSyncPoint;
+    nx_deflateParams;
 } LIBNXZ_0.61.0;
+
+LIBNXZ_0.63.1 {
+    nx_deflateParams;
+} LIBNXZ_0.63.0;
 
 ZLIB_1.2.0 {
     compressBound;

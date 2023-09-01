@@ -1,4 +1,4 @@
-<abi-corpus architecture='elf-powerpc-64' soname='libnxz.so.0'>
+<abi-corpus version='2.0' architecture='elf-powerpc-64' soname='libnxz.so.0'>
   <elf-needed>
     <dependency name='libdl.so.2'/>
     <dependency name='libc.so.6'/>

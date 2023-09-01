@@ -58,6 +58,7 @@ LIBNXZ_0.61.0 {
 
 LIBNXZ_0.63.0 {
     nx_inflateSyncPoint;
+    nx_deflateParams;
 } LIBNXZ_0.61.0;
 
 LIBNXZ_0.64.0 {
@@ -66,6 +67,7 @@ LIBNXZ_0.64.0 {
     nx_gzdopen;
     nx_gzread;
     nx_gzwrite;
+    nx_deflateParams;
 } LIBNXZ_0.63.0;
 
 ZLIB_1.2.0 {

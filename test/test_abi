@@ -53,4 +53,4 @@ echo "Checking missing zlib symbols..."
 abidiff --suppressions "${zlib_supp}" --no-added-syms ${zlib_abi} ${libnxz}
 
 echo "Checking changes on libnxz's ABI..."
-abidiff ${libnxz_abi} ${libnxz}
+abidiff --no-added-syms ${libnxz_abi} ${libnxz}

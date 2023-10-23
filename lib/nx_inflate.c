@@ -289,7 +289,7 @@ int nx_inflate(z_streamp strm, int flush)
 	if (s == NULL) return Z_STREAM_ERROR;
 
 	/* check for sw deflate first*/
-	if(has_nx_state(strm) && s->switchable && (0 == use_nx_inflate(strm))){
+	if (has_nx_state(strm) && s->switchable && (0 == use_nx_inflate(strm) || 0 == s->level)){
 		/*Use software zlib, switch the sw and hw state*/
 		s = (nx_streamp) strm->state;
 		s->switchable = 0; /* decided to use sw zlib and not switchable */

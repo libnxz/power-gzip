@@ -1643,8 +1643,8 @@ int nx_deflate(z_streamp strm, int flush)
 		return Z_STREAM_ERROR;
 
 	/* check for sw deflate first */
-	if (has_nx_state(strm) && s->switchable
-	    && (0 == use_nx_deflate(strm, flush))) {
+	if ((has_nx_state(strm)) && s->switchable
+	&& (0 == use_nx_deflate(strm, flush) || 0 == s->level)) {
 		/* Use software zlib, switch the sw and hw state */
 		nx_switch_to_sw(strm);
 
@@ -1919,15 +1919,7 @@ int nx_deflateParams(z_streamp strm, int level, int strategy)
        if (strategy == Z_FILTERED || strategy == Z_RLE || strategy == Z_HUFFMAN_ONLY)
                strategy = Z_DEFAULT_STRATEGY;
 
-       /* Empty the contents of buffer */
-       int err = deflate(strm, Z_BLOCK);
-       if (err == Z_STREAM_ERROR)
-	       return err;
-
-       if (strm->avail_in)
-	       return Z_BUF_ERROR;
-
-       if (s->level != level)
+       if (level !=0 && s->level != level)
 	       s->level = level;
 
        s->strategy = strategy;

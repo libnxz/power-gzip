@@ -2173,20 +2173,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	zlib_stats_inc(&zlib_stats.deflateInit);
 
 	strm->state = NULL;
-	/* Fix for bug-204: If the total size to be compressed is less
-	 * than the threshold, then use software path(zlib).
-	 * use_nx_deflate() performs this check at a later stage
-	 * resulting in switch from h/w to s/w. And when the
-	 * same stream is uncompressed, inflate takes the h/w route and
-	 * fails with 'unknown compression method' error. Ideally this mix of
-	 * h/w and s/w should have worked properly. However reason for this
-	 * abrupt behaviour is unknown. So as a workaround, if the total size
-	 * to be compressed is less than the threshold, then take the software
-	 * path(zlib) so that switch is avoid at the later stage. */
-
-	int input_len = strm->avail_in + strm->total_in;
-	if(input_len > COMPRESS_THRESHOLD &&
-	  (nx_config.mode.deflate == GZIP_AUTO || nx_config.mode.deflate == GZIP_MIX)){
+	if(nx_config.mode.deflate == GZIP_AUTO || nx_config.mode.deflate == GZIP_MIX){
 
 		/* call sw and nx initialization */
 		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
@@ -2213,7 +2200,7 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 		}
 
 
-	}else if(input_len > COMPRESS_THRESHOLD && nx_config.mode.deflate == GZIP_NX){
+	}else if(nx_config.mode.deflate == GZIP_NX){
 		rc = nx_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);
 	}else{
 		rc = sw_deflateInit2_(strm, level, method, windowBits, memLevel, strategy, version, stream_size);

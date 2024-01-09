@@ -166,6 +166,7 @@ void *comp_file_multith(void *argsv)
 		       (uLong)inlen);
 	if (ret != Z_OK) {
 		fprintf(stderr, "tid %d: compress error %d\n", tid, ret);
+		pthread_detach(pthread_self());
 		return (void *) -1;
 	}
 
@@ -180,6 +181,7 @@ void *comp_file_multith(void *argsv)
 			 (Bytef *)compbuf, (uLong)compdata_len);
 	if (ret != Z_OK) {
 		fprintf(stderr, "tid %d: uncompress error %d\n", tid, ret);
+		pthread_detach(pthread_self());
 		return (void *) -1;
 	}
 
@@ -200,6 +202,7 @@ void *comp_file_multith(void *argsv)
 		if (ret != Z_OK) {
 			fprintf(stderr, "tid %d: compress error %d\n", tid,
 				ret);
+			pthread_detach(pthread_self());
 			return (void *) -1;
 		}
 	}
@@ -262,6 +265,7 @@ void *decomp_file_multith(void *argsv)
 		       (uLong)inlen);
 	if (ret != Z_OK) {
 		fprintf(stderr, "tid %d: compress error %d\n", tid, ret);
+		pthread_detach(pthread_self());
 		return (void *) -1;
 	}
 
@@ -277,6 +281,7 @@ void *decomp_file_multith(void *argsv)
 			 (Bytef *)compbuf, (uLong)compdata_len);
 	if (ret != Z_OK) {
 		fprintf(stderr, "uncompress error %d\n", ret);
+		pthread_detach(pthread_self());
 		return (void *) -1;
 	}
 
@@ -299,6 +304,7 @@ void *decomp_file_multith(void *argsv)
 		if (ret != Z_OK) {
 			fprintf(stderr, "tid %d: uncompress error %d\n", tid,
 				ret);
+			pthread_detach(pthread_self());
 			return (void *) -1;
 		}
 

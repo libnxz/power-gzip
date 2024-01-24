@@ -31,10 +31,12 @@ check_PROGRAMS = $(test_exe) $(selector_tests) $(other_tests)
 check_SCRIPTS = $(test_scripts)
 
 test_adler32_SOURCES = test_adler32.c
+test_adler32_CFLAGS  = -DSTDC
 
 test_buf_error_SOURCES = test_buf_error.c test_utils.c
 
 test_crc32_SOURCES = test_crc32.c
+test_crc32_CFLAGS  = -DSTDC
 
 test_deflate_SOURCES = test_deflate.c \
 		       test_utils.c \

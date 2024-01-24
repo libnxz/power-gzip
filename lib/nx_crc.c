@@ -45,8 +45,6 @@
 typedef size_t   z_size_t;
 
 #undef NOBYFOUR
-#define ZEXPORT
-#define ZEXTERN extern
 #define ZSWAP32(q) bswap_32(q)
 
 

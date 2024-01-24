@@ -142,7 +142,7 @@ gzFile __gzopen(const char* path, int fd, const char *mode, int force_nx)
 
 	state = malloc(sizeof(struct gz_state));
 	if (state == NULL)
-		return NULL;
+		return Z_NULL;
 	memset(state, 0, sizeof(struct gz_state));
 
 	if (path == NULL){
@@ -192,7 +192,7 @@ gzFile __gzopen(const char* path, int fd, const char *mode, int force_nx)
 		if (err == Z_OK) {
 			state->buf = malloc(BUF_LEN);
 			if (state->buf == NULL) {
-				err=Z_NULL;
+				err=Z_MEM_ERROR;
 			}
 		}
 	}
@@ -200,7 +200,7 @@ gzFile __gzopen(const char* path, int fd, const char *mode, int force_nx)
 		free(state);
 		if (err == Z_STREAM_ERROR)
 			errno = EINVAL;
-		return NULL;
+		return Z_NULL;
 	}
 
 	file = (gzFile) state;

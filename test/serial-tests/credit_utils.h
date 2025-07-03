@@ -1,4 +1,4 @@
-#ifndef CREDIT_UTILS_H_
+#ifndef CREDIT_UTILS_H
 #define CREDIT_UTILS_H
 
 #include <sys/types.h>

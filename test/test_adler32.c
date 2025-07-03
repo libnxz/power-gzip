@@ -24,12 +24,7 @@ typedef struct {
     uLong expect;
 } adler32_test;
 
-int test_adler32(adler, buf, len, chk, line)
-    uLong adler;
-    Byte *buf;
-    z_size_t len;
-    uLong chk;
-    int line;
+int test_adler32(uLong adler, Byte * buf, z_size_t len, uLong chk, int line)
 {
     uLong res = adler32(adler, buf, len);
     if (res != chk) {

@@ -1197,7 +1197,10 @@ copy_fifo_out_to_next_out:
 	if (s->avail_in > 0
 	    && (s->avail_in + s->used_in < nx_config.cache_threshold)
 	    && s->avail_out > 0
-	    && flush != Z_FINISH && flush != Z_SYNC_FLUSH) {
+	    && flush != Z_FINISH
+	    && flush != Z_FULL_FLUSH
+	    && flush != Z_SYNC_FLUSH
+	    && flush != Z_PARTIAL_FLUSH) {
 		/* We haven't accumulated enough data. Cache any input data
 		   provided and wait for the application to send more in order
 		   to reduce the amount of requests sent to the accelerator. */

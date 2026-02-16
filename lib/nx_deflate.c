@@ -512,6 +512,7 @@ static int nx_deflateResetKeep(z_streamp strm)
 
 	s->used_in = s->used_out = 0;
 	s->cur_in  = s->cur_out = 0;
+	s->history_len = 0;
 	s->tebc = 0;
 	s->is_final = 0;
 

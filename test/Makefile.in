@@ -111,7 +111,8 @@ am__EXEEXT_1 = test_adler32$(EXEEXT) test_buf_error$(EXEEXT) \
 	test_crc32$(EXEEXT) test_reset$(EXEEXT) \
 	test_resetKeep$(EXEEXT) test_reset2$(EXEEXT) \
 	test_inflatesyncpoint$(EXEEXT) \
-	test_multithread_stress$(EXEEXT) test_pid_reuse$(EXEEXT)
+	test_multithread_stress$(EXEEXT) test_pid_reuse$(EXEEXT) \
+	test_jdk_deinflate$(EXEEXT)
 am__EXEEXT_2 = test_stress$(EXEEXT) test_deflate$(EXEEXT) \
 	test_inflate$(EXEEXT) test_dict$(EXEEXT) test_gz$(EXEEXT)
 am__EXEEXT_3 = test_zeroinput$(EXEEXT)
@@ -165,6 +166,11 @@ am_test_inflatesyncpoint_OBJECTS = test_inflatesyncpoint.$(OBJEXT) \
 test_inflatesyncpoint_OBJECTS = $(am_test_inflatesyncpoint_OBJECTS)
 test_inflatesyncpoint_LDADD = $(LDADD)
 test_inflatesyncpoint_DEPENDENCIES = ../lib/libnxz.la \
+	$(am__DEPENDENCIES_1)
+am_test_jdk_deinflate_OBJECTS = test_jdk_deinflate.$(OBJEXT)
+test_jdk_deinflate_OBJECTS = $(am_test_jdk_deinflate_OBJECTS)
+test_jdk_deinflate_LDADD = $(LDADD)
+test_jdk_deinflate_DEPENDENCIES = ../lib/libnxz.la \
 	$(am__DEPENDENCIES_1)
 am_test_multithread_stress_OBJECTS =  \
 	test_multithread_stress.$(OBJEXT) test_utils.$(OBJEXT)
@@ -223,6 +229,7 @@ am__depfiles_remade = ./$(DEPDIR)/test_adler32-test_adler32.Po \
 	./$(DEPDIR)/test_deflate.Po ./$(DEPDIR)/test_dict.Po \
 	./$(DEPDIR)/test_gz.Po ./$(DEPDIR)/test_inflate.Po \
 	./$(DEPDIR)/test_inflatesyncpoint.Po \
+	./$(DEPDIR)/test_jdk_deinflate.Po \
 	./$(DEPDIR)/test_multithread_stress.Po \
 	./$(DEPDIR)/test_pid_reuse.Po ./$(DEPDIR)/test_reset.Po \
 	./$(DEPDIR)/test_reset2-test_reset.Po \
@@ -258,6 +265,7 @@ SOURCES = $(test_adler32_SOURCES) $(test_buf_error_SOURCES) \
 	$(test_crc32_SOURCES) $(test_deflate_SOURCES) \
 	$(test_dict_SOURCES) $(test_gz_SOURCES) \
 	$(test_inflate_SOURCES) $(test_inflatesyncpoint_SOURCES) \
+	$(test_jdk_deinflate_SOURCES) \
 	$(test_multithread_stress_SOURCES) $(test_pid_reuse_SOURCES) \
 	$(test_reset_SOURCES) $(test_reset2_SOURCES) \
 	$(test_resetKeep_SOURCES) $(test_stress_SOURCES) \
@@ -266,6 +274,7 @@ DIST_SOURCES = $(test_adler32_SOURCES) $(test_buf_error_SOURCES) \
 	$(test_crc32_SOURCES) $(test_deflate_SOURCES) \
 	$(test_dict_SOURCES) $(test_gz_SOURCES) \
 	$(test_inflate_SOURCES) $(test_inflatesyncpoint_SOURCES) \
+	$(test_jdk_deinflate_SOURCES) \
 	$(test_multithread_stress_SOURCES) $(test_pid_reuse_SOURCES) \
 	$(test_reset_SOURCES) $(test_reset2_SOURCES) \
 	$(test_resetKeep_SOURCES) $(test_stress_SOURCES) \
@@ -308,6 +317,8 @@ am__define_uniq_tagged_files = \
   unique=`for i in $$list; do \
     if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
   done | $(am__uniquify_input)`
+ETAGS = etags
+CTAGS = ctags
 am__tty_colors_dummy = \
   mgn= red= grn= lgn= blu= brg= std=; \
   am__color_tests=no
@@ -490,7 +501,6 @@ am__set_TESTS_bases = \
   bases='$(TEST_LOGS)'; \
   bases=`for i in $$bases; do echo $$i; done | sed 's/\.log$$//'`; \
   bases=`echo $$bases`
-AM_TESTSUITE_SUMMARY_HEADER = ' for $(PACKAGE_STRING)'
 RECHECK_LOGS = $(TEST_LOGS)
 am__EXEEXT_4 = test_stress.auto test_deflate.auto test_inflate.auto \
 	test_dict.auto test_gz.auto
@@ -522,7 +532,7 @@ TEST_LOG_COMPILE = $(TEST_LOG_COMPILER) $(AM_TEST_LOG_FLAGS) \
 	$(TEST_LOG_FLAGS)
 DIST_SUBDIRS = $(SUBDIRS)
 am__DIST_COMMON = $(srcdir)/Makefile.in $(top_srcdir)/depcomp \
-	$(top_srcdir)/test-driver README.md
+	$(top_srcdir)/test-driver
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 am__relativize = \
   dir0=`pwd`; \
@@ -566,8 +576,6 @@ CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
-CSCOPE = @CSCOPE@
-CTAGS = @CTAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
@@ -592,10 +600,8 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
-ETAGS = @ETAGS@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
-FILECMD = @FILECMD@
 GREP = @GREP@
 GZIP = @GZIP@
 INSTALL = @INSTALL@
@@ -717,7 +723,8 @@ test_exe = test_adler32 \
 	   test_reset2 \
 	   test_inflatesyncpoint \
 	   test_multithread_stress \
-	   test_pid_reuse
+	   test_pid_reuse \
+	   test_jdk_deinflate
 
 selector_tests = test_stress test_deflate test_inflate test_dict test_gz
 other_tests = test_zeroinput
@@ -754,6 +761,7 @@ test_stress_SOURCES = test_stress.c test_utils.c
 test_zeroinput_SOURCES = test_zeroinput.c test_utils.c
 test_dict_SOURCES = test_dict.c test_utils.c
 test_gz_SOURCES = test_gz.c test_utils.c
+test_jdk_deinflate_SOURCES = test_jdk_deinflate.c
 ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
 	      --no-comp-dir-path --no-show-locs --type-id-style hash
 
@@ -858,6 +866,10 @@ test_inflatesyncpoint$(EXEEXT): $(test_inflatesyncpoint_OBJECTS) $(test_inflates
 	@rm -f test_inflatesyncpoint$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_inflatesyncpoint_OBJECTS) $(test_inflatesyncpoint_LDADD) $(LIBS)
 
+test_jdk_deinflate$(EXEEXT): $(test_jdk_deinflate_OBJECTS) $(test_jdk_deinflate_DEPENDENCIES) $(EXTRA_test_jdk_deinflate_DEPENDENCIES) 
+	@rm -f test_jdk_deinflate$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_jdk_deinflate_OBJECTS) $(test_jdk_deinflate_LDADD) $(LIBS)
+
 test_multithread_stress$(EXEEXT): $(test_multithread_stress_OBJECTS) $(test_multithread_stress_DEPENDENCIES) $(EXTRA_test_multithread_stress_DEPENDENCIES) 
 	@rm -f test_multithread_stress$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_multithread_stress_OBJECTS) $(test_multithread_stress_LDADD) $(LIBS)
@@ -902,6 +914,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_gz.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_inflate.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_inflatesyncpoint.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_jdk_deinflate.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_multithread_stress.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_pid_reuse.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_reset.Po@am__quote@ # am--include-marker
@@ -1246,7 +1259,7 @@ $(TEST_SUITE_LOG): $(TEST_LOGS)
 	  test x"$$VERBOSE" = x || cat $(TEST_SUITE_LOG);		\
 	fi;								\
 	echo "$${col}$$br$${std}"; 					\
-	echo "$${col}Testsuite summary"$(AM_TESTSUITE_SUMMARY_HEADER)"$${std}";	\
+	echo "$${col}Testsuite summary for $(PACKAGE_STRING)$${std}";	\
 	echo "$${col}$$br$${std}"; 					\
 	create_testsuite_report --maybe-color;				\
 	echo "$$col$$br$$std";						\
@@ -1339,6 +1352,13 @@ test_multithread_stress.log: test_multithread_stress$(EXEEXT)
 test_pid_reuse.log: test_pid_reuse$(EXEEXT)
 	@p='test_pid_reuse$(EXEEXT)'; \
 	b='test_pid_reuse'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_jdk_deinflate.log: test_jdk_deinflate$(EXEEXT)
+	@p='test_jdk_deinflate$(EXEEXT)'; \
+	b='test_jdk_deinflate'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1511,6 +1531,7 @@ test_zeroinput.nx.log: test_zeroinput.nx
 @am__EXEEXT_TRUE@	--log-file $$b.log --trs-file $$b.trs \
 @am__EXEEXT_TRUE@	$(am__common_driver_flags) $(AM_TEST_LOG_DRIVER_FLAGS) $(TEST_LOG_DRIVER_FLAGS) -- $(TEST_LOG_COMPILE) \
 @am__EXEEXT_TRUE@	"$$tst" $(AM_TESTS_FD_REDIRECT)
+
 distdir: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) distdir-am
 
@@ -1627,6 +1648,7 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/test_gz.Po
 	-rm -f ./$(DEPDIR)/test_inflate.Po
 	-rm -f ./$(DEPDIR)/test_inflatesyncpoint.Po
+	-rm -f ./$(DEPDIR)/test_jdk_deinflate.Po
 	-rm -f ./$(DEPDIR)/test_multithread_stress.Po
 	-rm -f ./$(DEPDIR)/test_pid_reuse.Po
 	-rm -f ./$(DEPDIR)/test_reset.Po
@@ -1697,6 +1719,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/test_gz.Po
 	-rm -f ./$(DEPDIR)/test_inflate.Po
 	-rm -f ./$(DEPDIR)/test_inflatesyncpoint.Po
+	-rm -f ./$(DEPDIR)/test_jdk_deinflate.Po
 	-rm -f ./$(DEPDIR)/test_multithread_stress.Po
 	-rm -f ./$(DEPDIR)/test_pid_reuse.Po
 	-rm -f ./$(DEPDIR)/test_reset.Po

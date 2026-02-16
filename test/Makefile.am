@@ -15,7 +15,8 @@ test_exe = test_adler32 \
 	   test_reset2 \
 	   test_inflatesyncpoint \
 	   test_multithread_stress \
-	   test_pid_reuse
+	   test_pid_reuse \
+	   test_jdk_deinflate
 
 selector_tests = test_stress test_deflate test_inflate test_dict test_gz
 other_tests = test_zeroinput
@@ -73,6 +74,8 @@ test_zeroinput_SOURCES = test_zeroinput.c test_utils.c
 test_dict_SOURCES = test_dict.c test_utils.c
 
 test_gz_SOURCES = test_gz.c test_utils.c
+
+test_jdk_deinflate_SOURCES = test_jdk_deinflate.c
 
 ABIDW_FLAGS = --no-corpus-path --drop-undefined-syms --drop-private-types \
 	      --no-comp-dir-path --no-show-locs --type-id-style hash

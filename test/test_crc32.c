@@ -24,12 +24,7 @@ typedef struct {
     uLong expect;
 } crc32_test;
 
-int test_crc32(crc, buf, len, chk, line)
-    uLong crc;
-    Byte *buf;
-    z_size_t len;
-    uLong chk;
-    int line;
+int test_crc32(uLong crc, Byte *buf, z_size_t len, uLong chk, int line)
 {
     uLong res = crc32(crc, buf, len);
 	if (res != chk) {

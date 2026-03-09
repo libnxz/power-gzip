@@ -1188,16 +1188,17 @@ copy_fifo_out_to_next_out:
 	   Avoid executing this code when avail_in is 0.  That means either the
 	   end of the stream or the end of the current request.  There is
 	   nothing to copy anyway.
-	   Likewise when flush is either Z_FINISH or Z_SYNC_FLUSH.  In these
-	   cases, inflate is expected to provide an output and copying data to
-	   fifo_in would just add unnecessary delays.
+	   Cache the input in fifo_in only when flush value is Z_NO_FLUSH.
+	   All other flush modes i.e., Z_SYNC_FLUSH, Z_PARTIAL_FLUSH, Z_FINISH
+	   and Z_FULL_FLUSH require immediate output and therefore must be
+	   submitted to NX and not fifo_in.
 	   The following code is not just an optimization, it is also required
 	   by NX because it may refuse to start processing a stream if the input
 	   is not large enough.  */
 	if (s->avail_in > 0
 	    && (s->avail_in + s->used_in < nx_config.cache_threshold)
 	    && s->avail_out > 0
-	    && flush != Z_FINISH && flush != Z_SYNC_FLUSH) {
+	    && flush == Z_NO_FLUSH) {
 		/* We haven't accumulated enough data. Cache any input data
 		   provided and wait for the application to send more in order
 		   to reduce the amount of requests sent to the accelerator. */

@@ -58,6 +58,7 @@ LIBNXZ_0.61.0 {
 
 LIBNXZ_0.63.0 {
     nx_inflateSyncPoint;
+    nx_deflateParams;
 } LIBNXZ_0.61.0;
 
 LIBNXZ_0.64.0 {

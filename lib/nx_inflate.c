@@ -321,6 +321,9 @@ int nx_inflate(z_streamp strm, int flush)
 	copy_stream_in(s, s->zstrm);
 	copy_stream_out(s, s->zstrm);
 
+	/* update flush status */
+	s->flush = flush;
+
 	/* Account for progress */
 	in = s->avail_in;
 	out = s->avail_out;

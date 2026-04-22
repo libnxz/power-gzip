@@ -731,9 +731,12 @@ static int nx_query_job_limits()
 }
 
 int nx_read_credits(int *total, int *used) {
-	if (nx_read_sysfs_entry(SYSFS_VAS_CAPS "nr_total_credits", total) ||
-	    nx_read_sysfs_entry(SYSFS_VAS_CAPS "nr_used_credits", used)) {
-		prt_info("Failed to read number of credits from sysfs.\n");
+	if (nx_read_sysfs_entry(SYSFS_VAS_CAPS "nr_total_credits", total)) {
+		prt_err("Failed to read number of total credits from sysfs.\n");
+		return -1;
+	}
+	if (nx_read_sysfs_entry(SYSFS_VAS_CAPS "nr_used_credits", used)) {
+		prt_err("Failed to read number of used credits from sysfs.\n");
 		return -1;
 	}
 

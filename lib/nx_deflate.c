@@ -624,8 +624,13 @@ int nx_deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	else wrap = HEADER_ZLIB;
 
 	prt_info(" windowBits %d wrap %d \n", windowBits, wrap);
-	if (method != Z_DEFLATED || (strategy != Z_FIXED && strategy != Z_DEFAULT_STRATEGY)) {
-		prt_err("unsupported zlib method or strategy\n");
+	if (method != Z_DEFLATED) {
+		prt_err("unsupported zlib method. Supported zlib methods: Z_DEFLATED.\n");
+		return Z_STREAM_ERROR;
+	}
+	if (strategy != Z_FIXED && strategy != Z_DEFAULT_STRATEGY) {
+		prt_err("unsupported zlib strategy."
+			" Supported zlib strategies: Z_FIXED, Z_DEFAULT_STRATEGY.\n");
 		return Z_STREAM_ERROR;
 	}
 
@@ -1329,12 +1334,12 @@ restart:
 				/* When page faults are too many oom_killer
 				 * should kill this process. */
 				rc = LIBNX_ERR_PAGEFLT;
-				prt_err("Cannot make progress; ");
-				prt_err("too many page faults!\n");
+				prt_err("Cannot make progress; too many page"
+					" faults cc= %d\n", cc);
 				goto err_exit;
 			}
 			else {
-				prt_warn("ERR_NX_AT_FAULT: Retry again\n");
+				prt_warn("ERR_NX_AT_FAULT: Retry\n");
 				goto restart;
 			}
 		}
@@ -1691,7 +1696,8 @@ int nx_deflate(z_streamp strm, int flush)
 
 	/* User must not provide more input after the first FINISH: */
 	if (s->status == NX_BFINAL_ST && s->avail_in != 0) {
-		prt_info("s->status is NX_BFINAL_ST but s->avail_out is not 0\n");
+		prt_info("s->status = NX_BFINAL_ST, s->avail_in = %d"
+			 " Non zero s->avail_in value.\n", s->avail_in);
 		return Z_BUF_ERROR;
 	}
 

@@ -1366,7 +1366,7 @@ restart_nx:
 					" faults cc= %d\n", cc);
 			}
 			else {
-				prt_warn("ERR_NX_AT_FAULT: more retry\n");
+				prt_warn("ERR_NX_AT_FAULT: Retry\n");
 				fc = nx_reset_dde(s);
 				goto init_dde;
 			}

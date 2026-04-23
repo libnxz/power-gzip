@@ -524,6 +524,18 @@ len_in %ld len_out %ld flush %d\n", __FUNCTION__, line, \
 (long)(s)->len_in, (long)(s)->len_out, (s)->flush);	\
 } while (0)
 
+/* Print z_stream state information for API tracing - compile-time conditional for zero overhead */
+#ifdef NX_API_TRACE
+#define print_zstream_info(strm, line) \
+do { if (strm) prt_info(\
+"== %s:%d z_stream: avail_in %u total_in %lu avail_out %u total_out %lu\n", \
+__FUNCTION__, line, \
+(strm)->avail_in, (strm)->total_in, (strm)->avail_out, (strm)->total_out); \
+} while (0)
+#else
+#define print_zstream_info(strm, line)
+#endif
+
 
 /* inflate states */
 typedef enum {

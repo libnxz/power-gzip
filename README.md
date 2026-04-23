@@ -48,6 +48,15 @@ Use `export NX_GZIP_TRACE=1` to enable logic trace.
 
 Use `export NX_GZIP_TRACE=8` to enable statistics trace.
 
+Sometimes, a sequence of public api call sequence may be needed to reproduce
+some issues such as when the library is used with other languages/sdk like
+JDK. In those situations, build the library with public api trace support
+```
+./configure CFLAGS="-DNX_API_TRACE"
+```
+Then use `export NX_GZIP_VERBOSE=2` to observe the sequence of public api calls
+in the log file.
+
 ## Supported Functions List
 
 All the zlib supported functions are listed and described at libnxz.h.

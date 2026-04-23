@@ -112,6 +112,15 @@ extern pthread_mutex_t mutex_log;
 	prt("### "fmt, ## __VA_ARGS__);					\
 }} while (0)
 
+/* Trace public API entry points - compile-time conditional for zero overhead */
+#ifdef NX_API_TRACE
+#define prt_api_entry(func, fmt, ...) \
+	prt_info(">>> API ENTRY: %s(" fmt ")\n", func, ## __VA_ARGS__)
+#else
+#define prt_api_entry(func, fmt, ...)
+#endif
+
+
 /**
  * str_to_num - Convert string into number and copy with endings like
  *              KiB for kilobyte

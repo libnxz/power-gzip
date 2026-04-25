@@ -2281,6 +2281,11 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 	void *sw_state = NULL;
 	nx_streamp s;
 
+	prt_api_entry("strm=%p, level=%d, method=%d, windowBits=%d, "
+			"memLevel=%d, strategy=%d, version=%s, stream_size=%d",
+			strm, level, method, windowBits, memLevel, strategy, version, stream_size);
+	print_zstream_info(strm);
+
 	/* statistic */
 	zlib_stats_inc(&zlib_stats.deflateInit);
 
@@ -2363,6 +2368,9 @@ int deflateInit2_(z_streamp strm, int level, int method, int windowBits,
 int deflateReset(z_streamp strm)
 {
 	int rc;
+
+	prt_api_entry("strm=%p", strm);
+	print_zstream_info(strm);
 
 	if (nx_config.mode.deflate == GZIP_AUTO) {
 		struct stream_map_entry *sme;
@@ -2460,6 +2468,9 @@ int deflateReset(z_streamp strm)
 */
 int deflateResetKeep(z_streamp strm)
 {
+	prt_api_entry("strm=%p", strm);
+	print_zstream_info(strm);
+
 	if (has_nx_state(strm))
 		return nx_deflateResetKeep(strm);
 	else
@@ -2469,6 +2480,9 @@ int deflateResetKeep(z_streamp strm)
 int deflateEnd(z_streamp strm)
 {
 	int rc;
+
+	prt_api_entry("strm=%p", strm);
+	print_zstream_info(strm);
 
 	/* statistic */
 	zlib_stats_inc(&zlib_stats.deflateEnd);
@@ -2514,6 +2528,9 @@ int deflate(z_streamp strm, int flush)
 	unsigned int avail_in_slot, avail_out_slot;
 	uint64_t t1=0, t2, t_diff;
 	unsigned int avail_in=0, avail_out=0;
+
+	prt_api_entry("strm=%p, flush=%d", strm, flush);
+	print_zstream_info(strm);
 
 	/* statistic */
 	if (nx_gzip_gather_statistics()) {
@@ -2565,6 +2582,9 @@ unsigned long deflateBound(z_streamp strm, unsigned long sourceLen)
 {
 	unsigned long rc;
 
+	prt_api_entry("strm=%p, sourceLen=%lu", strm, sourceLen);
+	print_zstream_info(strm);
+
 	if (strm == NULL) {
 		return NX_MAX(nx_deflateBound(NULL, sourceLen),
 		           sw_deflateBound(NULL, sourceLen));
@@ -2584,6 +2604,9 @@ int deflateParams(z_streamp strm, int level, int strategy)
 	unsigned long rc;
 	nx_streamp s;
 
+	prt_api_entry("strm=%p, level=%d, strategy=%d", strm, level, strategy);
+	print_zstream_info(strm);
+
 	if (strm == Z_NULL) return Z_STREAM_ERROR;
 
 	s = (nx_streamp) strm->state;
@@ -2602,6 +2625,9 @@ int deflateSetHeader(z_streamp strm, gz_headerp head)
 {
 	int rc;
 
+	prt_api_entry("strm=%p", strm);
+	print_zstream_info(strm);
+
 	if (0 == has_nx_state(strm)){
 		rc = sw_deflateSetHeader(strm, head);
 	}else{
@@ -2615,6 +2641,10 @@ int deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLeng
 {
 	int rc;
 	nx_streamp s;
+
+	prt_api_entry("strm=%p, dictionary=%p, dictLength=%u",
+		      strm, dictionary, dictLength);
+	print_zstream_info(strm);
 
 	s = (nx_streamp) strm->state;
 
@@ -2632,6 +2662,9 @@ int deflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt  dictLeng
 int deflateCopy(z_streamp dest, z_streamp source)
 {
 	int rc;
+
+	prt_api_entry("dest=%p, source=%p", dest, source);
+	print_zstream_info(source);
 
 	if (0 == has_nx_state(source)){
 		rc = sw_deflateCopy(dest, source);

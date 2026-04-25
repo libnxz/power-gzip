@@ -1993,6 +1993,8 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 	void *sw_state = NULL;
 	nx_streamp s;
 
+	prt_api_entry("strm=%p, version=%s, stream_size=%d", strm, version, stream_size);
+	print_zstream_info(strm);
 	/* statistic */
 	zlib_stats_inc(&zlib_stats.inflateInit);
 
@@ -2059,6 +2061,9 @@ int inflateInit2_(z_streamp strm, int windowBits, const char *version, int strea
 int inflateReset(z_streamp strm)
 {
 	int rc;
+
+	prt_api_entry("strm=%p", strm);
+	print_zstream_info(strm);
 
 	if (nx_config.mode.inflate == GZIP_AUTO) {
 		struct stream_map_entry *sme;
@@ -2154,6 +2159,9 @@ int inflateReset(z_streamp strm)
 */
 int inflateResetKeep(z_streamp strm)
 {
+	prt_api_entry("strm=%p", strm);
+	print_zstream_info(strm);
+
 	if (has_nx_state(strm))
 		return nx_inflateResetKeep(strm);
 	else
@@ -2163,6 +2171,9 @@ int inflateResetKeep(z_streamp strm)
 int inflateReset2(z_streamp strm, int windowBits)
 {
 	int rc;
+
+	prt_api_entry("strm=%p, windowBits=%d", strm, windowBits);
+	print_zstream_info(strm);
 
 	if (nx_config.mode.inflate == GZIP_AUTO) {
 		struct stream_map_entry *sme;
@@ -2225,6 +2236,8 @@ int inflateEnd(z_streamp strm)
 {
 	int rc;
 
+	prt_api_entry("strm=%p", strm);
+	print_zstream_info(strm);
 	/* statistic */
 	zlib_stats_inc(&zlib_stats.inflateEnd);
 
@@ -2268,6 +2281,9 @@ int inflate(z_streamp strm, int flush)
 	unsigned int avail_in_slot, avail_out_slot;
 	uint64_t t1=0, t2, t_diff;
 	unsigned int avail_in=0, avail_out=0;
+
+	prt_api_entry("strm=%p, flush=%d", strm, flush);
+	print_zstream_info(strm);
 
 	if (strm == NULL || strm->state == NULL) return Z_STREAM_ERROR;
 
@@ -2319,6 +2335,10 @@ int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLengt
 {
 	int rc;
 
+	prt_api_entry("strm=%p, dictionary=%p, dictLength=%u",
+		      strm, dictionary, dictLength);
+	print_zstream_info(strm);
+
 	if (0 == has_nx_state(strm)){
 		rc = sw_inflateSetDictionary(strm, dictionary, dictLength);
 	}else{
@@ -2331,6 +2351,9 @@ int inflateSetDictionary(z_streamp strm, const Bytef *dictionary, uInt dictLengt
 int inflateCopy(z_streamp dest, z_streamp source)
 {
 	int rc;
+
+	prt_api_entry("dest=%p, source=%p", dest, source);
+	print_zstream_info(source);
 
 	if (0 == has_nx_state(source)){
 		rc = sw_inflateCopy(dest, source);
@@ -2345,6 +2368,9 @@ int inflateGetHeader(z_streamp strm, gz_headerp head)
 {
 	int rc;
 
+	prt_api_entry("strm=%p, head=%p", strm, head);
+	print_zstream_info(strm);
+
 	if (0 == has_nx_state(strm)){
 		rc = sw_inflateGetHeader(strm, head);
 	}else{
@@ -2357,6 +2383,9 @@ int inflateGetHeader(z_streamp strm, gz_headerp head)
 int inflateSyncPoint(z_streamp strm)
 {
 	int rc;
+
+	prt_api_entry("strm=%p", strm);
+	print_zstream_info(strm);
 
 	if (0 == has_nx_state(strm))
 		rc = sw_inflateSyncPoint(strm);

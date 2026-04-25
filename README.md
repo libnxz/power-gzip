@@ -48,6 +48,18 @@ Use `export NX_GZIP_TRACE=1` to enable logic trace.
 
 Use `export NX_GZIP_TRACE=8` to enable statistics trace.
 
+Sometimes, reproducing issues requires observing the sequence of public API
+calls — especially when libnxz is used via other languages or SDKs such as JDK.
+
+To enable API entry tracing, build the library with:
+
+`./configure CFLAGS="-DNX_API_TRACE"`
+Then set export NX_GZIP_VERBOSE=2 at runtime to observe the public API
+call sequence in the log output.
+
+Note: NX_API_TRACE is a compile-time flag. Without it, API tracing adds
+zero overhead to the library.
+
 ## Supported Functions List
 
 All the zlib supported functions are listed and described at libnxz.h.

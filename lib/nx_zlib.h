@@ -391,7 +391,7 @@ static inline int use_nx_inflate(z_streamp strm, int flush)
 	   inflate() may not have enough input. So, avoid switching to software
 	   decompression prematurely unless there is a guarantee that all the
 	   input has been provided, i.e. when using Z_FINISH. */
-	if(flush == Z_FINISH && strm->avail_in <= DECOMPRESS_THRESHOLD)
+	if(strm->avail_in <= DECOMPRESS_THRESHOLD)
 		return 0;
 
 	return 1;
@@ -415,7 +415,7 @@ static inline int use_nx_deflate(z_streamp strm, int flush)
 	   deflate() may not have enough input. So, avoid switching to software
 	   compression prematurely unless there is a guarantee that all the
 	   input has been provided, i.e. when using Z_FINISH. */
-	if(flush == Z_FINISH && strm->avail_in <= COMPRESS_THRESHOLD)
+	if(strm->avail_in <= COMPRESS_THRESHOLD)
 		return 0;
 
 	return 1;
